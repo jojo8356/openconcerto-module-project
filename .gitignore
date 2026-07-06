@@ -1,0 +1,24 @@
+# Java / OpenConcerto build outputs
+bin/
+build/
+target/
+out/
+*.class
+*.jar
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.swp
+*~
+
+# OS / IDE noise
+.DS_Store
+Thumbs.db
+
+# Local agent/BMAD runtime artifacts
+.agents/
+_bmad/
+_bmad-output/
+
