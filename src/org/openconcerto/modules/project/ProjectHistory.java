@@ -29,6 +29,7 @@ import java.util.Set;
 import javax.swing.Action;
 import javax.swing.AbstractAction;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -51,6 +52,7 @@ import org.openconcerto.erp.core.reports.history.ui.ListeHistoriquePanel;
 import org.openconcerto.erp.core.sales.account.VenteFactureSituationSQLComponent;
 import org.openconcerto.erp.core.sales.account.VenteFactureSoldeSQLComponent;
 import org.openconcerto.erp.utils.TM;
+import org.openconcerto.modules.project.element.ProjectStateSQLElement;
 import org.openconcerto.modules.project.panel.HistoriqueAffaireBilanPanel;
 import org.openconcerto.sql.Configuration;
 import org.openconcerto.sql.element.SQLElement;
@@ -537,7 +539,7 @@ public class ProjectHistory {
         normalizeDisplayAction(this.listPanel, "COMMANDE");
         normalizeDisplayAction(this.listPanel, "BON_RECEPTION");
         installProjectListControls();
-        installAffairListSort(true);
+        installAffairListSort(true, true);
         installAffairListDateRenderer();
     }
 
@@ -602,15 +604,26 @@ public class ProjectHistory {
         final JComboBox sortCombo = new JComboBox(new String[] { "Par date", "Par nom" });
         sortCombo.setName("project-history-affair-sort-combo");
         sortCombo.setSelectedIndex(0);
+        final JCheckBox hideClosedCheckBox = new JCheckBox("Masquer dossiers clos");
+        hideClosedCheckBox.setName("project-history-affair-hide-closed-checkbox");
+        hideClosedCheckBox.setOpaque(false);
+        hideClosedCheckBox.setSelected(true);
         sortCombo.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(final ActionEvent e) {
-                installAffairListSort(sortCombo.getSelectedIndex() == 0);
+                installAffairListSort(sortCombo.getSelectedIndex() == 0, hideClosedCheckBox.isSelected());
+            }
+        });
+        hideClosedCheckBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                installAffairListSort(sortCombo.getSelectedIndex() == 0, hideClosedCheckBox.isSelected());
             }
         });
 
         final JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
         topPanel.setOpaque(false);
+        topPanel.add(hideClosedCheckBox);
         topPanel.add(sortCombo);
 
         final JButton modifyButton = new JButton("Modifier l'affaire");
@@ -659,7 +672,7 @@ public class ProjectHistory {
         });
     }
 
-    private void installAffairListSort(final boolean sortByDate) {
+    private void installAffairListSort(final boolean sortByDate, final boolean hideClosedProjects) {
         final JListSQLTablePanel listPanel = findJListSQLTablePanel(this.listPanel);
         if (listPanel == null || !(listPanel.getModel() instanceof JListSQLTableModel)) {
             return;
@@ -673,10 +686,18 @@ public class ProjectHistory {
             compField.setAccessible(true);
             compField.set(model, sortByDate ? createAffairDateComparator(model) : createAffairNameComparator(model));
             installUndefinedRemoval(model, listPanel.getJList());
-            model.setWhere(new Where(model.getTable().getKey(), "!=", model.getTable().getUndefinedID()));
+            model.setWhere(createAffairListWhere(model, hideClosedProjects));
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static Where createAffairListWhere(final JListSQLTableModel model, final boolean hideClosedProjects) {
+        Where where = new Where(model.getTable().getKey(), "!=", model.getTable().getUndefinedID());
+        if (hideClosedProjects && model.getTable().contains("ID_ETAT_AFFAIRE")) {
+            where = where.and(new Where(model.getTable().getField("ID_ETAT_AFFAIRE"), "!=", ProjectStateSQLElement.DOSSIER_CLOS));
+        }
+        return where;
     }
 
     private static void installUndefinedRemoval(final JListSQLTableModel model, final JList list) {
