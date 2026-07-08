@@ -14,6 +14,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -31,6 +32,7 @@ import javax.swing.AbstractAction;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -60,6 +62,8 @@ import org.openconcerto.sql.model.FieldPath;
 import org.openconcerto.sql.model.SQLBase;
 import org.openconcerto.sql.model.SQLField;
 import org.openconcerto.sql.model.SQLRowAccessor;
+import org.openconcerto.sql.model.SQLRow;
+import org.openconcerto.sql.model.SQLRowListRSH;
 import org.openconcerto.sql.model.SQLRowValues;
 import org.openconcerto.sql.model.SQLSelect;
 import org.openconcerto.sql.model.SQLTable;
@@ -92,8 +96,12 @@ import org.openconcerto.utils.GestionDevise;
 import org.openconcerto.utils.cc.ITransformer;
 
 public class ProjectHistory {
+    private static final String FAMILY_FILTER_COMMANDE_KEY = "project-history-family-filter-commande";
+    private static final String FAMILY_FILTER_BON_RECEPTION_KEY = "project-history-family-filter-bon-reception";
+
     private PanelFrame panelFrame;
     private ListeHistoriquePanel listPanel;
+    private final SQLBase sqlBase;
 
     public ListeHistoriquePanel getHistoriquePanel() {
         return this.listPanel;
@@ -109,6 +117,7 @@ public class ProjectHistory {
 
         final ComptaPropsConfiguration comptaPropsConfiguration = ((ComptaPropsConfiguration) Configuration.getInstance());
         final SQLBase b = comptaPropsConfiguration.getSQLBaseSociete();
+        this.sqlBase = b;
 
         final Map<String, List<String>> mapList = new LinkedHashMap<String, List<String>>();
         mapList.put("Devis", Arrays.asList("DEVIS"));
@@ -135,7 +144,7 @@ public class ProjectHistory {
             fieldLink.put(b.getTable("BON_RECEPTION_ELEMENT"), b.getTable("BON_RECEPTION_ELEMENT").getField("ID_BON_RECEPTION"));
         }
         mapList.put("Achats", Arrays.asList("SAISIE_ACHAT"));
-        // mapList.put("Factures fournisseurs", Arrays.asList("FACTURE_FOURNISSEUR"));
+        putIfTableExists(mapList, "Factures fournisseurs", "FACTURE_FOURNISSEUR");
 
         mapList.put("Avoirs fournisseurs", Arrays.asList("AVOIR_FOURNISSEUR"));
         if (Configuration.getInstance().getRoot().findTable("AFFAIRE_TEMPS") != null) {
@@ -151,12 +160,6 @@ public class ProjectHistory {
         if (Configuration.getInstance().getRoot().findTable("POINTAGE") != null) {
             mapList.put("Pointage", Arrays.asList("POINTAGE_ELEMENT"));
         }
-        if (b.getTable("FACTURE_FOURNISSEUR_ELEMENT").contains("ID_AFFAIRE")) {
-            mapList.put("Factures fournisseurs", Arrays.asList("FACTURE_FOURNISSEUR_ELEMENT"));
-        } else {
-            mapList.put("Factures fournisseurs", Arrays.asList("FACTURE_FOURNISSEUR"));
-        }
-
         mapList.putAll(moduleTab);
 
         final HistoriqueAffaireBilanPanel bilanPanel = new HistoriqueAffaireBilanPanel();
@@ -183,10 +186,8 @@ public class ProjectHistory {
         request.setUndefLabel("Toutes les affaires");
         request.setFieldSeparator(" ");
         Map<String, String> splitter = new HashMap<String, String>();
-        if (!b.getTable("AFFAIRE").contains("ID_DEPOT_STOCK")) {
-            splitter.put("DEMANDE_ACHAT_ELEMENT", "ID_FAMILLE_ARTICLE");
-            splitter.put("COMMANDE_ELEMENT", "ID_FAMILLE_ARTICLE");
-        }
+        // Keep family split tabs disabled: they create one list per article family at startup.
+        // Family filtering is now handled by a single dynamic combo box below.
 
         // if (Configuration.getInstance().getRoot().findTable("POINTAGE") != null) {
         // fieldLink.put(b.getTable("POINTAGE"),
@@ -269,6 +270,7 @@ public class ProjectHistory {
         final List<IListPanel> listeCmdElts = listPanel.getAllIListePanelFromTableName("COMMANDE_ELEMENT");
         if (listeCmdElts != null && !listeCmdElts.isEmpty()) {
             for (final IListPanel listeCmdElt : listeCmdElts) {
+                removeColumnByName(listeCmdElt, "Nom");
 
                 if (listeCmdElt.getListe().getSource().getColumns(b.getTable("COMMANDE_ELEMENT").getField("ID_FAMILLE_ARTICLE")).isEmpty()) {
                     listeCmdElt.getListe().getSource().getColumns().add(new BaseSQLTableModelColumn("Famille", String.class) {
@@ -517,6 +519,18 @@ public class ProjectHistory {
 
     }
 
+    private static void removeColumnByName(final IListPanel listPanel, final String columnName) {
+        if (listPanel == null || columnName == null) {
+            return;
+        }
+        final List<SQLTableModelColumn> columns = listPanel.getListe().getSource().getColumns();
+        for (int i = columns.size() - 1; i >= 0; i--) {
+            if (columnName.equalsIgnoreCase(columns.get(i).getName())) {
+                columns.remove(i);
+            }
+        }
+    }
+
     private void installHistoryControls() {
         normalizeDisplayAction(this.listPanel, "DEVIS");
         normalizeDisplayAction(this.listPanel, "COMMANDE_CLIENT");
@@ -531,6 +545,7 @@ public class ProjectHistory {
         normalizeDisplayAction(this.listPanel, "AVOIR_FOURNISSEUR");
         normalizeDisplayAction(this.listPanel, "FACTURE_FOURNISSEUR");
         normalizeDisplayAction(this.listPanel, "FACTURE_FOURNISSEUR_ELEMENT");
+        installSupplierInvoiceItemSupplierNameColumn(this.listPanel);
         installModifyAction(this.listPanel, "AFFAIRE");
         installModifyAction(this.listPanel, "BON_DE_LIVRAISON");
         installModifyAction(this.listPanel, "COMMANDE");
@@ -538,7 +553,8 @@ public class ProjectHistory {
         normalizeDisplayAction(this.listPanel, "BON_DE_LIVRAISON");
         normalizeDisplayAction(this.listPanel, "COMMANDE");
         normalizeDisplayAction(this.listPanel, "BON_RECEPTION");
-        installProjectListControls();
+        installProjectListControls(this.sqlBase);
+        installArticleFamilyFilters(this.sqlBase);
         installAffairListSort(true, true);
         installAffairListDateRenderer();
     }
@@ -576,6 +592,56 @@ public class ProjectHistory {
         }
     }
 
+    private static void installSupplierInvoiceItemSupplierNameColumn(final ListeHistoriquePanel historyPanel) {
+        final List<IListPanel> panels = historyPanel.getAllIListePanelFromTableName("FACTURE_FOURNISSEUR_ELEMENT");
+        for (final IListPanel panel : panels) {
+            final SQLTable primaryTable = panel.getListe().getSource().getPrimaryTable();
+            if (primaryTable == null || !primaryTable.contains("ID_FACTURE_FOURNISSEUR")) {
+                continue;
+            }
+            final List<SQLTableModelColumn> columns = panel.getListe().getSource().getColumns();
+            int nameColumnIndex = -1;
+            for (int i = 0; i < columns.size(); i++) {
+                if ("Nom".equalsIgnoreCase(columns.get(i).getName())) {
+                    nameColumnIndex = i;
+                    break;
+                }
+            }
+            if (nameColumnIndex >= 0) {
+                columns.remove(nameColumnIndex);
+            } else {
+                nameColumnIndex = 0;
+            }
+            columns.add(nameColumnIndex, new BaseSQLTableModelColumn("Nom", String.class) {
+
+                @Override
+                protected Object show_(final SQLRowAccessor r) {
+                    final SQLRowAccessor invoice = r.getNonEmptyForeign("ID_FACTURE_FOURNISSEUR");
+                    if (invoice == null) {
+                        return "";
+                    }
+                    final SQLRowAccessor supplier = invoice.getNonEmptyForeign("ID_FOURNISSEUR");
+                    if (supplier != null && supplier.getTable().contains("NOM")) {
+                        return supplier.getString("NOM");
+                    }
+                    return invoice.getTable().contains("NOM") ? invoice.getString("NOM") : "";
+                }
+
+                @Override
+                public Set<FieldPath> getPaths() {
+                    Path p = new Path(primaryTable);
+                    final SQLTable invoiceTable = primaryTable.getBase().getTable("FACTURE_FOURNISSEUR");
+                    final Path invoicePath = p.add(primaryTable.getField("ID_FACTURE_FOURNISSEUR"));
+                    if (invoiceTable.contains("ID_FOURNISSEUR") && primaryTable.getBase().containsTable("FOURNISSEUR")) {
+                        final Path supplierPath = invoicePath.add(invoiceTable.getField("ID_FOURNISSEUR"));
+                        return CollectionUtils.createSet(new FieldPath(supplierPath, "NOM"));
+                    }
+                    return CollectionUtils.createSet(new FieldPath(invoicePath, "NOM"));
+                }
+            });
+        }
+    }
+
     private static void openModificationFrame(final IListPanel listPanel) {
         final IListe list = listPanel.getListe();
         if (list == null || !list.hasSelection()) {
@@ -591,7 +657,212 @@ public class ProjectHistory {
         FrameUtil.show(frame);
     }
 
-    private void installProjectListControls() {
+    private void installArticleFamilyFilters(final SQLBase base) {
+        if (this.listPanel == null || base == null || !base.containsTable("FAMILLE_ARTICLE")) {
+            return;
+        }
+        final SQLTable familyTable = base.getTable("FAMILLE_ARTICLE");
+        final Map<Integer, FamilyItem> familyItems = loadArticleFamilies(familyTable);
+        if (familyItems.isEmpty()) {
+            return;
+        }
+        installArticleFamilyFilter(base, "COMMANDE_ELEMENT", "COMMANDE", "ID_COMMANDE", FAMILY_FILTER_COMMANDE_KEY, familyItems);
+        installArticleFamilyFilter(base, "BON_RECEPTION_ELEMENT", "BON_RECEPTION", "ID_BON_RECEPTION", FAMILY_FILTER_BON_RECEPTION_KEY, familyItems);
+    }
+
+    private void installArticleFamilyFilter(final SQLBase base, final String itemTableName, final String parentTableName, final String parentFieldName, final String filterKey,
+            final Map<Integer, FamilyItem> familyItems) {
+        if (!base.containsTable(itemTableName) || !base.containsTable(parentTableName)) {
+            return;
+        }
+        final SQLTable itemTable = base.getTable(itemTableName);
+        if (!hasFamilyField(itemTable) || !itemTable.contains(parentFieldName)) {
+            return;
+        }
+        final IListPanel panel = this.listPanel.getIListePanelFromTableName(itemTableName);
+        if (panel == null) {
+            return;
+        }
+        final Map<Integer, List<FamilyItem>> familiesByAffair = loadUsedArticleFamilies(base, itemTable, base.getTable(parentTableName), parentFieldName, familyItems);
+        final JPanel filterPanel = createArticleFamilyFilterPanel(itemTable, filterKey, familiesByAffair);
+        if (filterPanel == null) {
+            return;
+        }
+        addArticleFamilyFilterPanel(panel, filterPanel);
+    }
+
+    private JPanel createArticleFamilyFilterPanel(final SQLTable itemTable, final String filterKey, final Map<Integer, List<FamilyItem>> familiesByAffair) {
+        if (itemTable == null || filterKey == null || familiesByAffair == null) {
+            return null;
+        }
+
+        final JComboBox familyCombo = new JComboBox();
+        familyCombo.setName("project-history-article-family-filter-combo-" + itemTable.getName());
+        final boolean[] comboUpdating = new boolean[] { false };
+        familyCombo.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (comboUpdating[0]) {
+                    return;
+                }
+                final Object selected = familyCombo.getSelectedItem();
+                if (selected instanceof FamilyItem) {
+                    applyArticleFamilyFilter(filterKey, itemTable, (FamilyItem) selected);
+                }
+            }
+        });
+
+        final JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        filterPanel.setOpaque(false);
+        filterPanel.add(new JLabel("Famille article"));
+        filterPanel.add(familyCombo);
+        this.listPanel.addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(final ListSelectionEvent e) {
+                if (e != null && e.getValueIsAdjusting()) {
+                    return;
+                }
+                updateArticleFamilyCombo(familyCombo, familiesByAffair, comboUpdating, filterKey, itemTable);
+            }
+        });
+        updateArticleFamilyCombo(familyCombo, familiesByAffair, comboUpdating, filterKey, itemTable);
+        return filterPanel;
+    }
+
+    private static void addArticleFamilyFilterPanel(final IListPanel listPanel, final JPanel filterPanel) {
+        try {
+            final Field searchPanelField = IListPanel.class.getDeclaredField("searchPanel");
+            searchPanelField.setAccessible(true);
+            final Object searchPanelObject = searchPanelField.get(listPanel);
+            if (searchPanelObject instanceof JPanel) {
+                final JPanel searchPanel = (JPanel) searchPanelObject;
+                final GridBagConstraints c = new GridBagConstraints();
+                c.gridx = 0;
+                c.gridy = 1;
+                c.gridwidth = GridBagConstraints.REMAINDER;
+                c.weightx = 1;
+                c.fill = GridBagConstraints.HORIZONTAL;
+                c.insets = new Insets(2, 0, 2, 0);
+                searchPanel.add(filterPanel, c);
+                searchPanel.revalidate();
+                searchPanel.repaint();
+                return;
+            }
+        } catch (Exception e) {
+            // Older OpenConcerto builds can move the search panel internals; fall back to the list panel.
+        }
+        final GridBagConstraints c = new DefaultGridBagConstraints();
+        c.gridx = 0;
+        c.gridy = 2;
+        c.gridwidth = GridBagConstraints.REMAINDER;
+        c.weightx = 1;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        listPanel.add(filterPanel, c);
+        listPanel.revalidate();
+        listPanel.repaint();
+    }
+
+    private static boolean hasFamilyField(final SQLTable table) {
+        return table != null && table.contains("ID_FAMILLE_ARTICLE");
+    }
+
+    private static Map<Integer, FamilyItem> loadArticleFamilies(final SQLTable familyTable) {
+        final Map<Integer, FamilyItem> result = new HashMap<Integer, FamilyItem>();
+        try {
+            final SQLSelect select = new SQLSelect();
+            select.addSelectStar(familyTable);
+            if (familyTable.contains("NOM")) {
+                select.addFieldOrder(familyTable.getField("NOM"));
+            }
+            final List<SQLRow> rows = SQLRowListRSH.execute(select);
+            for (final SQLRow row : rows) {
+                if (row == null || row.isUndefined()) {
+                    continue;
+                }
+                final String name = row.contains("NOM") ? row.getString("NOM") : null;
+                final String label = name == null || name.trim().length() == 0 ? "Famille " + row.getID() : name.trim();
+                result.put(Integer.valueOf(row.getID()), new FamilyItem(row.getID(), label));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    private Map<Integer, List<FamilyItem>> loadUsedArticleFamilies(final SQLBase base, final SQLTable itemTable, final SQLTable parentTable, final String parentFieldName,
+            final Map<Integer, FamilyItem> familyItems) {
+        final Map<Integer, Map<Integer, FamilyItem>> byAffair = new HashMap<Integer, Map<Integer, FamilyItem>>();
+        if (base == null || itemTable == null || parentTable == null || parentFieldName == null || !hasFamilyField(itemTable) || !itemTable.contains(parentFieldName)
+                || !parentTable.contains("ID_AFFAIRE")) {
+            return new HashMap<Integer, List<FamilyItem>>();
+        }
+        final String sql = "select distinct p.\"ID_AFFAIRE\", e.\"ID_FAMILLE_ARTICLE\" from " + itemTable.getSQLName().quote() + " e join " + parentTable.getSQLName().quote()
+                + " p on e.\"" + parentFieldName + "\" = p.\"ID\" where p.\"ID_AFFAIRE\" > 1 and e.\"ID_FAMILLE_ARTICLE\" > 1";
+        addUsedArticleFamilies(byAffair, familyItems, base.getDataSource().executeA(sql));
+
+        final Map<Integer, List<FamilyItem>> result = new HashMap<Integer, List<FamilyItem>>();
+        for (final Map.Entry<Integer, Map<Integer, FamilyItem>> entry : byAffair.entrySet()) {
+            final List<FamilyItem> items = new java.util.ArrayList<FamilyItem>(entry.getValue().values());
+            java.util.Collections.sort(items);
+            result.put(entry.getKey(), items);
+        }
+        return result;
+    }
+
+    private static void addUsedArticleFamilies(final Map<Integer, Map<Integer, FamilyItem>> byAffair, final Map<Integer, FamilyItem> familyItems, final List rows) {
+        for (final Object rowObject : rows) {
+            if (!(rowObject instanceof Object[])) {
+                continue;
+            }
+            final Object[] row = (Object[]) rowObject;
+            if (row.length < 2 || !(row[0] instanceof Number) || !(row[1] instanceof Number)) {
+                continue;
+            }
+            final Integer affairID = Integer.valueOf(((Number) row[0]).intValue());
+            final Integer familyID = Integer.valueOf(((Number) row[1]).intValue());
+            final FamilyItem family = familyItems.get(familyID);
+            if (family == null) {
+                continue;
+            }
+            Map<Integer, FamilyItem> families = byAffair.get(affairID);
+            if (families == null) {
+                families = new HashMap<Integer, FamilyItem>();
+                byAffair.put(affairID, families);
+            }
+            families.put(familyID, family);
+        }
+    }
+
+    private void updateArticleFamilyCombo(final JComboBox familyCombo, final Map<Integer, List<FamilyItem>> familiesByAffair, final boolean[] comboUpdating, final String filterKey,
+            final SQLTable itemTable) {
+        final SQLRowAccessor row = this.listPanel.getSelectedRow();
+        final List<FamilyItem> currentFamilies = row == null ? null : familiesByAffair.get(Integer.valueOf(row.getID()));
+        final List<FamilyItem> items = new java.util.ArrayList<FamilyItem>();
+        items.add(FamilyItem.ALL);
+        if (currentFamilies != null) {
+            items.addAll(currentFamilies);
+        }
+        comboUpdating[0] = true;
+        try {
+            familyCombo.setModel(new DefaultComboBoxModel(items.toArray()));
+            familyCombo.setSelectedIndex(0);
+        } finally {
+            comboUpdating[0] = false;
+        }
+        applyArticleFamilyFilter(filterKey, itemTable, FamilyItem.ALL);
+    }
+
+    private void applyArticleFamilyFilter(final String filterKey, final SQLTable itemTable, final FamilyItem selected) {
+        if (selected == null || selected.isAll()) {
+            this.listPanel.removeWhere(filterKey);
+            return;
+        }
+        if (hasFamilyField(itemTable)) {
+            this.listPanel.addWhere(filterKey, new Where(itemTable.getField("ID_FAMILLE_ARTICLE"), "=", selected.getID()));
+        }
+    }
+
+    private void installProjectListControls(final SQLBase base) {
         final JSplitPane split = findSplitPane(this.listPanel);
         if (split == null) {
             return;
@@ -601,7 +872,7 @@ public class ProjectHistory {
             return;
         }
 
-        final JComboBox sortCombo = new JComboBox(new String[] { "Par date", "Par nom" });
+        final JComboBox sortCombo = new JComboBox(new String[] { "Tri par date", "Tri par nom" });
         sortCombo.setName("project-history-affair-sort-combo");
         sortCombo.setSelectedIndex(0);
         final JCheckBox hideClosedCheckBox = new JCheckBox("Masquer dossiers clos");
@@ -626,6 +897,10 @@ public class ProjectHistory {
         topPanel.add(hideClosedCheckBox);
         topPanel.add(sortCombo);
 
+        final JPanel northPanel = new JPanel(new BorderLayout());
+        northPanel.setOpaque(false);
+        northPanel.add(topPanel, BorderLayout.NORTH);
+
         final JButton modifyButton = new JButton("Modifier l'affaire");
         modifyButton.addActionListener(new ActionListener() {
             @Override
@@ -637,7 +912,7 @@ public class ProjectHistory {
         final JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setName("project-history-affair-left-panel");
         wrapper.setOpaque(false);
-        wrapper.add(topPanel, BorderLayout.NORTH);
+        wrapper.add(northPanel, BorderLayout.NORTH);
         wrapper.add(left, BorderLayout.CENTER);
         wrapper.add(modifyButton, BorderLayout.SOUTH);
         split.setLeftComponent(wrapper);
@@ -657,6 +932,23 @@ public class ProjectHistory {
         }
         final ListCellRenderer delegate = list.getCellRenderer();
         final DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+        final Map<Integer, String> displayTextCache = new HashMap<Integer, String>();
+        list.getModel().addListDataListener(new ListDataListener() {
+            @Override
+            public void intervalAdded(final ListDataEvent e) {
+                displayTextCache.clear();
+            }
+
+            @Override
+            public void intervalRemoved(final ListDataEvent e) {
+                displayTextCache.clear();
+            }
+
+            @Override
+            public void contentsChanged(final ListDataEvent e) {
+                displayTextCache.clear();
+            }
+        });
         list.setName("project-history-affair-date-renderer");
         list.setCellRenderer(new ListCellRenderer() {
             @Override
@@ -665,7 +957,15 @@ public class ProjectHistory {
                 if (component instanceof JLabel && index >= 0 && list.getModel() instanceof JListSQLTableModel) {
                     final JLabel label = (JLabel) component;
                     final SQLRowAccessor row = ((JListSQLTableModel) list.getModel()).getRowAt(index);
-                    label.setText(buildAffairDisplayText(row, label.getText(), dateFormat));
+                    if (row != null) {
+                        final Integer id = Integer.valueOf(row.getID());
+                        String text = displayTextCache.get(id);
+                        if (text == null) {
+                            text = buildAffairDisplayText(row, label.getText(), dateFormat);
+                            displayTextCache.put(id, text);
+                        }
+                        label.setText(text);
+                    }
                 }
                 return component;
             }
@@ -771,7 +1071,7 @@ public class ProjectHistory {
     }
 
     private static Comparator<IComboSelectionItem> createAffairDateComparator(final JListSQLTableModel model) {
-        final Map<Integer, Long> dates = new HashMap<Integer, Long>();
+        final Map<Integer, AffairSortValue> values = loadAffairSortValues(model.getTable());
         return new Comparator<IComboSelectionItem>() {
             @Override
             public int compare(final IComboSelectionItem item1, final IComboSelectionItem item2) {
@@ -780,19 +1080,21 @@ public class ProjectHistory {
                 } else if (isUndefined(model, item2)) {
                     return -1;
                 }
-                final Long date1 = getItemDate(model, item1, dates);
-                final Long date2 = getItemDate(model, item2, dates);
-                final int dateCompare = compareNullableLongDesc(date1, date2);
+                final AffairSortValue value1 = getAffairSortValue(item1, values);
+                final AffairSortValue value2 = getAffairSortValue(item2, values);
+                final Long date1 = value1 == null ? null : value1.date;
+                final Long date2 = value2 == null ? null : value2.date;
+                final int dateCompare = compareNullableLongAsc(date1, date2);
                 if (dateCompare != 0) {
                     return dateCompare;
                 }
-                return getItemNumero(model, item1).compareToIgnoreCase(getItemNumero(model, item2));
+                return getItemNumero(item1, value1).compareToIgnoreCase(getItemNumero(item2, value2));
             }
         };
     }
 
     private static Comparator<IComboSelectionItem> createAffairNameComparator(final JListSQLTableModel model) {
-        final Map<Integer, String> labels = new HashMap<Integer, String>();
+        final Map<Integer, AffairSortValue> values = loadAffairSortValues(model.getTable());
         return new Comparator<IComboSelectionItem>() {
             @Override
             public int compare(final IComboSelectionItem item1, final IComboSelectionItem item2) {
@@ -801,8 +1103,8 @@ public class ProjectHistory {
                 } else if (isUndefined(model, item2)) {
                     return 1;
                 }
-                final String label1 = getItemSortLabel(model, item1, labels);
-                final String label2 = getItemSortLabel(model, item2, labels);
+                final String label1 = getItemSortLabel(item1, getAffairSortValue(item1, values));
+                final String label2 = getItemSortLabel(item2, getAffairSortValue(item2, values));
                 return label1.compareToIgnoreCase(label2);
             }
         };
@@ -816,70 +1118,111 @@ public class ProjectHistory {
         return id < 0 || id == model.getTable().getUndefinedID();
     }
 
-    private static Long getItemDate(final JListSQLTableModel model, final IComboSelectionItem item, final Map<Integer, Long> cache) {
-        final Integer id = Integer.valueOf(item.getId());
-        if (cache.containsKey(id)) {
-            return cache.get(id);
+    private static Map<Integer, AffairSortValue> loadAffairSortValues(final SQLTable affairTable) {
+        final Map<Integer, AffairSortValue> result = new HashMap<Integer, AffairSortValue>();
+        if (affairTable == null) {
+            return result;
         }
-        Long result = null;
         try {
-            SQLRowAccessor row = item.getRow();
-            if (row == null || !row.getTable().contains("DATE")) {
-                row = model.getTable().getRow(item.getId());
-            }
-            if (row != null) {
-                final Calendar date = getBestDate(row);
-                if (date != null) {
-                    result = Long.valueOf(date.getTimeInMillis());
+            final StringBuilder sql = new StringBuilder();
+            sql.append("select a.\"ID\", a.\"DATE\", a.\"NUMERO\", a.\"NOM\"");
+            final boolean joinClient = affairTable.contains("ID_CLIENT") && affairTable.getBase().containsTable("CLIENT");
+            final SQLTable clientTable = joinClient ? affairTable.getBase().getTable("CLIENT") : null;
+            final boolean clientHasShortName = clientTable != null && clientTable.contains("NOM_COURT");
+            if (joinClient) {
+                sql.append(", c.\"NOM\"");
+                if (clientHasShortName) {
+                    sql.append(", c.\"NOM_COURT\"");
                 }
             }
+            sql.append(" from ").append(affairTable.getSQLName().quote()).append(" a");
+            if (joinClient) {
+                sql.append(" left join ").append(clientTable.getSQLName().quote()).append(" c on a.\"ID_CLIENT\" = c.\"ID\"");
+            }
+            sql.append(" where a.\"ID\" > 1");
+
+            final List rows = affairTable.getBase().getDataSource().executeA(sql.toString());
+            for (final Object rowObject : rows) {
+                if (!(rowObject instanceof Object[])) {
+                    continue;
+                }
+                final Object[] row = (Object[]) rowObject;
+                if (row.length < 4 || !(row[0] instanceof Number)) {
+                    continue;
+                }
+                final int id = ((Number) row[0]).intValue();
+                final Long date = toMillis(row[1]);
+                final String numero = toTrimmedString(row[2]);
+                final String nom = toTrimmedString(row[3]);
+                final String clientName = joinClient && row.length > 4 ? firstNonEmpty(toTrimmedString(row[4]), clientHasShortName && row.length > 5 ? toTrimmedString(row[5]) : "") : "";
+                final String label = buildAffairLabel(numero, clientName, nom, "");
+                result.put(Integer.valueOf(id), new AffairSortValue(date, numero, label));
+            }
         } catch (Exception e) {
-            result = null;
+            e.printStackTrace();
         }
-        cache.put(id, result);
         return result;
     }
 
-    private static int compareNullableLongDesc(final Long value1, final Long value2) {
+    private static AffairSortValue getAffairSortValue(final IComboSelectionItem item, final Map<Integer, AffairSortValue> values) {
+        return item == null ? null : values.get(Integer.valueOf(item.getId()));
+    }
+
+    private static Long toMillis(final Object value) {
+        if (value instanceof java.util.Date) {
+            return Long.valueOf(((java.util.Date) value).getTime());
+        }
+        if (value instanceof Calendar) {
+            return Long.valueOf(((Calendar) value).getTimeInMillis());
+        }
+        return null;
+    }
+
+    private static String toTrimmedString(final Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    private static String firstNonEmpty(final String value1, final String value2) {
+        return value1.length() > 0 ? value1 : value2;
+    }
+
+    private static int compareNullableLongAsc(final Long value1, final Long value2) {
         if (value1 == null) {
             return value2 == null ? 0 : 1;
         } else if (value2 == null) {
             return -1;
         }
-        return value2.compareTo(value1);
+        return value1.compareTo(value2);
     }
 
-    private static String getItemSortLabel(final JListSQLTableModel model, final IComboSelectionItem item, final Map<Integer, String> cache) {
-        final Integer id = Integer.valueOf(item.getId());
-        if (cache.containsKey(id)) {
-            return cache.get(id);
+    private static String getItemSortLabel(final IComboSelectionItem item, final AffairSortValue value) {
+        if (value != null && value.label.length() > 0) {
+            return value.label;
         }
         String result = item.getLabel() == null ? "" : item.getLabel();
         try {
             SQLRowAccessor row = item.getRow();
-            if (row == null) {
-                row = model.getTable().getRow(item.getId());
-            }
             if (row != null) {
                 result = getAffairLabel(row, result);
             }
         } catch (Exception e) {
             result = item.getLabel() == null ? "" : item.getLabel();
         }
-        cache.put(id, result);
         return result;
     }
 
-    private static String getItemNumero(final JListSQLTableModel model, final IComboSelectionItem item) {
+    private static String getItemNumero(final IComboSelectionItem item, final AffairSortValue value) {
+        if (value != null && value.numero.length() > 0) {
+            return value.numero;
+        }
         String result = item.getLabel() == null ? "" : item.getLabel();
         try {
             SQLRowAccessor row = item.getRow();
-            if (row == null || !row.getTable().contains("NUMERO")) {
-                row = model.getTable().getRow(item.getId());
-            }
-            final String numero = getString(row, "NUMERO");
-            if (numero.length() > 0) {
-                result = numero;
+            if (row != null && row.getTable().contains("NUMERO")) {
+                final String numero = getString(row, "NUMERO");
+                if (numero.length() > 0) {
+                    result = numero;
+                }
             }
         } catch (Exception e) {
             result = item.getLabel() == null ? "" : item.getLabel();
@@ -910,6 +1253,10 @@ public class ProjectHistory {
         final String numero = getString(row, "NUMERO");
         final String client = getClientName(row);
         final String nom = getString(row, "NOM");
+        return buildAffairLabel(numero, client, nom, fallback);
+    }
+
+    private static String buildAffairLabel(final String numero, final String client, final String nom, final String fallback) {
         if (numero.length() > 0 && client.length() > 0) {
             return numero + " " + client;
         } else if (nom.length() > 0 && client.length() > 0) {
@@ -1029,5 +1376,50 @@ public class ProjectHistory {
         this.panelFrame.setLocationRelativeTo(null);
         stateManager.loadState();
         return this.panelFrame;
+    }
+
+    private static final class FamilyItem implements Comparable<FamilyItem> {
+        static final FamilyItem ALL = new FamilyItem(-1, "Toutes les familles");
+
+        private final int id;
+        private final String label;
+
+        FamilyItem(final int id, final String label) {
+            this.id = id;
+            this.label = label;
+        }
+
+        int getID() {
+            return this.id;
+        }
+
+        boolean isAll() {
+            return this.id < 0;
+        }
+
+        @Override
+        public String toString() {
+            return this.label;
+        }
+
+        @Override
+        public int compareTo(final FamilyItem other) {
+            if (other == null) {
+                return -1;
+            }
+            return this.label.compareToIgnoreCase(other.label);
+        }
+    }
+
+    private static final class AffairSortValue {
+        private final Long date;
+        private final String numero;
+        private final String label;
+
+        AffairSortValue(final Long date, final String numero, final String label) {
+            this.date = date;
+            this.numero = numero == null ? "" : numero;
+            this.label = label == null ? "" : label;
+        }
     }
 }
