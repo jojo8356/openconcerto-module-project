@@ -108,6 +108,7 @@ public final class Module extends AbstractModule {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     protected void install(DBContext ctxt) throws SQLException, IOException {
         super.install(ctxt);
 
@@ -189,6 +190,7 @@ public final class Module extends AbstractModule {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     protected void setupElements(final SQLElementDirectory dir) {
         super.setupElements(dir);
         dir.addSQLElement(ProjectSQLElement.class);
@@ -405,6 +407,7 @@ public final class Module extends AbstractModule {
         return checkAffaire(id, true);
     }
 
+    @SuppressWarnings("deprecation")
     public static JFrame checkAffaire(int id, final boolean createCommandeClient) {
         final SQLTable tableDevis = Configuration.getInstance().getRoot().findTable("DEVIS");
         final SQLTable tableNum = Configuration.getInstance().getRoot().findTable("NUMEROTATION_AUTO");
@@ -531,6 +534,7 @@ public final class Module extends AbstractModule {
 
     List<Integer> idsAsked = new ArrayList<Integer>();
 
+    @SuppressWarnings("deprecation")
     public void checkProjectState(final SQLRowAccessor rowFact) {
         if (!rowFact.isForeignEmpty("ID_AFFAIRE")) {
             final SQLRowAccessor rowAff = rowFact.getForeign("ID_AFFAIRE");
@@ -702,6 +706,7 @@ public final class Module extends AbstractModule {
                         selBadCmd.setWhere(Where.isNull(tableCmd.getField("ID_AFFAIRE")));
                         System.err.println(selBadCmd.asString());
 
+                        @SuppressWarnings("unchecked")
                         List<Object[]> result = (List<Object[]>) tableCmd.getDBSystemRoot().getDataSource().executeA(selBadCmd.asString());
                         try {
                             for (Object[] objects : result) {
@@ -726,6 +731,7 @@ public final class Module extends AbstractModule {
 
                         selBadVF.setWhere(Where.isNull(tableVF.getField("ID_AFFAIRE")));
                         System.err.println(selBadVF.asString());
+                        @SuppressWarnings("unchecked")
                         List<Object[]> result = (List<Object[]>) tableVF.getDBSystemRoot().getDataSource().executeA(selBadVF.asString());
                         try {
                             for (Object[] objects : result) {

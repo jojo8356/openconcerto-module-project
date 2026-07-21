@@ -15,8 +15,12 @@ if [ ! -f "$OPENCONCERTO_JAR" ]; then
     exit 1
 fi
 
-JAVAC_VERSION_OUTPUT=$(javac -version 2>&1)
-JAVAC_VERSION=$(printf '%s\n' "$JAVAC_VERSION_OUTPUT" | awk '{ print $2 }')
+JAVAC_VERSION_OUTPUT=$(javac -J-XX:-UsePerfData -version 2>&1)
+JAVAC_VERSION=$(printf '%s\n' "$JAVAC_VERSION_OUTPUT" | awk '/^javac / { print $2; exit }')
+if [ -z "$JAVAC_VERSION" ]; then
+    echo "Unable to detect javac version from: $JAVAC_VERSION_OUTPUT" >&2
+    exit 1
+fi
 JAVAC_MAJOR=$(printf '%s\n' "$JAVAC_VERSION" | awk -F. '{ if ($1 == "1") print $2; else print $1 }')
 
 rm -rf "$CLASSES_DIR" "$STAGING_DIR"
@@ -25,9 +29,9 @@ cd "$ROOT_DIR"
 find src -name '*.java' | sort > "$SOURCES_FILE"
 
 if [ "$JAVAC_MAJOR" -ge 9 ]; then
-    javac -proc:none -encoding UTF-8 --release 8 -cp "$OPENCONCERTO_JAR" -d "$CLASSES_DIR" @"$SOURCES_FILE"
+    javac -J-XX:-UsePerfData -proc:none -encoding UTF-8 --release 8 -Xlint:-options -cp "$OPENCONCERTO_JAR" -d "$CLASSES_DIR" @"$SOURCES_FILE"
 else
-    javac -proc:none -encoding UTF-8 -source 8 -target 8 -cp "$OPENCONCERTO_JAR" -d "$CLASSES_DIR" @"$SOURCES_FILE"
+    javac -J-XX:-UsePerfData -proc:none -encoding UTF-8 -source 8 -target 8 -cp "$OPENCONCERTO_JAR" -d "$CLASSES_DIR" @"$SOURCES_FILE"
 fi
 
 rsync -a "$CLASSES_DIR"/ "$STAGING_DIR"/

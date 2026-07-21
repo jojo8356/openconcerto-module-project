@@ -92,6 +92,7 @@ public class ProjectSQLElement extends ComptaSQLConfElement {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public SQLComponent createComponent() {
         return new UISQLComponent(this, 2) {
 

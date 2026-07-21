@@ -113,6 +113,7 @@ public class ProjectHistory {
         moduleTab.put(tabName, table);
     }
 
+    @SuppressWarnings("deprecation")
     public ProjectHistory() {
 
         final ComptaPropsConfiguration comptaPropsConfiguration = ((ComptaPropsConfiguration) Configuration.getInstance());
@@ -559,6 +560,7 @@ public class ProjectHistory {
         installAffairListDateRenderer();
     }
 
+    @SuppressWarnings("deprecation")
     private static void putIfTableExists(final Map<String, List<String>> tabs, final String label, final String tableName) {
         try {
             final Configuration configuration = Configuration.getInstance();
@@ -696,7 +698,7 @@ public class ProjectHistory {
             return null;
         }
 
-        final JComboBox familyCombo = new JComboBox();
+        final JComboBox<FamilyItem> familyCombo = new JComboBox<FamilyItem>();
         familyCombo.setName("project-history-article-family-filter-combo-" + itemTable.getName());
         final boolean[] comboUpdating = new boolean[] { false };
         familyCombo.addActionListener(new ActionListener() {
@@ -833,7 +835,7 @@ public class ProjectHistory {
         }
     }
 
-    private void updateArticleFamilyCombo(final JComboBox familyCombo, final Map<Integer, List<FamilyItem>> familiesByAffair, final boolean[] comboUpdating, final String filterKey,
+    private void updateArticleFamilyCombo(final JComboBox<FamilyItem> familyCombo, final Map<Integer, List<FamilyItem>> familiesByAffair, final boolean[] comboUpdating, final String filterKey,
             final SQLTable itemTable) {
         final SQLRowAccessor row = this.listPanel.getSelectedRow();
         final List<FamilyItem> currentFamilies = row == null ? null : familiesByAffair.get(Integer.valueOf(row.getID()));
@@ -844,7 +846,7 @@ public class ProjectHistory {
         }
         comboUpdating[0] = true;
         try {
-            familyCombo.setModel(new DefaultComboBoxModel(items.toArray()));
+            familyCombo.setModel(new DefaultComboBoxModel<FamilyItem>(items.toArray(new FamilyItem[items.size()])));
             familyCombo.setSelectedIndex(0);
         } finally {
             comboUpdating[0] = false;
@@ -872,7 +874,7 @@ public class ProjectHistory {
             return;
         }
 
-        final JComboBox sortCombo = new JComboBox(new String[] { "Tri par date", "Tri par nom" });
+        final JComboBox<String> sortCombo = new JComboBox<String>(new String[] { "Tri par date", "Tri par nom" });
         sortCombo.setName("project-history-affair-sort-combo");
         sortCombo.setSelectedIndex(0);
         final JCheckBox hideClosedCheckBox = new JCheckBox("Masquer dossiers clos");
@@ -926,11 +928,11 @@ public class ProjectHistory {
         if (listPanel == null) {
             return;
         }
-        final JList list = listPanel.getJList();
+        final JList<?> list = listPanel.getJList();
         if (list == null || "project-history-affair-date-renderer".equals(list.getName())) {
             return;
         }
-        final ListCellRenderer delegate = list.getCellRenderer();
+        final ListCellRenderer<Object> delegate = castListCellRenderer(list.getCellRenderer());
         final DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
         final Map<Integer, String> displayTextCache = new HashMap<Integer, String>();
         list.getModel().addListDataListener(new ListDataListener() {
@@ -950,9 +952,9 @@ public class ProjectHistory {
             }
         });
         list.setName("project-history-affair-date-renderer");
-        list.setCellRenderer(new ListCellRenderer() {
+        setRawListCellRenderer(list, new ListCellRenderer<Object>() {
             @Override
-            public Component getListCellRendererComponent(final JList list, final Object value, final int index, final boolean isSelected, final boolean cellHasFocus) {
+            public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index, final boolean isSelected, final boolean cellHasFocus) {
                 final Component component = delegate.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (component instanceof JLabel && index >= 0 && list.getModel() instanceof JListSQLTableModel) {
                     final JLabel label = (JLabel) component;
@@ -970,6 +972,16 @@ public class ProjectHistory {
                 return component;
             }
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ListCellRenderer<Object> castListCellRenderer(final ListCellRenderer<?> renderer) {
+        return (ListCellRenderer<Object>) renderer;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static void setRawListCellRenderer(final JList<?> list, final ListCellRenderer<Object> renderer) {
+        ((JList) list).setCellRenderer(renderer);
     }
 
     private void installAffairListSort(final boolean sortByDate, final boolean hideClosedProjects) {
