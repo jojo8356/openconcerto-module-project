@@ -1,0 +1,40 @@
+name: CI/CD Java
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }}) / Java ${{ matrix.java }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        java: ["8", "21"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Build module
+        shell: bash
+        env:
+          OPENCONCERTO_JAR: /opt/openconcerto/OpenConcerto.jar
+        run: |
+          chmod +x scripts/build-java8-compatible.sh
+          if [ ! -f "$OPENCONCERTO_JAR" ]; then
+            echo "::warning::OpenConcerto jar not found at $OPENCONCERTO_JAR. Build ignored in CI."
+            echo "Configure OPENCONCERTO_JAR in the repository environment or install it at that path."
+            exit 0
+          fi
+          ./scripts/build-java8-compatible.sh
