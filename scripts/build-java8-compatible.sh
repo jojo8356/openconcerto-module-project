@@ -4,10 +4,11 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 OPENCONCERTO_JAR=${OPENCONCERTO_JAR:-/opt/openconcerto/OpenConcerto.jar}
 BUILD_DIR=${BUILD_DIR:-"$ROOT_DIR/build"}
+MODULE_VERSION=$(awk -F= '/^version=/ { print $2; exit }' "$ROOT_DIR/module.properties")
 CLASSES_DIR="$BUILD_DIR/classes"
 STAGING_DIR="$BUILD_DIR/jar-staging"
 SOURCES_FILE="$BUILD_DIR/module-project-sources.txt"
-JAR_FILE="$BUILD_DIR/org.openconcerto.modules.project-1.1.jar"
+JAR_FILE="$BUILD_DIR/org.openconcerto.modules.project-$MODULE_VERSION.jar"
 
 if [ ! -f "$OPENCONCERTO_JAR" ]; then
     echo "OpenConcerto jar not found: $OPENCONCERTO_JAR" >&2

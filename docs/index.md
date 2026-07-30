@@ -3,11 +3,18 @@
 **Type :** monolithe module Java/OpenConcerto  
 **Langage principal :** Java  
 **Architecture :** module desktop/Swing integre a OpenConcerto  
-**Derniere mise a jour :** 2026-07-06
+**Derniere mise a jour :** 2026-07-30
 
 ## Vue d'ensemble
 
 Ce projet contient un module OpenConcerto identifie par `org.openconcerto.modules.project`. Il apporte des fonctionnalites de gestion de projets/affaires : historique, suivi, bilans, elements SQL, rendus UI et transformations entre documents commerciaux.
+
+## Release courante
+
+- **Version module :** `1.2`
+- **Date :** 2026-07-30
+- **Changement principal :** dans `Historique des affaires`, le tri des affaires est maintenant affiche par defaut sur `Tri par nom`.
+- **Documentation release :** `docs/release-1.2-default-affair-name-sort.md`
 
 Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable pour l'assistance IA, mais les details internes des classes Java doivent etre confirmes par un scan profond avant une evolution metier complexe.
 
@@ -18,7 +25,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - **Module id :** `org.openconcerto.modules.project`
 - **Dependance principale :** projet Eclipse `/OpenConcerto`
 - **Source root :** `src/`
-- **Sortie build :** `bin/`
+- **Sortie build :** `build/org.openconcerto.modules.project-1.2.jar`
 
 ## Documentation generee
 
@@ -30,6 +37,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Contrats API](./api-contracts.md)
 - [Modeles de donnees](./data-models.md)
 - [Synthese d'architecture publique](./public-architecture-summary.md)
+- [Release 1.2 - Default Affair Name Sort](./release-1.2-default-affair-name-sort.md)
 
 ## Documentation existante
 
@@ -39,8 +47,8 @@ Aucune documentation existante n'a ete detectee avant generation dans `docs/`.
 
 1. Importer le projet dans Eclipse comme projet Java existant.
 2. Verifier que le projet OpenConcerto est disponible dans le workspace sous `/OpenConcerto`.
-3. Utiliser JavaSE 1.8.
-4. Compiler via Eclipse JDT.
+3. Utiliser JavaSE 1.8 ou un JDK plus recent compatible `--release 8`.
+4. Compiler et packager avec `./scripts/build-java8-compatible.sh`.
 5. Tester le module dans une instance OpenConcerto representative.
 
 ## Pour le developpement assiste par IA
@@ -58,7 +66,7 @@ Pour une evolution fonctionnelle :
 
 - Le contenu des fichiers Java n'a pas ete lu en entier pendant ce Quick Scan.
 - Aucun test automatise n'a ete detecte.
-- Aucun script de build autonome n'a ete detecte.
+- Le script de build autonome est `scripts/build-java8-compatible.sh`.
 - La documentation des champs SQL et des regles metier reste a confirmer dans les sources.
 
 ---

@@ -2,12 +2,17 @@
 
 Personal OpenConcerto module for project/affair management.
 
-## Current Build
+## Current Release
+
+- Module id: `org.openconcerto.modules.project`
+- Version: `1.2`
+- Release date: `2026-07-30`
+- Main change: the affair history selector now opens with `Tri par nom` selected by default.
 
 The module has been compiled and installed locally as:
 
 ```text
-/home/jojokes/.local/share/OpenConcerto/Modules/org.openconcerto.modules.project-1.1.jar
+/home/jojokes/.local/share/OpenConcerto/Modules/org.openconcerto.modules.project-1.2.jar
 ```
 
 ## Java Compatibility
@@ -32,5 +37,12 @@ OPENCONCERTO_JAR=/path/to/OpenConcerto.jar ./scripts/build-java8-compatible.sh
 
 - Source code is under `src/org/openconcerto/modules/project`.
 - Module metadata is in `module.properties`.
-- The affair list uses `DATE` for date ordering and exposes `DATE` as a list column.
+- The affair history list supports both `Tri par nom` and `Tri par date`; `Tri par nom` is the default release behavior.
+- `DATE` remains available for date sorting and list display.
 - Runtime bytecode/JAR patch classes have been removed.
+
+## Documentation
+
+- Release notes: `CHANGELOG.md`
+- Technical release file: `docs/release-1.2-default-affair-name-sort.md`
+- Architecture and module inventory: `docs/index.md`

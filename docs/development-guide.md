@@ -1,6 +1,6 @@
 # Module Project - Guide de developpement
 
-**Date :** 2026-07-06
+**Date :** 2026-07-30
 
 ## Prerequis
 
@@ -28,13 +28,23 @@ Le fichier `.project` declare la nature Java Eclipse `org.eclipse.jdt.core.javan
 
 ## Commandes
 
-Aucune commande CLI de build/test n'a ete detectee dans le depot.
-
 | Action | Commande |
 | --- | --- |
-| Build | Via Eclipse JDT |
-| Test | Aucun script detecte |
-| Packaging | Non documente dans le depot |
+| Build et packaging release | `./scripts/build-java8-compatible.sh` |
+| Verification bytecode Java 8 | `scripts/verify-java8-bytecode.sh build/org.openconcerto.modules.project-1.2.jar` |
+| Test fonctionnel | Verification manuelle dans OpenConcerto |
+
+Le script de build lit la version depuis `module.properties` et produit un JAR sous `build/`.
+Le JAR est compile pour Java 8 afin de rester compatible avec les environnements OpenConcerto historiques.
+
+## Procedure de release
+
+1. Mettre a jour `module.properties`.
+2. Mettre a jour `CHANGELOG.md`.
+3. Mettre a jour ou creer la fiche release dans `docs/`.
+4. Executer `./scripts/build-java8-compatible.sh`.
+5. Installer le JAR genere dans le repertoire modules OpenConcerto cible.
+6. Redemarrer OpenConcerto et executer le scenario manuel documente dans la fiche release.
 
 ## Conventions visibles
 
@@ -58,6 +68,7 @@ Aucun fichier de test n'a ete trouve. Avant une evolution fonctionnelle, prevoir
 - Les changements doivent etre verifies dans l'application OpenConcerto, pas seulement par compilation du module.
 - Les schemas et noms de tables peuvent dependre du projet OpenConcerto parent.
 - Les ressources de traduction doivent rester synchronisees avec les libelles UI.
+- Les noms de JAR doivent rester alignes avec `module.properties`; le script de build automatise cet alignement.
 
 ---
 

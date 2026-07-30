@@ -556,7 +556,7 @@ public class ProjectHistory {
         normalizeDisplayAction(this.listPanel, "BON_RECEPTION");
         installProjectListControls(this.sqlBase);
         installArticleFamilyFilters(this.sqlBase);
-        installAffairListSort(true, true);
+        installAffairListSort(false, true);
         installAffairListDateRenderer();
     }
 
@@ -876,7 +876,7 @@ public class ProjectHistory {
 
         final JComboBox<String> sortCombo = new JComboBox<String>(new String[] { "Tri par date", "Tri par nom" });
         sortCombo.setName("project-history-affair-sort-combo");
-        sortCombo.setSelectedIndex(0);
+        sortCombo.setSelectedIndex(1);
         final JCheckBox hideClosedCheckBox = new JCheckBox("Masquer dossiers clos");
         hideClosedCheckBox.setName("project-history-affair-hide-closed-checkbox");
         hideClosedCheckBox.setOpaque(false);

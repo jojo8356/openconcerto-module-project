@@ -5,6 +5,8 @@
 **Prepared by:** Codex  
 **Scope:** Replacement of runtime/JAR bytecode patching with maintainable source-level implementation, validated build, local module deployment, and post-review UI refinements for Kinetic Therm.
 
+> Update 2026-07-30: this report documents release `1.1`. Release `1.2` supersedes only the initial affair-list sort behavior: `Historique affaires` now opens on `Tri par nom` by default. See `docs/release-1.2-default-affair-name-sort.md`.
+
 ## Executive Summary
 
 This revision removes the post-build patching mechanism previously represented by `PatchProjectJar.java` and `ProjectHistoryPatch.java`. The behavior implemented by those patch classes has been integrated directly into the module source code. The result is a simpler, reviewable, source-controlled implementation that no longer depends on ASM bytecode rewriting or patch-only helper classes.

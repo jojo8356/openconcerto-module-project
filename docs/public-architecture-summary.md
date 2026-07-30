@@ -1,7 +1,7 @@
 # Module Project - Synthese d'architecture publique
 
 **Statut :** public-safe  
-**Derniere verification officielle :** 2026-07-06
+**Derniere verification officielle :** 2026-07-30
 
 ## Objet
 
@@ -21,10 +21,17 @@ Les pages officielles OpenConcerto verifiees indiquent :
 - En multiposte, OpenConcerto requiert PostgreSQL 9 ou superieur.
 - Le module "Gestion Projet" est publie comme `org.openconcerto.modules.project-1.0.jar`.
 
-Le depot local declare le module `org.openconcerto.modules.project` en version `1.0`, mais
+Le depot local declare le module `org.openconcerto.modules.project` en version `1.2`, mais
 ne declare pas directement la version du projet OpenConcerto hote. Il reference un projet
 Eclipse nomme `/OpenConcerto`; cette version doit donc etre confirmee dans l'environnement
 de build effectif avant toute publication de guide d'installation.
+
+## Comportement release 1.2
+
+La version locale `1.2` conserve le fonctionnement general du module projets/affaires et
+modifie le comportement initial de l'ecran `Historique des affaires` : le selecteur
+d'affaires s'ouvre avec `Tri par nom` selectionne par defaut. Le tri par date reste
+disponible explicitement depuis l'interface.
 
 ## Paradigme
 
@@ -73,8 +80,8 @@ Cette synthese ne publie pas :
 - les exemples de donnees reels ;
 - les details SQL operationnels sensibles ;
 - les specificites client ou societe observees dans le code ;
-- les instructions de packaging tant que la version OpenConcerto hote et la chaine de
-  build du module ne sont pas confirmees.
+- les instructions de packaging client final tant que la version OpenConcerto hote et la
+  chaine de deploiement cible ne sont pas confirmees.
 
 ## Sources officielles
 
