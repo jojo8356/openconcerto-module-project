@@ -556,7 +556,7 @@ public class ProjectHistory {
         normalizeDisplayAction(this.listPanel, "BON_RECEPTION");
         installProjectListControls(this.sqlBase);
         installArticleFamilyFilters(this.sqlBase);
-        installAffairListSort(false, true);
+        installAffairListSort(AffairListSortSupport.DEFAULT_SORT_BY_DATE, true);
         installAffairListDateRenderer();
     }
 
@@ -876,7 +876,7 @@ public class ProjectHistory {
 
         final JComboBox<String> sortCombo = new JComboBox<String>(new String[] { "Tri par date", "Tri par nom" });
         sortCombo.setName("project-history-affair-sort-combo");
-        sortCombo.setSelectedIndex(1);
+        sortCombo.setSelectedIndex(AffairListSortSupport.DEFAULT_SORT_COMBO_INDEX);
         final JCheckBox hideClosedCheckBox = new JCheckBox("Masquer dossiers clos");
         hideClosedCheckBox.setName("project-history-affair-hide-closed-checkbox");
         hideClosedCheckBox.setOpaque(false);
@@ -1084,50 +1084,32 @@ public class ProjectHistory {
 
     private static Comparator<IComboSelectionItem> createAffairDateComparator(final JListSQLTableModel model) {
         final Map<Integer, AffairSortValue> values = loadAffairSortValues(model.getTable());
+        final Comparator<AffairListSortSupport.Item> comparator = AffairListSortSupport.createDateComparator(model.getTable().getUndefinedID());
         return new Comparator<IComboSelectionItem>() {
             @Override
             public int compare(final IComboSelectionItem item1, final IComboSelectionItem item2) {
-                if (isUndefined(model, item1)) {
-                    return isUndefined(model, item2) ? 0 : 1;
-                } else if (isUndefined(model, item2)) {
-                    return -1;
-                }
-                final AffairSortValue value1 = getAffairSortValue(item1, values);
-                final AffairSortValue value2 = getAffairSortValue(item2, values);
-                final Long date1 = value1 == null ? null : value1.date;
-                final Long date2 = value2 == null ? null : value2.date;
-                final int dateCompare = compareNullableLongAsc(date1, date2);
-                if (dateCompare != 0) {
-                    return dateCompare;
-                }
-                return getItemNumero(item1, value1).compareToIgnoreCase(getItemNumero(item2, value2));
+                return comparator.compare(toSortItem(item1, getAffairSortValue(item1, values)), toSortItem(item2, getAffairSortValue(item2, values)));
             }
         };
     }
 
     private static Comparator<IComboSelectionItem> createAffairNameComparator(final JListSQLTableModel model) {
         final Map<Integer, AffairSortValue> values = loadAffairSortValues(model.getTable());
+        final Comparator<AffairListSortSupport.Item> comparator = AffairListSortSupport.createNameComparator(model.getTable().getUndefinedID());
         return new Comparator<IComboSelectionItem>() {
             @Override
             public int compare(final IComboSelectionItem item1, final IComboSelectionItem item2) {
-                if (isUndefined(model, item1)) {
-                    return isUndefined(model, item2) ? 0 : -1;
-                } else if (isUndefined(model, item2)) {
-                    return 1;
-                }
-                final String label1 = getItemSortLabel(item1, getAffairSortValue(item1, values));
-                final String label2 = getItemSortLabel(item2, getAffairSortValue(item2, values));
-                return label1.compareToIgnoreCase(label2);
+                return comparator.compare(toSortItem(item1, getAffairSortValue(item1, values)), toSortItem(item2, getAffairSortValue(item2, values)));
             }
         };
     }
 
-    private static boolean isUndefined(final JListSQLTableModel model, final IComboSelectionItem item) {
+    private static AffairListSortSupport.Item toSortItem(final IComboSelectionItem item, final AffairSortValue value) {
         if (item == null) {
-            return true;
+            return null;
         }
-        final int id = item.getId();
-        return id < 0 || id == model.getTable().getUndefinedID();
+        final Long date = value == null ? null : value.date;
+        return new AffairListSortSupport.Item(item.getId(), date, getItemNumero(item, value), getItemSortLabel(item, value));
     }
 
     private static Map<Integer, AffairSortValue> loadAffairSortValues(final SQLTable affairTable) {
@@ -1167,7 +1149,7 @@ public class ProjectHistory {
                 final String numero = toTrimmedString(row[2]);
                 final String nom = toTrimmedString(row[3]);
                 final String clientName = joinClient && row.length > 4 ? firstNonEmpty(toTrimmedString(row[4]), clientHasShortName && row.length > 5 ? toTrimmedString(row[5]) : "") : "";
-                final String label = buildAffairLabel(numero, clientName, nom, "");
+                final String label = AffairListSortSupport.buildLabel(numero, clientName, nom, "");
                 result.put(Integer.valueOf(id), new AffairSortValue(date, numero, label));
             }
         } catch (Exception e) {
@@ -1196,15 +1178,6 @@ public class ProjectHistory {
 
     private static String firstNonEmpty(final String value1, final String value2) {
         return value1.length() > 0 ? value1 : value2;
-    }
-
-    private static int compareNullableLongAsc(final Long value1, final Long value2) {
-        if (value1 == null) {
-            return value2 == null ? 0 : 1;
-        } else if (value2 == null) {
-            return -1;
-        }
-        return value1.compareTo(value2);
     }
 
     private static String getItemSortLabel(final IComboSelectionItem item, final AffairSortValue value) {
@@ -1265,25 +1238,7 @@ public class ProjectHistory {
         final String numero = getString(row, "NUMERO");
         final String client = getClientName(row);
         final String nom = getString(row, "NOM");
-        return buildAffairLabel(numero, client, nom, fallback);
-    }
-
-    private static String buildAffairLabel(final String numero, final String client, final String nom, final String fallback) {
-        if (numero.length() > 0 && client.length() > 0) {
-            return numero + " " + client;
-        } else if (nom.length() > 0 && client.length() > 0) {
-            return nom + " " + client;
-        } else if (client.length() > 0) {
-            return client;
-        }
-        if (numero.length() > 0 && nom.length() > 0) {
-            return numero + " " + nom;
-        } else if (numero.length() > 0) {
-            return numero;
-        } else if (nom.length() > 0) {
-            return nom;
-        }
-        return fallback;
+        return AffairListSortSupport.buildLabel(numero, client, nom, fallback);
     }
 
     private static String getClientName(final SQLRowAccessor row) {
