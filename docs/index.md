@@ -11,10 +11,10 @@ Ce projet contient un module OpenConcerto identifie par `org.openconcerto.module
 
 ## Release courante
 
-- **Version module :** `1.2`
+- **Version module :** `1.1`
 - **Date :** 2026-07-30
 - **Changement principal :** dans `Historique des affaires`, le tri des affaires est maintenant affiche par defaut sur `Tri par nom`.
-- **Documentation release :** `docs/release-1.2-default-affair-name-sort.md`
+- **Documentation release :** `docs/patch-integration-revision-report.md`
 
 Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable pour l'assistance IA, mais les details internes des classes Java doivent etre confirmes par un scan profond avant une evolution metier complexe.
 
@@ -25,7 +25,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - **Module id :** `org.openconcerto.modules.project`
 - **Dependance principale :** projet Eclipse `/OpenConcerto`
 - **Source root :** `src/`
-- **Sortie build :** `build/org.openconcerto.modules.project-1.2.jar`
+- **Sortie build :** `build/org.openconcerto.modules.project-1.1.jar`
 
 ## Documentation generee
 
@@ -37,7 +37,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Contrats API](./api-contracts.md)
 - [Modeles de donnees](./data-models.md)
 - [Synthese d'architecture publique](./public-architecture-summary.md)
-- [Release 1.2 - Default Affair Name Sort](./release-1.2-default-affair-name-sort.md)
+- [Revision report - Release 1.1](./patch-integration-revision-report.md)
 
 ## Documentation existante
 

@@ -31,7 +31,7 @@ Le fichier `.project` declare la nature Java Eclipse `org.eclipse.jdt.core.javan
 | Action | Commande |
 | --- | --- |
 | Build et packaging release | `./scripts/build-java8-compatible.sh` |
-| Verification bytecode Java 8 | `scripts/verify-java8-bytecode.sh build/org.openconcerto.modules.project-1.2.jar` |
+| Verification bytecode Java 8 | `scripts/verify-java8-bytecode.sh build/org.openconcerto.modules.project-1.1.jar` |
 | Test fonctionnel | Verification manuelle dans OpenConcerto |
 
 Le script de build lit la version depuis `module.properties` et produit un JAR sous `build/`.

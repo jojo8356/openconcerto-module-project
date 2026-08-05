@@ -5,14 +5,14 @@ Personal OpenConcerto module for project/affair management.
 ## Current Release
 
 - Module id: `org.openconcerto.modules.project`
-- Version: `1.3`
+- Version: `1.1`
 - Release date: `2026-08-05`
 - Main change: the affair history selector default sort is now covered by automated tests.
 
 The module has been compiled and installed locally as:
 
 ```text
-/home/jojokes/.local/share/OpenConcerto/Modules/org.openconcerto.modules.project-1.3.jar
+/home/jojokes/.local/share/OpenConcerto/Modules/org.openconcerto.modules.project-1.1.jar
 ```
 
 ## Java Compatibility
@@ -44,5 +44,5 @@ OPENCONCERTO_JAR=/path/to/OpenConcerto.jar ./scripts/build-java8-compatible.sh
 ## Documentation
 
 - Release notes: `CHANGELOG.md`
-- Technical release file: `docs/release-1.3-affair-sort-tests.md`
+- Technical release file: `docs/patch-integration-revision-report.md`
 - Architecture and module inventory: `docs/index.md`

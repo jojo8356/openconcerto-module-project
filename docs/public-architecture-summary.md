@@ -21,14 +21,14 @@ Les pages officielles OpenConcerto verifiees indiquent :
 - En multiposte, OpenConcerto requiert PostgreSQL 9 ou superieur.
 - Le module "Gestion Projet" est publie comme `org.openconcerto.modules.project-1.0.jar`.
 
-Le depot local declare le module `org.openconcerto.modules.project` en version `1.2`, mais
+Le depot local declare le module `org.openconcerto.modules.project` en version `1.1`, mais
 ne declare pas directement la version du projet OpenConcerto hote. Il reference un projet
 Eclipse nomme `/OpenConcerto`; cette version doit donc etre confirmee dans l'environnement
 de build effectif avant toute publication de guide d'installation.
 
-## Comportement release 1.2
+## Comportement release 1.1
 
-La version locale `1.2` conserve le fonctionnement general du module projets/affaires et
+La version locale `1.1` conserve le fonctionnement general du module projets/affaires et
 modifie le comportement initial de l'ecran `Historique des affaires` : le selecteur
 d'affaires s'ouvre avec `Tri par nom` selectionne par defaut. Le tri par date reste
 disponible explicitement depuis l'interface.
