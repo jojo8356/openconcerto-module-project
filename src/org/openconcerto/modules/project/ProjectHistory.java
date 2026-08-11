@@ -533,6 +533,7 @@ public class ProjectHistory {
     }
 
     private void installHistoryControls() {
+        installElementRowActions(this.listPanel, "COMMANDE_CLIENT");
         normalizeDisplayAction(this.listPanel, "DEVIS");
         normalizeDisplayAction(this.listPanel, "COMMANDE_CLIENT");
         normalizeDisplayAction(this.listPanel, "CHIFFRAGE_COMMANDE_CLIENT");
@@ -558,6 +559,18 @@ public class ProjectHistory {
         installArticleFamilyFilters(this.sqlBase);
         installAffairListSort(AffairListSortSupport.DEFAULT_SORT_BY_DATE, true);
         installAffairListDateRenderer();
+    }
+
+    private static void installElementRowActions(final ListeHistoriquePanel historyPanel, final String tableName) {
+        final List<IListPanel> panels = historyPanel.getAllIListePanelFromTableName(tableName);
+        for (final IListPanel listPanel : panels) {
+            final IListe liste = listPanel.getListe();
+            if (liste == null || Boolean.TRUE.equals(liste.getClientProperty("project-history-row-actions-installed-" + tableName))) {
+                continue;
+            }
+            liste.addIListeActions(listPanel.getElement().getRowActions());
+            liste.putClientProperty("project-history-row-actions-installed-" + tableName, Boolean.TRUE);
+        }
     }
 
     @SuppressWarnings("deprecation")

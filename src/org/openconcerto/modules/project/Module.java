@@ -1,13 +1,21 @@
 package org.openconcerto.modules.project;
 
+import java.awt.AWTEvent;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ContainerEvent;
+import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
@@ -15,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,11 +36,13 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.SwingWorker;
 import javax.swing.SwingUtilities;
 
 import org.openconcerto.erp.action.CreateFrameAbstractAction;
 import org.openconcerto.erp.config.ComptaPropsConfiguration;
 import org.openconcerto.erp.config.MainFrame;
+import org.openconcerto.erp.core.common.component.TransfertBaseSQLComponent;
 import org.openconcerto.erp.core.common.element.NumerotationAutoSQLElement;
 import org.openconcerto.erp.core.sales.invoice.ui.SaisieVenteFactureItemTable;
 import org.openconcerto.erp.core.sales.order.ui.CommandeClientItemTable;
@@ -39,6 +50,8 @@ import org.openconcerto.erp.core.sales.quote.component.DevisSQLComponent;
 import org.openconcerto.erp.core.sales.quote.element.DevisSQLElement;
 import org.openconcerto.erp.core.sales.quote.element.EtatDevisSQLElement;
 import org.openconcerto.erp.core.sales.quote.report.DevisXmlSheet;
+import org.openconcerto.erp.core.sales.shipment.element.BonDeLivraisonSQLElement;
+import org.openconcerto.erp.core.sales.shipment.report.BonLivraisonXmlSheet;
 import org.openconcerto.erp.generationEcritures.GenerationMvtSaisieVenteFacture;
 import org.openconcerto.erp.generationEcritures.provider.AccountingRecordsProvider;
 import org.openconcerto.erp.generationEcritures.provider.AccountingRecordsProviderManager;
@@ -85,6 +98,7 @@ import org.openconcerto.sql.view.column.ColumnPanelFetcher;
 import org.openconcerto.sql.view.column.ColumnRowRenderer;
 import org.openconcerto.sql.view.list.BaseSQLTableModelColumn;
 import org.openconcerto.sql.view.list.IListe;
+import org.openconcerto.sql.view.list.IListeAction;
 import org.openconcerto.sql.view.list.RowAction;
 import org.openconcerto.sql.view.list.action.ListEvent;
 import org.openconcerto.ui.DefaultGridBagConstraints;
@@ -99,6 +113,7 @@ import org.openconcerto.utils.cc.ITransformer;
 public final class Module extends AbstractModule {
 
     public static final String PROJECT_TABLENAME = "AFFAIRE";
+    private static boolean deliveryNoteListActionSyncInstalled = false;
     private List<String> listTableAffaire = Arrays.asList("DEMANDE_PRIX", "BON_RECEPTION", "DEMANDE_ACHAT_ELEMENT", "SAISIE_VENTE_FACTURE", "AVOIR_CLIENT", "BON_DE_LIVRAISON", "COMMANDE_CLIENT",
             "DEVIS", "COMMANDE", "SAISIE_ACHAT", "AVOIR_FOURNISSEUR");
 
@@ -639,7 +654,182 @@ public final class Module extends AbstractModule {
             if (!table.equalsIgnoreCase("DEVIS"))
                 ctxt.putAdditionalField(table, "ID_AFFAIRE");
         }
+        installDeliveryNoteInvoiceAction(ctxt);
 
+    }
+
+    private static void installDeliveryNoteInvoiceAction(final ComponentsContext ctxt) {
+        final DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+        if (!root.contains("BON_DE_LIVRAISON") || !root.contains("SAISIE_VENTE_FACTURE")) {
+            return;
+        }
+        final SQLTable deliveryTable = root.getTable("BON_DE_LIVRAISON");
+        final SQLTable invoiceTable = root.getTable("SAISIE_VENTE_FACTURE");
+        ctxt.addListAction("BON_DE_LIVRAISON", createDeliveryNoteInvoiceAction(deliveryTable, invoiceTable, "Transfert en facture", "sales.shipment.create.invoice"));
+        ctxt.addListAction("BON_DE_LIVRAISON", createDeliveryNoteInvoiceAction(deliveryTable, invoiceTable, "Créer une facture", "project.sales.shipment.create.invoice"));
+    }
+
+    private static RowAction createDeliveryNoteInvoiceAction(final SQLTable deliveryTable, final SQLTable invoiceTable, final String label, final String id) {
+        return new RowAction(new AbstractAction(label) {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                transferDeliveryNotesToInvoice(IListe.get(e).getSelectedRows(), deliveryTable, invoiceTable);
+            }
+        }, false, id) {
+
+            @Override
+            public boolean enabledFor(final List<SQLRowValues> selection) {
+                if (selection == null || selection.isEmpty()) {
+                    return false;
+                }
+                if (deliveryTable.contains("VERROU_FACTURATION")) {
+                    for (final SQLRowValues row : selection) {
+                        if (Boolean.TRUE.equals(row.getBoolean("VERROU_FACTURATION"))) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+        };
+    }
+
+    private static void transferDeliveryNotesToInvoice(final List<SQLRowValues> selectedRows, final SQLTable deliveryTable, final SQLTable invoiceTable) {
+        new SwingWorker<Boolean, Object>() {
+            @Override
+            protected Boolean doInBackground() throws Exception {
+                final boolean alreadyTransferred = TransfertBaseSQLComponent.isAlreadyAllTransfert(selectedRows, deliveryTable, invoiceTable, "TOTAL_HT", "T_HT");
+                if (alreadyTransferred) {
+                    String message = selectedRows.size() > 1 ? "Attention les bons de livraisons ont déjà été transférés!" : "Attention le bon de livraison a déjà été transféré!";
+                    message += "\n Voulez vous continuer?";
+                    return JOptionPane.showConfirmDialog(null, message, "Transfert Bon de livraison", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+                }
+                return Boolean.TRUE;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    if (Boolean.TRUE.equals(get())) {
+                        TransfertBaseSQLComponent.openTransfertFrame(selectedRows, "SAISIE_VENTE_FACTURE");
+                    }
+                } catch (Exception exn) {
+                    ExceptionHandler.handle("Erreur lors du transfert des bons de livraisons!", exn);
+                }
+            }
+        }.execute();
+    }
+
+    private static synchronized void installDeliveryNoteListActionSync() {
+        if (deliveryNoteListActionSyncInstalled) {
+            return;
+        }
+        deliveryNoteListActionSyncInstalled = true;
+        Toolkit.getDefaultToolkit().addAWTEventListener(new java.awt.event.AWTEventListener() {
+            @Override
+            public void eventDispatched(final AWTEvent event) {
+                if (event instanceof java.awt.event.WindowEvent) {
+                    final java.awt.event.WindowEvent windowEvent = (java.awt.event.WindowEvent) event;
+                    if (windowEvent.getID() == WindowEvent.WINDOW_OPENED) {
+                        syncDeliveryNoteListActionsLater(windowEvent.getWindow());
+                    }
+                } else if (event instanceof ContainerEvent) {
+                    final ContainerEvent containerEvent = (ContainerEvent) event;
+                    if (containerEvent.getID() == ContainerEvent.COMPONENT_ADDED) {
+                        syncDeliveryNoteListActionsLater(containerEvent.getChild());
+                    }
+                }
+            }
+        }, AWTEvent.WINDOW_EVENT_MASK | AWTEvent.CONTAINER_EVENT_MASK);
+        for (final Window window : Window.getWindows()) {
+            syncDeliveryNoteListActionsLater(window);
+        }
+    }
+
+    private static void syncDeliveryNoteListActionsLater(final Component component) {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                syncDeliveryNoteListActions(component);
+            }
+        });
+    }
+
+    private static void syncDeliveryNoteListActions(final Component component) {
+        if (component instanceof IListe) {
+            syncDeliveryNoteListActions((IListe) component);
+        }
+        if (component instanceof Container) {
+            for (final Component child : ((Container) component).getComponents()) {
+                syncDeliveryNoteListActions(child);
+            }
+        }
+    }
+
+    private static void syncDeliveryNoteListActions(final IListe liste) {
+        if (liste == null || Boolean.TRUE.equals(liste.getClientProperty("project-delivery-note-actions-synced"))) {
+            return;
+        }
+        final SQLTable primaryTable = liste.getSource() == null ? null : liste.getSource().getPrimaryTable();
+        if (primaryTable == null || !"BON_DE_LIVRAISON".equalsIgnoreCase(primaryTable.getName())) {
+            return;
+        }
+        final SQLElement element = Configuration.getInstance().getDirectory().getElement("BON_DE_LIVRAISON");
+        final Set<String> installedActionKeys = getInstalledActionKeys(liste);
+        addMissingDeliveryNoteAction(liste, installedActionKeys,
+                new MouseSheetXmlListeListener(element, BonLivraisonXmlSheet.class).getRowActions());
+        if (element instanceof BonDeLivraisonSQLElement) {
+            addMissingDeliveryNoteAction(liste, installedActionKeys, ((BonDeLivraisonSQLElement) element).getCloneAction());
+        }
+        for (final IListeAction action : element.getRowActions()) {
+            addMissingDeliveryNoteAction(liste, installedActionKeys, action);
+        }
+        liste.putClientProperty("project-delivery-note-actions-synced", Boolean.TRUE);
+    }
+
+    private static void addMissingDeliveryNoteAction(final IListe liste, final Set<String> installedActionKeys, final Collection<? extends IListeAction> actions) {
+        for (final IListeAction action : actions) {
+            addMissingDeliveryNoteAction(liste, installedActionKeys, action);
+        }
+    }
+
+    private static void addMissingDeliveryNoteAction(final IListe liste, final Set<String> installedActionKeys, final IListeAction action) {
+        final String actionKey = getActionKey(action);
+        if (actionKey != null && installedActionKeys.contains(actionKey)) {
+            return;
+        }
+        liste.addIListeAction(action);
+        if (actionKey != null) {
+            installedActionKeys.add(actionKey);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> getInstalledActionKeys(final IListe liste) {
+        final Set<String> keys = new HashSet<String>();
+        try {
+            final Field rowActionsField = IListe.class.getDeclaredField("rowActions");
+            rowActionsField.setAccessible(true);
+            final Map<IListeAction, ?> rowActions = (Map<IListeAction, ?>) rowActionsField.get(liste);
+            for (final IListeAction action : rowActions.keySet()) {
+                final String key = getActionKey(action);
+                if (key != null) {
+                    keys.add(key);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return keys;
+    }
+
+    private static String getActionKey(final IListeAction action) {
+        if (!(action instanceof RowAction)) {
+            return null;
+        }
+        final RowAction rowAction = (RowAction) action;
+        final Object name = rowAction.getAction() == null ? null : rowAction.getAction().getValue(javax.swing.Action.NAME);
+        return String.valueOf(rowAction.getID()) + "|" + String.valueOf(name);
     }
 
     @Override
@@ -814,6 +1004,7 @@ public final class Module extends AbstractModule {
 
     @Override
     protected void start() {
+        installDeliveryNoteListActionSync();
 
         final JComponent quoteComponent = createQuotePanel();
         final JComponent orderComponent = createOrderPanel();
