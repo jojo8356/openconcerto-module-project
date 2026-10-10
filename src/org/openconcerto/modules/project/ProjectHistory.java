@@ -18,11 +18,14 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -548,6 +551,7 @@ public class ProjectHistory {
         normalizeDisplayAction(this.listPanel, "FACTURE_FOURNISSEUR");
         normalizeDisplayAction(this.listPanel, "FACTURE_FOURNISSEUR_ELEMENT");
         installSupplierInvoiceItemSupplierNameColumn(this.listPanel);
+        installSupplierInvoiceOrderNumberColumn(this.listPanel);
         installModifyAction(this.listPanel, "AFFAIRE");
         installModifyAction(this.listPanel, "BON_DE_LIVRAISON");
         installModifyAction(this.listPanel, "COMMANDE");
@@ -654,6 +658,97 @@ public class ProjectHistory {
                     return CollectionUtils.createSet(new FieldPath(invoicePath, "NOM"));
                 }
             });
+        }
+    }
+
+    // Adds a "N° commande fournisseur" column to the "Factures fournisseurs" tab so each supplier
+    // invoice shows the number of the supplier order (COMMANDE) it was transferred from, as
+    // displayed in the "Commandes fournisseurs" tab.
+    private static void installSupplierInvoiceOrderNumberColumn(final ListeHistoriquePanel historyPanel) {
+        final List<IListPanel> panels = historyPanel.getAllIListePanelFromTableName("FACTURE_FOURNISSEUR");
+        if (panels == null || panels.isEmpty()) {
+            return;
+        }
+        for (final IListPanel panel : panels) {
+            final SQLTable invoiceTable = panel.getListe().getSource().getPrimaryTable();
+            if (invoiceTable == null) {
+                continue;
+            }
+            final SQLBase base = invoiceTable.getBase();
+            if (!base.containsTable("COMMANDE") || !base.getTable("COMMANDE").contains("NUMERO")) {
+                continue;
+            }
+            // Main link: the OpenConcerto transfer table filled by "Transférer en facture
+            // fournisseur" on a supplier order.
+            final SQLTable transferTable = base.containsTable("TR_COMMANDE") ? base.getTable("TR_COMMANDE") : null;
+            final boolean useTransferLink = transferTable != null && transferTable.contains("ID_COMMANDE") && transferTable.contains("ID_FACTURE_FOURNISSEUR");
+            // Fallback link: invoice items keep a reference to the order item they come from
+            // (FACTURE_FOURNISSEUR_ELEMENT.ID_COMMANDE_ELEMENT -> COMMANDE_ELEMENT.ID_COMMANDE).
+            final SQLTable invoiceItemTable = base.containsTable("FACTURE_FOURNISSEUR_ELEMENT") ? base.getTable("FACTURE_FOURNISSEUR_ELEMENT") : null;
+            final SQLTable orderItemTable = base.containsTable("COMMANDE_ELEMENT") ? base.getTable("COMMANDE_ELEMENT") : null;
+            final boolean useItemLink = invoiceItemTable != null && orderItemTable != null && invoiceItemTable.contains("ID_FACTURE_FOURNISSEUR")
+                    && invoiceItemTable.contains("ID_COMMANDE_ELEMENT") && orderItemTable.contains("ID_COMMANDE");
+            if (!useTransferLink && !useItemLink) {
+                continue;
+            }
+            final List<SQLTableModelColumn> columns = panel.getListe().getSource().getColumns();
+            // Show the order number right after the invoice number when possible.
+            int insertIndex = columns.size();
+            if (invoiceTable.contains("NUMERO")) {
+                final SQLField invoiceNumberField = invoiceTable.getField("NUMERO");
+                for (int i = 0; i < columns.size(); i++) {
+                    if (columns.get(i).getFields().contains(invoiceNumberField)) {
+                        insertIndex = i + 1;
+                        break;
+                    }
+                }
+            }
+            columns.add(insertIndex, new BaseSQLTableModelColumn("N° commande fournisseur", String.class) {
+
+                @Override
+                protected Object show_(final SQLRowAccessor r) {
+                    final Set<String> orderNumbers = new LinkedHashSet<String>();
+                    if (useTransferLink) {
+                        for (final SQLRowAccessor transferRow : r.getReferentRows(transferTable.getField("ID_FACTURE_FOURNISSEUR"))) {
+                            addOrderNumber(orderNumbers, transferRow.getNonEmptyForeign("ID_COMMANDE"));
+                        }
+                    }
+                    if (orderNumbers.isEmpty() && useItemLink) {
+                        for (final SQLRowAccessor invoiceItem : r.getReferentRows(invoiceItemTable.getField("ID_FACTURE_FOURNISSEUR"))) {
+                            final SQLRowAccessor orderItem = invoiceItem.getNonEmptyForeign("ID_COMMANDE_ELEMENT");
+                            if (orderItem != null) {
+                                addOrderNumber(orderNumbers, orderItem.getNonEmptyForeign("ID_COMMANDE"));
+                            }
+                        }
+                    }
+                    return CollectionUtils.join(new ArrayList<String>(orderNumbers), ", ");
+                }
+
+                @Override
+                public Set<FieldPath> getPaths() {
+                    final Set<FieldPath> paths = new HashSet<FieldPath>();
+                    if (useTransferLink) {
+                        final Path transferPath = new Path(invoiceTable).add(transferTable.getField("ID_FACTURE_FOURNISSEUR")).add(transferTable.getField("ID_COMMANDE"));
+                        paths.add(new FieldPath(transferPath, "NUMERO"));
+                    }
+                    if (useItemLink) {
+                        final Path itemPath = new Path(invoiceTable).add(invoiceItemTable.getField("ID_FACTURE_FOURNISSEUR")).add(invoiceItemTable.getField("ID_COMMANDE_ELEMENT"))
+                                .add(orderItemTable.getField("ID_COMMANDE"));
+                        paths.add(new FieldPath(itemPath, "NUMERO"));
+                    }
+                    return paths;
+                }
+            });
+        }
+    }
+
+    private static void addOrderNumber(final Set<String> orderNumbers, final SQLRowAccessor orderRow) {
+        if (orderRow == null || !orderRow.getTable().contains("NUMERO")) {
+            return;
+        }
+        final String number = orderRow.getString("NUMERO");
+        if (number != null && number.trim().length() > 0) {
+            orderNumbers.add(number.trim());
         }
     }
 

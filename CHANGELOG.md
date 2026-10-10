@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.4 - 2026-10-10
+
+### Added
+
+- A `N° commande fournisseur` column in the `Factures fournisseurs` tab of the affair history window, so each supplier invoice can be matched with the supplier order it comes from (same `NUMERO` as displayed in the `Commandes fournisseurs` tab).
+
+### Behavior
+
+- The order number is resolved first through the OpenConcerto transfer table `TR_COMMANDE` (filled by the order-to-invoice transfer), then through the invoice lines (`FACTURE_FOURNISSEUR_ELEMENT.ID_COMMANDE_ELEMENT` -> `COMMANDE_ELEMENT.ID_COMMANDE`) as a fallback.
+- Invoices built from several orders show all order numbers, separated by commas.
+- Invoices entered manually (no linked order) show an empty cell.
+- The column is inserted right after the invoice number column and degrades gracefully when the optional tables or fields are missing.
+
+### Preserved
+
+- `module.properties` stays at version `1.1` to avoid the module metadata issue in existing databases.
+
+### Validation
+
+- `AffairListSortSupportTest` passes.
+- The new history column code compiles with `javac` targeting Java 8.
+
 ## 1.3 - 2026-08-05
 
 ### Added
