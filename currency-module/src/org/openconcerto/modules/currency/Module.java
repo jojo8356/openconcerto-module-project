@@ -222,7 +222,7 @@ public final class Module extends AbstractModule {
         }
         actions.removeAll(actionsToRemove);
 
-        final MouseSheetXmlListeListener listener = new MouseSheetXmlListeListener(sheetClass);
+        final MouseSheetXmlListeListener listener = new MouseSheetXmlListeListener(element, sheetClass);
         listener.setShowHeader(showHeader);
         listener.setGenerateHeader(generateHeader);
         actions.addAll(listener.getRowActions());
