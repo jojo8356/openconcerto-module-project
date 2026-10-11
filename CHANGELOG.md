@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Expose `FACTURE_FOURNISSEUR.ID_AFFAIRE` in the supplier invoice form and list actions so invoices can be linked to an affair directly. Existing rows with an undefined affair are intentionally not rewritten; any historical backfill must be reviewed against the linked supplier orders.
+
 ## 1.4 - 2026-10-10
 
 ### Added

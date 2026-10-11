@@ -6,6 +6,7 @@ Ce dossier contient un **module OpenConcerto indépendant** (`org.openconcerto.m
 
 - Réutilise la table OpenConcerto `DEVISE` (code, taux et taux commercial) et donne un raccourci vers sa liste.
 - Rend la devise du client (`CLIENT.ID_DEVISE`) sélectionnable dans la fiche client et l'affiche dans la liste des clients.
+- Ajoute aussi à la liste clients l'action **Choisir / modifier la devise du client** : un vrai `ElementComboBox` ouvre le catalogue `DEVISE`, puis le choix est enregistré dans `CLIENT.ID_DEVISE` après vérification du droit OpenConcerto de modifier le client. Ce chemin explicite reste disponible même si le formulaire client ouvert ne permet que la consultation.
 - Ajoute la liaison `CLIENT.ID_DEVISE -> DEVISE` uniquement si elle manque dans une base personnalisée. La table `DEVISE` n'est jamais recréée.
 - Pour les devis, commandes client, factures client et avoirs client, choisit un modèle XML/ODS optionnel en fonction du code de devise du client.
 - Si le modèle spécifique à la devise n'existe pas, conserve le modèle qu'OpenConcerto aurait normalement utilisé.
@@ -19,7 +20,7 @@ Le XML est traité avec les DTD et entités externes désactivées, des délais 
 
 La source SIX contient les codes et unités ISO, pas les taux de change. Les taux déjà présents (`TAUX`, `TAUX_COMMERCIAL`) ne sont jamais écrasés. Les nouveaux codes sont initialisés à `1` par compatibilité avec le formulaire OpenConcerto : configurez leur taux réel dans la fiche devise avant toute conversion comptable.
 
-La sélection du client est persistée dans `CLIENT.ID_DEVISE`, clé étrangère vers `DEVISE.ID`. Pour joindre facilement les deux tables :
+Dans la liste clients, sélectionnez une seule ligne puis utilisez **Choisir / modifier la devise du client** (bouton d'action ou menu contextuel), choisissez une devise et validez. La sélection est enregistrée dans `CLIENT.ID_DEVISE`, clé étrangère vers `DEVISE.ID`. L'action vérifie le droit de modification OpenConcerto avant toute écriture. Pour joindre facilement les deux tables :
 
 ```sql
 SELECT c.ID, c.NOM, d.CODE
@@ -68,7 +69,7 @@ Le module choisit un modèle de document et permet au XML d'afficher la devise d
 
 ## Compiler et tester
 
-Les tests du sélecteur de modèles et du parseur ISO 4217 ne nécessitent pas le JAR OpenConcerto :
+Les tests unitaires du sélecteur de modèles, de la règle de persistance du choix et du parseur ISO 4217 ne nécessitent pas le JAR OpenConcerto. Le parcours Swing et l'écriture réelle en base restent à valider dans une instance OpenConcerto 1.7.6 :
 
 ```sh
 sh currency-module/scripts/run-tests.sh

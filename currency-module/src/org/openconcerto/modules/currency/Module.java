@@ -1,5 +1,6 @@
 package org.openconcerto.modules.currency;
 
+import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -16,7 +17,9 @@ import java.util.logging.Logger;
 
 import javax.swing.AbstractAction;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JPanel;
 import javax.swing.SwingWorker;
 
 import org.openconcerto.erp.action.CreateFrameAbstractAction;
@@ -32,14 +35,20 @@ import org.openconcerto.sql.element.SQLElement;
 import org.openconcerto.sql.element.SQLElementDirectory;
 import org.openconcerto.sql.model.DBRoot;
 import org.openconcerto.sql.model.FieldPath;
+import org.openconcerto.sql.model.SQLRow;
 import org.openconcerto.sql.model.SQLRowAccessor;
+import org.openconcerto.sql.model.SQLRowValues;
 import org.openconcerto.sql.model.SQLTable;
 import org.openconcerto.sql.model.graph.Path;
+import org.openconcerto.sql.sqlobject.ElementComboBox;
+import org.openconcerto.sql.users.rights.UserRightsManager;
 import org.openconcerto.sql.utils.AlterTable;
 import org.openconcerto.sql.view.IListFrame;
 import org.openconcerto.sql.view.ListeAddPanel;
 import org.openconcerto.sql.view.list.BaseSQLTableModelColumn;
+import org.openconcerto.sql.view.list.IListe;
 import org.openconcerto.sql.view.list.IListeAction;
+import org.openconcerto.sql.view.list.IListeAction.IListeEvent;
 import org.openconcerto.sql.view.list.RowAction;
 import org.openconcerto.utils.ExceptionHandler;
 
@@ -99,26 +108,95 @@ public final class Module extends AbstractModule {
 
         final SQLTable clientTable = clientElement.getTable();
         final SQLTable currencyTable = clientTable.getDBRoot().findTable(CURRENCY_TABLE, true);
-        if (clientTable.contains(CLIENT_CURRENCY_FIELD) && currencyTable != null && currencyTable.contains("CODE")) {
-            final Path currencyPath = new Path(clientTable).addForeignField(CLIENT_CURRENCY_FIELD);
-            clientElement.addListColumn(new BaseSQLTableModelColumn("Devise", String.class) {
-                @Override
-                protected Object show_(SQLRowAccessor row) {
-                    if (row.isForeignEmpty(CLIENT_CURRENCY_FIELD)) {
-                        return "";
+        if (clientTable.contains(CLIENT_CURRENCY_FIELD)) {
+            if (currencyTable != null && currencyTable.contains("CODE")) {
+                final Path currencyPath = new Path(clientTable).addForeignField(CLIENT_CURRENCY_FIELD);
+                clientElement.addListColumn(new BaseSQLTableModelColumn("Devise", String.class) {
+                    @Override
+                    protected Object show_(SQLRowAccessor row) {
+                        if (row.isForeignEmpty(CLIENT_CURRENCY_FIELD)) {
+                            return "";
+                        }
+                        final SQLRowAccessor currency = row.getForeign(CLIENT_CURRENCY_FIELD);
+                        if (currency == null || currency.isUndefined()) {
+                            return "";
+                        }
+                        return currency.getString("CODE");
                     }
-                    final SQLRowAccessor currency = row.getForeign(CLIENT_CURRENCY_FIELD);
-                    if (currency == null || currency.isUndefined()) {
-                        return "";
-                    }
-                    return currency.getString("CODE");
-                }
 
-                @Override
-                public Set<FieldPath> getPaths() {
-                    return Collections.singleton(new FieldPath(currencyPath, "CODE"));
-                }
-            });
+                    @Override
+                    public Set<FieldPath> getPaths() {
+                        return Collections.singleton(new FieldPath(currencyPath, "CODE"));
+                    }
+                });
+            }
+            addCurrencyChooserRowAction(clientElement, directory.getElement(CURRENCY_TABLE));
+        }
+    }
+
+    private static void addCurrencyChooserRowAction(final SQLElement clientElement, final SQLElement currencyElement) {
+        if (currencyElement == null) {
+            return;
+        }
+        for (IListeAction action : clientElement.getRowActions()) {
+            if (action instanceof RowAction && "currency.client.chooseCurrency".equals(((RowAction) action).getID())) {
+                return;
+            }
+        }
+
+        final RowAction.PredicateRowAction chooseCurrency = new RowAction.PredicateRowAction(new AbstractAction("Choisir / modifier la devise du client") {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                showCurrencyChooser(event, clientElement, currencyElement);
+            }
+        }, true, "currency.client.chooseCurrency");
+        chooseCurrency.setPredicate(IListeEvent.getSingleSelectionPredicate());
+        clientElement.getRowActions().add(chooseCurrency);
+    }
+
+    private static void showCurrencyChooser(final ActionEvent event, final SQLElement clientElement, final SQLElement currencyElement) {
+        final IListe list = IListe.get(event);
+        final SQLRowAccessor clientRow = list.fetchSelectedRow();
+        if (clientRow == null || clientRow.isUndefined()) {
+            return;
+        }
+        if (!UserRightsManager.getCurrentUserRights().canModify(clientElement.getTable())) {
+            JOptionPane.showMessageDialog(list, "Vous n'avez pas les droits nécessaires pour modifier ce client.", "Devise du client", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Use a standalone, explicitly initialized ElementComboBox. This stays usable from the
+        // client list even when the user opened the client form in read-only mode.
+        final ElementComboBox currencyCombo = new ElementComboBox(false, 24);
+        currencyCombo.init(currencyElement);
+        currencyCombo.setButtonsVisible(false);
+
+        final int currentCurrencyID = clientRow.isForeignEmpty(CLIENT_CURRENCY_FIELD) ? SQLRow.NONEXISTANT_ID : clientRow.getInt(CLIENT_CURRENCY_FIELD);
+        if (currentCurrencyID >= SQLRow.MIN_VALID_ID) {
+            currencyCombo.setValue(currentCurrencyID);
+        }
+
+        final JPanel panel = new JPanel(new BorderLayout(8, 0));
+        panel.add(new JLabel("Devise du client :"), BorderLayout.LINE_START);
+        panel.add(currencyCombo, BorderLayout.CENTER);
+        final int answer = JOptionPane.showConfirmDialog(list, panel, "Choisir la devise du client", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (answer != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        final int selectedCurrencyID = currencyCombo.getSelectedId();
+        if (selectedCurrencyID < SQLRow.MIN_VALID_ID) {
+            JOptionPane.showMessageDialog(list, "Choisissez une devise dans la liste.", "Devise du client", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (!CurrencySelectionSupport.shouldPersistSelection(currentCurrencyID, selectedCurrencyID)) {
+            return;
+        }
+
+        try {
+            new SQLRowValues(clientElement.getTable()).put(CLIENT_CURRENCY_FIELD, Integer.valueOf(selectedCurrencyID)).update(clientRow.getID());
+        } catch (SQLException e) {
+            ExceptionHandler.handle("Impossible d'enregistrer la devise du client.", e);
         }
     }
 

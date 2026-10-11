@@ -114,8 +114,9 @@ public final class Module extends AbstractModule {
 
     public static final String PROJECT_TABLENAME = "AFFAIRE";
     private static boolean deliveryNoteListActionSyncInstalled = false;
+    // Include supplier invoices so ID_AFFAIRE is exposed in their form and list actions.
     private List<String> listTableAffaire = Arrays.asList("DEMANDE_PRIX", "BON_RECEPTION", "DEMANDE_ACHAT_ELEMENT", "SAISIE_VENTE_FACTURE", "AVOIR_CLIENT", "BON_DE_LIVRAISON", "COMMANDE_CLIENT",
-            "DEVIS", "COMMANDE", "SAISIE_ACHAT", "AVOIR_FOURNISSEUR");
+            "DEVIS", "COMMANDE", "SAISIE_ACHAT", "FACTURE_FOURNISSEUR", "AVOIR_FOURNISSEUR");
 
     public Module(ModuleFactory f) throws IOException {
         super(f);

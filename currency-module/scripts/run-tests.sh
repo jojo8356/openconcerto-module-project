@@ -10,8 +10,11 @@ mkdir -p "$TEST_CLASSES_DIR"
 cd "$MODULE_DIR"
 javac -encoding UTF-8 -d "$TEST_CLASSES_DIR" \
     src/org/openconcerto/modules/currency/CurrencyTemplateSupport.java \
+    src/org/openconcerto/modules/currency/CurrencySelectionSupport.java \
     src/org/openconcerto/modules/currency/Iso4217CurrencyCatalog.java \
     tests/org/openconcerto/modules/currency/CurrencyTemplateSupportTest.java \
+    tests/org/openconcerto/modules/currency/CurrencySelectionSupportTest.java \
     tests/org/openconcerto/modules/currency/Iso4217CurrencyCatalogTest.java
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.currency.CurrencyTemplateSupportTest
+java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.currency.CurrencySelectionSupportTest
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.currency.Iso4217CurrencyCatalogTest

@@ -6,7 +6,11 @@
 # confirmation, et recréée avant la restauration.
 #
 # Usage :
-#   ./restore-openconcerto-dump.sh -f OpenConcerto-1.7.6-a-jour_XXXX.dumpsql [-d base] [-U user] [-h hote] [-p port] [-y]
+#   ./restore-openconcerto-dump.sh -f OpenConcerto-1.7.6-a-jour_XXXX.dumpsql [-d base] [-U user] [-h hote] [-p port] [-r role] [-y]
+#
+# -r role définit le propriétaire de la base restaurée et le rôle utilisé pour pg_restore.
+# Utile si le script est lancé comme administrateur PostgreSQL (ex. postgres) mais que
+# l'application se connecte avec un rôle distinct (ex. openconcerto).
 #
 # Variables utiles :
 #   LOCALE   locale de la base (défaut : fr_FR.UTF-8)
@@ -15,22 +19,24 @@ set -euo pipefail
 
 DUMP=""
 DB="OpenConcerto"
+RESTORE_ROLE=""
 ASSUME_YES=0
 LOCALE_NAME="${LOCALE:-fr_FR.UTF-8}"
 BACKUP_DIR="oc-restore-backup-$(date +%Y-%m-%d_%H%M)"
 
 usage() {
-    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
-while getopts ":f:d:U:h:p:y" opt; do
+while getopts ":f:d:U:h:p:r:y" opt; do
     case "$opt" in
         f) DUMP="$OPTARG" ;;
         d) DB="$OPTARG" ;;
         U) export PGUSER="$OPTARG" ;;
         h) export PGHOST="$OPTARG" ;;
         p) export PGPORT="$OPTARG" ;;
+        r) RESTORE_ROLE="$OPTARG" ;;
         y) ASSUME_YES=1 ;;
         *) usage 1 ;;
     esac
@@ -53,7 +59,9 @@ if [ -f "$DUMP.sha256" ] && command -v sha256sum >/dev/null 2>&1; then
 fi
 
 log "Contenu du dump (aperçu)"
-pg_restore -l "$DUMP" | head -n 15 || die "Fichier de dump illisible (il doit être au format -Fc)."
+# sed lit toute la sortie : contrairement à head, il ne ferme pas le pipe et ne déclenche
+# pas SIGPIPE dans pg_restore lorsque le dump contient des milliers d'entrées.
+pg_restore -l "$DUMP" | sed -n '1,15p' || die "Fichier de dump illisible (il doit être au format -Fc)."
 
 EXISTS=$(psql -d postgres -tAc "SELECT count(*) FROM pg_database WHERE datname='$DB'")
 if [ "$EXISTS" = "1" ]; then
@@ -76,11 +84,22 @@ if [ "$EXISTS" = "1" ]; then
 fi
 
 log "Création de la base '$DB'"
-createdb -T template0 -E UTF8 -l "$LOCALE_NAME" "$DB" \
-    || die "Création impossible. Si la locale '$LOCALE_NAME' n'existe pas, relance avec LOCALE=C.UTF-8 (ou une autre locale installée)."
+if [ -n "$RESTORE_ROLE" ]; then
+    createdb -T template0 -E UTF8 -l "$LOCALE_NAME" -O "$RESTORE_ROLE" "$DB" \
+        || die "Création impossible. Si la locale '$LOCALE_NAME' n'existe pas, relance avec LOCALE=C.UTF-8 (ou une autre locale installée). Vérifie aussi le rôle propriétaire '$RESTORE_ROLE'."
+else
+    createdb -T template0 -E UTF8 -l "$LOCALE_NAME" "$DB" \
+        || die "Création impossible. Si la locale '$LOCALE_NAME' n'existe pas, relance avec LOCALE=C.UTF-8 (ou une autre locale installée)."
+fi
 
 log "Restauration du dump"
-pg_restore --no-owner --no-privileges -d "$DB" "$DUMP" || die "La restauration a signalé des erreurs. Vérifie la sortie ci-dessus."
+if [ -n "$RESTORE_ROLE" ]; then
+    pg_restore --exit-on-error --no-owner --no-privileges --role="$RESTORE_ROLE" -d "$DB" "$DUMP" \
+        || die "La restauration a échoué. La base '$DB' peut être partielle; si elle existait avant, le dump de sauvegarde est conservé dans $BACKUP_DIR."
+else
+    pg_restore --exit-on-error --no-owner --no-privileges -d "$DB" "$DUMP" \
+        || die "La restauration a échoué. La base '$DB' peut être partielle; si elle existait avant, le dump de sauvegarde est conservé dans $BACKUP_DIR."
+fi
 
 log "Vérification"
 psql -d "$DB" -tAc "SELECT data_type || '|' || column_default FROM information_schema.columns WHERE table_schema='OpenConcerto42' AND table_name='FACTURE_FOURNISSEUR_ELEMENT' AND column_name='ID_COMMANDE_ELEMENT'" \
