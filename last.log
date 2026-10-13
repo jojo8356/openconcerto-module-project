@@ -1,0 +1,8 @@
+Logger logs: /home/yves/OpenConcerto/logs/T430-yves/OpenConcerto-%u-age%g.log
+Reading configuration from: /home/yves/OpenConcerto-1.7.6-KT/Configuration/main.properties
+POSConfiguration.loadConfigurationFromXML() loading /home/yves/OpenConcerto-1.7.6-KT/./Configuration/pos.xml
+Loading: /home/yves/OpenConcerto-1.7.6-KT/Configuration/main.properties
+Testing:POSTGRESQL:127.0.0.1:1111 [openconcerto/openconcerto] systemRoot:OpenConcerto
+oct. 13, 2026 6:15:02 PM org.openconcerto.erp.modules.ModuleManager addFactories
+AVERTISSEMENT: Module factory directory not found: /home/yves/.local/share/OpenConcerto/Modules
+Connexion réussie sur la base OpenConcerto.

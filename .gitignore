@@ -8,7 +8,6 @@ out/
 
 # Temporary files
 *.tmp
-*.log
 *.bak
 *.swp
 *~

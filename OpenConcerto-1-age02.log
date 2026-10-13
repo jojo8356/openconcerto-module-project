@@ -1,0 +1,285 @@
+oct. 13, 2026 6:04:32 PM org.openconcerto.erp.modules.ModuleManager addFactories
+AVERTISSEMENT: Module factory directory not found: /home/yves/.local/share/OpenConcerto/Modules
+oct. 13, 2026 6:04:35 PM org.openconcerto.ui.preferences.AbstractProps load
+INFOS: /home/yves/OpenConcerto-1.7.6-KT/./Configuration/Email.properties does not exist for org.openconcerto.ui.preferences.EmailProps@4c2cc639
+oct. 13, 2026 6:04:35 PM org.openconcerto.ui.preferences.AbstractProps load
+INFOS: /home/yves/.config/OpenConcerto/Email.properties does not exist for org.openconcerto.ui.preferences.EmailProps@4c2cc639
+oct. 13, 2026 6:04:38 PM org.openconcerto.sql.model.SQLDataSource setLoginTimeout
+AVERTISSEMENT: Ignoring login timeout for jdbc:h2:mem:;DATABASE_TO_UPPER=false
+oct. 13, 2026 6:04:38 PM org.openconcerto.sql.model.DBSystemRoot setRootPathFromDS
+AVERTISSEMENT: db default schema is PUBLIC and the schemas of DBSystemRoot  are empty ; the first created schema will become the default one
+oct. 13, 2026 6:04:38 PM org.openconcerto.sql.model.SQLTable findMinID
+AVERTISSEMENT: The system property 'fwk_sql.debug.undefined_id' is deprecated, use the 'undefined ID policy' metadata
+oct. 13, 2026 6:04:39 PM org.openconcerto.sql.ShowAs show
+AVERTISSEMENT: DBRoot SQLSchema OpenConcerto42 does not contain the table:IDCC
+oct. 13, 2026 6:04:39 PM org.openconcerto.sql.model.FieldMapper findStream
+INFOS: Using ressource org/openconcerto/erp/config/fieldmapping.xml
+oct. 13, 2026 6:04:39 PM org.openconcerto.sql.model.FieldMapper findStream
+INFOS: Using ressource org/openconcerto/erp/config/fieldmapping.xml
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:   'Etat des charges' : stream missing
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:      'Livre de paye' : stream missing
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:            'Relance' : stream missing
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:      'VenteComptoir' : stream missing
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$AppClassLoader@639fee48, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$PlatformClassLoader@4627358d, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.modules.ModuleManager registerSQLElements
+AVERTISSEMENT: Module added an element that isn't a ModuleElement : org.openconcerto.modules.project.element.ProjectStateSQLElement "OpenConcerto"."OpenConcerto42"."ETAT_AFFAIRE"
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.modules.ModuleManager registerSQLElements
+AVERTISSEMENT: Module added an element that isn't a ModuleElement : org.openconcerto.modules.project.element.ProjectTypeSQLElement "OpenConcerto"."OpenConcerto42"."TYPE_AFFAIRE"
+oct. 13, 2026 6:04:39 PM org.openconcerto.erp.modules.ModuleManager registerSQLElements
+AVERTISSEMENT: Module added an element that isn't a ModuleElement : org.openconcerto.modules.project.element.ProjectSQLElement "OpenConcerto"."OpenConcerto42"."AFFAIRE"
+oct. 13, 2026 6:04:40 PM org.openconcerto.ui.JDate <init>
+AVERTISSEMENT: commitEachValidEdit ignored due to Java bug
+oct. 13, 2026 6:04:40 PM org.openconcerto.ui.JDate <init>
+AVERTISSEMENT: commitEachValidEdit ignored due to Java bug
+oct. 13, 2026 6:04:40 PM org.openconcerto.ui.JDate <init>
+AVERTISSEMENT: commitEachValidEdit ignored due to Java bug
+oct. 13, 2026 6:04:40 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$AppClassLoader@639fee48, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:04:40 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$PlatformClassLoader@4627358d, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:04:40 PM org.openconcerto.utils.i18n.TranslationManager addTranslations
+AVERTISSEMENT: TranslationManager was unable to load translation org.openconcerto.modules.supplychain.invoice.importer.Module for locale fr_FR
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item QTE_RECUE in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU_FORCED in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.ui.state.JTableStateManager readState
+INFOS: saved cols :25 != actual cols: 24
+oct. 13, 2026 6:04:45 PM org.openconcerto.ui.state.JTableStateManager readState
+INFOS: saved cols :10 != actual cols: 9
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item QTE_RECUE in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU_FORCED in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:45 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item QTE_RECUE in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU_FORCED in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:46 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:04:56 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_DEMANDE_ACHAT_ELEMENT in /FACTURE_FOURNISSEUR_ELEMENT/
+oct. 13, 2026 6:04:56 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_AFFAIRE in /FACTURE_FOURNISSEUR_ELEMENT/
+oct. 13, 2026 6:04:56 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_COMMANDE_ELEMENT in /FACTURE_FOURNISSEUR_ELEMENT/
+oct. 13, 2026 6:05:08 PM org.openconcerto.erp.modules.ModuleManager addFactories
+AVERTISSEMENT: Module factory directory not found: /home/yves/.local/share/OpenConcerto/Modules
+oct. 13, 2026 6:05:11 PM org.openconcerto.ui.preferences.AbstractProps load
+INFOS: /home/yves/OpenConcerto-1.7.6-KT/./Configuration/Email.properties does not exist for org.openconcerto.ui.preferences.EmailProps@4c2cc639
+oct. 13, 2026 6:05:11 PM org.openconcerto.ui.preferences.AbstractProps load
+INFOS: /home/yves/.config/OpenConcerto/Email.properties does not exist for org.openconcerto.ui.preferences.EmailProps@4c2cc639
+oct. 13, 2026 6:05:26 PM org.openconcerto.sql.model.SQLDataSource setLoginTimeout
+AVERTISSEMENT: Ignoring login timeout for jdbc:h2:mem:;DATABASE_TO_UPPER=false
+oct. 13, 2026 6:05:26 PM org.openconcerto.sql.model.DBSystemRoot setRootPathFromDS
+AVERTISSEMENT: db default schema is PUBLIC and the schemas of DBSystemRoot  are empty ; the first created schema will become the default one
+oct. 13, 2026 6:05:26 PM org.openconcerto.sql.model.SQLTable findMinID
+AVERTISSEMENT: The system property 'fwk_sql.debug.undefined_id' is deprecated, use the 'undefined ID policy' metadata
+oct. 13, 2026 6:05:27 PM org.openconcerto.sql.ShowAs show
+AVERTISSEMENT: DBRoot SQLSchema OpenConcerto42 does not contain the table:IDCC
+oct. 13, 2026 6:05:27 PM org.openconcerto.sql.model.FieldMapper findStream
+INFOS: Using ressource org/openconcerto/erp/config/fieldmapping.xml
+oct. 13, 2026 6:05:27 PM org.openconcerto.sql.model.FieldMapper findStream
+INFOS: Using ressource org/openconcerto/erp/config/fieldmapping.xml
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:   'Etat des charges' : stream missing
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:      'Livre de paye' : stream missing
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:            'Relance' : stream missing
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.generationDoc.TemplateManager dump
+AVERTISSEMENT:      'VenteComptoir' : stream missing
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$AppClassLoader@639fee48, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$PlatformClassLoader@632ad42b, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.modules.ModuleManager registerSQLElements
+AVERTISSEMENT: Module added an element that isn't a ModuleElement : org.openconcerto.modules.project.element.ProjectTypeSQLElement "OpenConcerto"."OpenConcerto42"."TYPE_AFFAIRE"
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.modules.ModuleManager registerSQLElements
+AVERTISSEMENT: Module added an element that isn't a ModuleElement : org.openconcerto.modules.project.element.ProjectStateSQLElement "OpenConcerto"."OpenConcerto42"."ETAT_AFFAIRE"
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.modules.ModuleManager registerSQLElements
+AVERTISSEMENT: Module added an element that isn't a ModuleElement : org.openconcerto.modules.project.element.ProjectSQLElement "OpenConcerto"."OpenConcerto42"."AFFAIRE"
+oct. 13, 2026 6:05:27 PM org.openconcerto.ui.JDate <init>
+AVERTISSEMENT: commitEachValidEdit ignored due to Java bug
+oct. 13, 2026 6:05:27 PM org.openconcerto.ui.JDate <init>
+AVERTISSEMENT: commitEachValidEdit ignored due to Java bug
+oct. 13, 2026 6:05:27 PM org.openconcerto.ui.JDate <init>
+AVERTISSEMENT: commitEachValidEdit ignored due to Java bug
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$AppClassLoader@639fee48, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:05:27 PM org.openconcerto.erp.modules.JarModuleFactory$ModuleClassLoader loadPerms
+AVERTISSEMENT: Unknown type of class loader : jdk.internal.loader.ClassLoaders$PlatformClassLoader@632ad42b, cannot be sure that this protection domain will be allowed to read resources from it
+oct. 13, 2026 6:05:27 PM org.openconcerto.utils.i18n.TranslationManager addTranslations
+AVERTISSEMENT: TranslationManager was unable to load translation org.openconcerto.modules.supplychain.invoice.importer.Module for locale fr_FR
+oct. 13, 2026 6:05:31 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item QTE_RECUE in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:31 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU_FORCED in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:31 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:31 PM org.openconcerto.ui.state.JTableStateManager readState
+INFOS: saved cols :25 != actual cols: 24
+oct. 13, 2026 6:05:31 PM org.openconcerto.ui.state.JTableStateManager readState
+INFOS: saved cols :10 != actual cols: 9
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item QTE_RECUE in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU_FORCED in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item QTE_RECUE in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU_FORCED in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:32 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item RECU in /COMMANDE_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:33 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_BON_RECEPTION in /BON_RECEPTION_ELEMENT/
+oct. 13, 2026 6:05:41 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_DEMANDE_ACHAT_ELEMENT in /FACTURE_FOURNISSEUR_ELEMENT/
+oct. 13, 2026 6:05:41 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_AFFAIRE in /FACTURE_FOURNISSEUR_ELEMENT/
+oct. 13, 2026 6:05:41 PM org.openconcerto.sql.request.SQLFieldTranslator getDescFor
+INFOS: unknown item ID_COMMANDE_ELEMENT in /FACTURE_FOURNISSEUR_ELEMENT/
+oct. 13, 2026 6:05:42 PM org.openconcerto.utils.ExceptionHandler display
+INFOS: null
+org.openconcerto.utils.ExceptionHandler: Impossible d'afficher SQLRowValues on /FACTURE_FOURNISSEUR/ : {ID_FOURNISSEUR=76(class java.lang.Integer), NOM=Offre DGL n°851, 12204-PO-001(class java.lang.String), INFOS=(class java.lang.String)}
+	at org.openconcerto.utils.ExceptionHandler.handle(ExceptionHandler.java:150)
+	at org.openconcerto.utils.ExceptionHandler.handle(ExceptionHandler.java:132)
+	at org.openconcerto.sql.element.BaseSQLComponent.select(BaseSQLComponent.java:772)
+	at org.openconcerto.sql.element.BaseSQLComponent.select(BaseSQLComponent.java:746)
+	at org.openconcerto.erp.core.common.component.TransfertBaseSQLComponent.select(TransfertBaseSQLComponent.java:131)
+	at org.openconcerto.erp.core.common.component.TransfertBaseSQLComponent.importFrom(TransfertBaseSQLComponent.java:103)
+	at org.openconcerto.erp.core.common.component.TransfertBaseSQLComponent.openTransfertFrame(TransfertBaseSQLComponent.java:200)
+	at org.openconcerto.erp.core.common.component.TransfertBaseSQLComponent.openTransfertFrame(TransfertBaseSQLComponent.java:147)
+	at org.openconcerto.erp.core.supplychain.order.element.CommandeSQLElement$3$1.done(CommandeSQLElement.java:152)
+	at java.desktop/javax.swing.SwingWorker$4.run(SwingWorker.java:749)
+	at java.desktop/javax.swing.SwingWorker$DoSubmitAccumulativeRunnable.run(SwingWorker.java:847)
+	at java.desktop/sun.swing.AccumulativeRunnable.run(AccumulativeRunnable.java:112)
+	at java.desktop/javax.swing.SwingWorker$DoSubmitAccumulativeRunnable.actionPerformed(SwingWorker.java:857)
+	at java.desktop/javax.swing.Timer.fireActionPerformed(Timer.java:311)
+	at java.desktop/javax.swing.Timer$DoPostEvent.run(Timer.java:243)
+	at java.desktop/java.awt.event.InvocationEvent.dispatch(InvocationEvent.java:318)
+	at java.desktop/java.awt.EventQueue.dispatchEventImpl(EventQueue.java:773)
+	at java.desktop/java.awt.EventQueue$4.run(EventQueue.java:720)
+	at java.desktop/java.awt.EventQueue$4.run(EventQueue.java:714)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:400)
+	at java.base/java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:87)
+	at java.desktop/java.awt.EventQueue.dispatchEvent(EventQueue.java:742)
+	at java.desktop/java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203)
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124)
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113)
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109)
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101)
+	at java.desktop/java.awt.EventDispatchThread.run(EventDispatchThread.java:90)
+Caused by: java.lang.IllegalStateException: forbidden
+	at org.openconcerto.sql.element.BaseSQLComponent.select(BaseSQLComponent.java:754)
+	... 25 more
+
+oct. 13, 2026 6:11:32 PM org.openconcerto.erp.modules.ModuleManager addFactories
+AVERTISSEMENT: Module factory directory not found: /home/yves/.local/share/OpenConcerto/Modules
+oct. 13, 2026 6:11:34 PM org.openconcerto.ui.preferences.AbstractProps load
+INFOS: /home/yves/OpenConcerto-1.7.6-KT/./Configuration/Email.properties does not exist for org.openconcerto.ui.preferences.EmailProps@4c2cc639
+oct. 13, 2026 6:11:34 PM org.openconcerto.ui.preferences.AbstractProps load
+INFOS: /home/yves/.config/OpenConcerto/Email.properties does not exist for org.openconcerto.ui.preferences.EmailProps@4c2cc639
