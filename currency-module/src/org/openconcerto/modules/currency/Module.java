@@ -205,7 +205,10 @@ public final class Module extends AbstractModule {
         context.addMenuItem(new CreateFrameAbstractAction("Liste des devises") {
             @Override
             public JFrame createFrame() {
-                final SQLElement currencyElement = context.getElement(CURRENCY_TABLE);
+                final SQLElement currencyElement = getCurrencyElement();
+                if (currencyElement == null) {
+                    return messageFrame("Devises", "Le catalogue des devises (table DEVISE) n'est pas accessible dans cette base.");
+                }
                 return new IListFrame(new ListeAddPanel(currencyElement));
             }
         }, MainFrame.LIST_MENU);
@@ -213,7 +216,10 @@ public final class Module extends AbstractModule {
         context.addMenuItem(new CreateFrameAbstractAction("Clients et leur devise") {
             @Override
             public JFrame createFrame() {
-                final SQLElement clientElement = context.getElement(CLIENT_TABLE);
+                final SQLElement clientElement = getElement(CLIENT_TABLE);
+                if (clientElement == null) {
+                    return messageFrame("Clients et leur devise", "La table CLIENT n'est pas accessible dans cette base.");
+                }
                 return new IListFrame(new ListeAddPanel(clientElement));
             }
         }, MainFrame.LIST_MENU);
@@ -279,7 +285,38 @@ public final class Module extends AbstractModule {
     }
 
     private static SQLTable getCurrencyTable() {
-        return Configuration.getInstance().getDirectory().getElement(CURRENCY_TABLE).getTable();
+        final SQLElement currencyElement = getCurrencyElement();
+        if (currencyElement == null) {
+            throw new IllegalStateException("La table DEVISE n'est pas accessible dans cette base.");
+        }
+        return currencyElement.getTable();
+    }
+
+    /**
+     * Resolves an element by table name against the global SQLElement directory.
+     *
+     * <p>DEVISE lives in the shared "Common" schema, not in the company schema, so the module
+     * context (which resolves tables in the company root only) cannot find it and throws
+     * "Not element found for table DEVISE". Looking the name up in the global directory - the same
+     * lookup OpenConcerto's own ListeDesDevisesAction performs - works for both shared and company
+     * tables.</p>
+     */
+    private static SQLElement getElement(final String tableName) {
+        if (Configuration.getInstance().getDirectory() == null) {
+            return null;
+        }
+        return Configuration.getInstance().getDirectory().getElement(tableName);
+    }
+
+    private static SQLElement getCurrencyElement() {
+        return getElement(CURRENCY_TABLE);
+    }
+
+    /** Frames returned by menu actions must never be null: the caller packs and shows them. */
+    private static JFrame messageFrame(final String title, final String message) {
+        final JFrame frame = new JFrame(title);
+        frame.add(new JLabel(message));
+        return frame;
     }
 
     private static void installCurrencyAwareDocumentActions(final SQLElementDirectory directory) {

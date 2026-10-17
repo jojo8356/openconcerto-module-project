@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix the currency module on a standard 1.7.6 database: `DEVISE` lives in the shared `Common` schema, so the module context (which only resolves tables in the company schema) threw `Not element found for table DEVISE` when opening **Listes > Liste des devises**. Elements are now resolved through the global `SQLElementDirectory`, the same lookup OpenConcerto's own `ListeDesDevisesAction` uses. The ISO 4217 catalogue, the client currency field and the client list action were already working and are unchanged.
 - Expose `FACTURE_FOURNISSEUR.ID_AFFAIRE` in the supplier invoice form and list actions so invoices can be linked to an affair directly. Existing rows with an undefined affair are intentionally not rewritten; any historical backfill must be reviewed against the linked supplier orders.
 
 ## 1.4 - 2026-10-10
