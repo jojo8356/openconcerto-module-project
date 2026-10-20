@@ -185,9 +185,9 @@ if [ "$DRY" = "1" ]; then
     echo "Dry-run : rien n'a été modifié. Commandes prêtes à copier-coller :"
     printf '%s' "$PLAN" | cut -d'|' -f1 | sort -u | while IFS= read -r b; do
         [ -n "$b" ] || continue
-        printf '  ./fix-facture-fournisseur-all-schemas.sh -d %s\n' "$b"
+        printf '  bash %s -d %s\n' "$0" "$b"
     done
-    echo "  ./fix-facture-fournisseur-all-schemas.sh -A      # toutes les bases d'un coup"
+    printf '  bash %s -A      # toutes les bases d un coup\n' "$0"
     # bilan incomplet si des bases n'ont pas pu être lues : le signaler par le code retour
     [ -z "$IGNOREES" ] || exit 1
     exit 0
