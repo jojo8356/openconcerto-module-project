@@ -166,7 +166,12 @@ done
 
 if [ "$DRY" = "1" ]; then
     echo
-    echo "Dry-run : rien n'a été modifié. Relance sans -n pour appliquer."
+    echo "Dry-run : rien n'a été modifié. Commandes prêtes à copier-coller :"
+    printf '%s' "$PLAN" | cut -d'|' -f1 | sort -u | while IFS= read -r b; do
+        [ -n "$b" ] || continue
+        printf '  ./fix-facture-fournisseur-all-schemas.sh -d %s\n' "$b"
+    done
+    echo "  ./fix-facture-fournisseur-all-schemas.sh -A      # toutes les bases d'un coup"
     exit 0
 fi
 
