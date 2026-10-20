@@ -59,7 +59,20 @@ sur un volume existant ne change rien, il faut repartir d'un volume vierge
 
 ## 3. Restaurer le dump 1.7.6
 
-Avec le script du dépôt, en visant le port publié :
+Le plus simple est le script qui enchaîne tout — dump de la base native,
+restauration dans le conteneur, correctif multi-schémas, puis contrôle de la
+colonne et du nombre de tables par schéma des deux côtés :
+
+```sh
+scripts/copy-openconcerto-db-to-docker.sh -n    # plan détaillé, ne modifie rien
+scripts/copy-openconcerto-db-to-docker.sh       # exécute, avec confirmation
+```
+
+Il retrouve ses deux scripts voisins dans son propre dossier, et lit le mot de
+passe du conteneur dans `PGPASSWORD` ou dans `POSTGRES_PASSWORD` du `.env`.
+
+Pour restaurer manuellement un dump déjà présent, avec le script du dépôt et en
+visant le port publié :
 
 ```sh
 PGPASSWORD=... ./scripts/restore-openconcerto-dump.sh \
@@ -106,6 +119,9 @@ docker compose down -v   # supprime AUSSI les données
   (`option « provider » non reconnue`). Une base ICU suppose un cluster
   initialisé avec `--locale-provider=icu` ; sur ce cluster libc, s'en tenir à
   la locale libc.
+- **Sauvegardes cumulées** : chaque restauration écrit un dump complet de
+  l'ancienne base dans `oc-restore-backup-<date>/`, et chaque copie ajoute un
+  fichier dans `dumps/`. Penser à purger : `ls -lh oc-restore-backup-* dumps/`.
 - **Version des outils** : un dump produit par `pg_dump` 17 ou 18 n'est pas
   lisible par un `pg_restore` plus ancien. Utiliser les outils du conteneur
   (`docker compose exec db pg_restore …`) plutôt que ceux de l'hôte s'ils
