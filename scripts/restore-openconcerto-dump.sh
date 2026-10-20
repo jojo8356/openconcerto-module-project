@@ -53,7 +53,11 @@ if [ -f "$DUMP.sha256" ] && command -v sha256sum >/dev/null 2>&1; then
 fi
 
 log "Contenu du dump (aperçu)"
-pg_restore -l "$DUMP" | head -n 15 || die "Fichier de dump illisible (il doit être au format -Fc)."
+# Pas de pipe vers head ici : head ferme le tuyau après 15 lignes, pg_restore
+# reçoit SIGPIPE et sort en 141, ce qui — avec pipefail — faisait échouer le
+# script sur un dump parfaitement valide.
+TOC=$(pg_restore -l "$DUMP") || die "Fichier de dump illisible (il doit être au format -Fc)."
+head -n 15 <<< "$TOC"
 
 EXISTS=$(psql -d postgres -tAc "SELECT count(*) FROM pg_database WHERE datname='$DB'")
 if [ "$EXISTS" = "1" ]; then
