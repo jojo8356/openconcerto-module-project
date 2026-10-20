@@ -89,13 +89,48 @@ Si la locale du dump n'existe pas dans le conteneur, relancer avec
 
 ## 4. Brancher le client 1.7.6
 
-Le client lit sa configuration dans `~/.config/OpenConcerto/main.properties`
-(chemin affiché au démarrage par `OpenConcerto.sh`). Deux options :
+Le client lit sa configuration dans `~/.config/OpenConcerto/main.properties`.
 
-- lancer `/opt/openconcerto/OpenConcerto-Configuration.sh` et renseigner
-  hôte `127.0.0.1`, port `5433`, base, utilisateur, mot de passe ;
-- ou dupliquer le profil de configuration existant avant de le modifier, pour
-  pouvoir revenir en arrière.
+**L'assistant graphique ne peut pas faire leswitch.** Dans `ServerFinderPanel`
+le champ « Base de données » est en lecture seule (`textBase.setEditable(false)`,
+rempli depuis la propriété `systemRoot` existante puis réinjecté tel quel), et
+l'onglet n'expose aucun champ identifiant / mot de passe. Il n'y a donc pas
+d'interface pour changer de base ni pour saisir des identifiants.
+
+C'est pourquoi la bascule se fait par le script suivant, qui réécrit le
+`main.properties` (sauvegarde automatique à côté), aligne le mot de passe du
+rôle SQL du conteneur et contrôle la connexion :
+
+```sh
+scripts/switch-openconcerto-client-db.sh -t docker -r -n   # plan, ne modifie rien
+scripts/switch-openconcerto-client-db.sh -t docker -r      # exécute, avec confirmation
+scripts/switch-openconcerto-client-db.sh -t native          # retour à la base native
+```
+
+Ce qu'il écrit :
+
+```properties
+server.ip=127.0.0.1\:5433
+systemRoot=OpenConcerto
+server.driver=postgresql
+server.login=openconcerto
+server.password=openconcerto
+```
+
+Deux points qui ne se devinent pas :
+
+- **Les identifiants par défaut d'OpenConcerto sont `openconcerto` /
+  `openconcerto`** (`ComptaPropsConfiguration` les applique quand le fichier de
+  configuration n'en contient pas, et `ServerFinderConfig` — le bouton
+  « Tester la connexion » de l'assistant — les utilise toujours). Le rôle du
+  conteneur doit donc porter ce mot de passe : c'est le rôle de l'option `-r`,
+  qui fait un `ALTER ROLE` dans le conteneur et met le `.env` en cohérence.
+  Avec `-r`, le bouton « Tester la connexion » de l'assistant fonctionne
+  également sur le conteneur.
+- **`server.ip` contient l'hôte et le port dans une seule valeur**, le deux-points
+  échappé (`\:`) : c'est le format qu'écrit OpenConcerto, il faut le
+  respecter. `127.0.0.1` et non `localhost`, qui peut résoudre en `::1` alors
+  que le conteneur n'écoute que sur `127.0.0.1`.
 
 Vérifier ensuite dans le log de démarrage la ligne `Ip:127.0.0.1:5433` — c'est
 elle qui dit à quelle base le client parle.
