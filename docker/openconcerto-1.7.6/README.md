@@ -31,17 +31,26 @@ sudo -u postgres psql -d OpenConcertoKineticTherm -Atc \
 ```
 
 Si la réponse est autre chose que `C.UTF-8` (par exemple `fr_FR.UTF-8`), il faut
-que cette locale existe dans le conteneur avant `initdb`. L'image Debian le
-permet, l'image alpine/musl non :
+que cette locale existe dans le conteneur **avant la création de la base** — le
+script de restauration fait un `createdb -l <locale>`. L'image Debian le permet,
+l'image alpine/musl non :
 
 ```sh
 docker compose exec db bash -c \
-  'localedef -i fr_FR -c -f UTF-8 -A /usr/share/locale/locale.alias fr_FR.UTF-8 && locale -a | grep -i fr_FR'
+  'locale -a | grep -i fr_FR || localedef -i fr_FR -c -f UTF-8 -A /usr/share/locale/locale.alias fr_FR.UTF-8'
 ```
 
-Cette génération doit précéder la première initialisation du volume ; si le
-volume existe déjà, `docker compose down -v` (perte des données du conteneur)
-puis relancer.
+Deux précisions :
+
+- la collation par défaut du *cluster* est figée à l'`initdb` ; générer la
+  locale après coup n'affecte que les bases créées ensuite. Pour que le cluster
+  lui-même soit en `fr_FR.UTF-8`, il faut la générer avant le premier `up -d`,
+  ou repartir d'un volume vierge (`docker compose down -v`, ce qui perd les
+  données du conteneur).
+- la locale générée vit dans le système de fichiers du conteneur : elle
+  disparaît si le conteneur est recréé (`docker compose down`). Pour la
+  pérenniser, la générer dans une image dérivée ou dans un script d'init monté
+  sous `/docker-entrypoint-initdb.d`.
 
 ## 3. Restaurer le dump 1.7.6
 
