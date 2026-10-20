@@ -1,0 +1,17 @@
+# Fichier d'override : base créée avec la collation française (fr_FR.UTF-8).
+#
+# Usage :
+#   docker compose -f docker-compose.yml -f docker-compose.fr_FR.yml up -d --build
+#
+# Nécessaire dès que la base source est en fr_FR.UTF-8 : sans cela, createdb
+# refuse "fr_FR.UTF-8" (invalid LC_COLLATE locale name) même si la locale est
+# listée par `locale -a` dans le conteneur — voir le commentaire du Dockerfile.
+# Le volume doit être vierge au moment du changement : la collation par défaut
+# du cluster est figée à l'initdb (docker compose down -v si besoin).
+
+services:
+  db:
+    build: .
+    image: openconcerto176-db-fr
+    environment:
+      POSTGRES_INITDB_ARGS: --locale=fr_FR.UTF-8 --encoding=UTF8
