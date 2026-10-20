@@ -1,0 +1,48 @@
+name: openconcerto176
+
+# Stack PostgreSQL + Adminer pour OpenConcerto 1.7.6 (multiposte).
+#
+# Choix justifiés par l'environnement réel observé :
+#   - postgres:17-bookworm : le serveur natif de la machine est un cluster
+#     Debian "17 main" (pg_lsclusters), on reste sur la même version majeure.
+#     L'image Debian (pas alpine/musl) permet de générer fr_FR.UTF-8 si la
+#     base source utilise cette collation.
+#   - ports publiés sur 127.0.0.1 et sur 5433/8082 : le cluster natif occupe
+#     déjà 127.0.0.1:5432, publier sur 5432 ferait échouer le démarrage.
+#   - ./dumps monté en lecture seule : le dump 1.7.6 est visible du conteneur
+#     sans avoir à le copier.
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-openconcerto}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD doit être défini dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-OpenConcerto}
+      # Encodage UTF8 obligatoire pour OpenConcerto. La collation n'est PAS
+      # forcée ici : aligne-la sur la base source (voir README, étape 2).
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+    ports:
+      - "127.0.0.1:${PG_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./dumps:/dumps:ro
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openconcerto} -d ${POSTGRES_DB:-OpenConcerto}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  adminer:
+    image: adminer:5
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ADMINER_PORT:-8082}:8080"
+
+volumes:
+  pgdata:
