@@ -70,15 +70,6 @@ else
     BASES="$DB"
 fi
 
-# Schémas de la base contenant la table, avec présence de la colonne (t/f)
-schemas_de() {
-    "${PSQL[@]}" -d "$1" -At -F'|' -c \
-        "SELECT table_schema, bool_or(column_name = '$COLUMN')
-           FROM information_schema.columns
-          WHERE table_name = '$TABLE'
-          GROUP BY 1 ORDER BY 1" 2>/dev/null || true
-}
-
 verif_colonne() {
     "${PSQL[@]}" -d "$1" -tAc \
         "SELECT data_type || '|' || column_default
@@ -136,10 +127,25 @@ EOSQL
 }
 
 # ---------------------------------------------------------------- collecte
-PLAN=""   # lignes "base|schema"
+# Une base dont la lecture échoue est SIGNALÉE, jamais ignorée en silence :
+# un scan muet ferait croire à tort qu'il n'y a rien à corriger.
+PLAN=""       # lignes "base|schema" à corriger
+IGNOREES=""   # bases non analysées, avec la première ligne d'erreur
+ERRTMP=$(mktemp)
+trap 'rm -f "$ERRTMP"' EXIT
+
 while IFS= read -r base; do
     [ -n "$base" ] || continue
-    ROWS=$(schemas_de "$base")
+    RC=0
+    ROWS=$("${PSQL[@]}" -d "$base" -At -F'|' -c \
+        "SELECT table_schema, bool_or(column_name = '$COLUMN')
+           FROM information_schema.columns
+          WHERE table_name = '$TABLE'
+          GROUP BY 1 ORDER BY 1" 2>"$ERRTMP") || RC=$?
+    if [ "$RC" -ne 0 ]; then
+        IGNOREES="${IGNOREES}  ${base} : $(head -n 1 "$ERRTMP")"$'\n'
+        continue
+    fi
     [ -n "$ROWS" ] || continue
     while IFS='|' read -r schema present; do
         [ -n "$schema" ] || continue
@@ -150,7 +156,17 @@ while IFS= read -r base; do
     done <<< "$ROWS"
 done <<< "$BASES"
 
+if [ -n "$IGNOREES" ]; then
+    printf '\nATTENTION — bases NON ANALYSÉES (psql en échec) :\n' >&2
+    printf '%s' "$IGNOREES" >&2
+    echo "Le bilan ci-dessous est donc INCOMPLET." >&2
+fi
+
 if [ -z "$PLAN" ]; then
+    if [ -n "$IGNOREES" ]; then
+        echo "Impossible de conclure : au moins une base n'a pas pu être lue." >&2
+        exit 1
+    fi
     echo "Rien à faire : la colonne '$COLUMN' est présente partout où '$TABLE' existe."
     exit 0
 fi
@@ -172,6 +188,8 @@ if [ "$DRY" = "1" ]; then
         printf '  ./fix-facture-fournisseur-all-schemas.sh -d %s\n' "$b"
     done
     echo "  ./fix-facture-fournisseur-all-schemas.sh -A      # toutes les bases d'un coup"
+    # bilan incomplet si des bases n'ont pas pu être lues : le signaler par le code retour
+    [ -z "$IGNOREES" ] || exit 1
     exit 0
 fi
 
@@ -205,9 +223,13 @@ while IFS='|' read -r base schema; do
 done <<< "$PLAN"
 
 echo
-if [ "$ERREURS" = "0" ]; then
-    echo "Terminé sans erreur. Pense à relancer OpenConcerto pour recharger la structure."
-else
+if [ "$ERREURS" != "0" ]; then
     echo "Terminé avec $ERREURS échec(s) : voir les messages ci-dessus."
     exit 1
 fi
+if [ -n "$IGNOREES" ]; then
+    echo "Correctif appliqué, mais le bilan de départ était INCOMPLET : règle les bases"
+    echo "non analysées ci-dessus, puis relance un dry-run."
+    exit 1
+fi
+echo "Terminé sans erreur. Pense à relancer OpenConcerto pour recharger la structure."
