@@ -188,6 +188,12 @@ fi
 info "compose : $(vssh 'docker compose version' 2>/dev/null || vssh 'docker-compose --version' 2>/dev/null || echo 'aucun')"
 
 # ------------------------------------------------------------------ stack
+# La stack est demarree avec le fichier d'override fr_FR : l'image postgres
+# d'origine n'a pas la locale francaise, et la restauration cree la base
+# avec « createdb -l fr_FR.UTF-8 » (collation de la base source).
+compose() {
+    vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose -f docker-compose.yml -f docker-compose.fr_FR.yml $1"
+}
 log "Copie de la stack dans la VM"
 vssh "mkdir -p '$VM_DIR/docker/openconcerto-1.7.6' '$VM_DIR/dumps' '$VM_DIR/scripts'"
 
@@ -225,20 +231,19 @@ info "mot de passe PostgreSQL : $PG_PASSWORD"
 # ------------------------------------------------------------------ démarrage
 if [ "$NO_START" = "0" ]; then
     log "Démarrage de la stack (PostgreSQL + Adminer)"
-    vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose up -d" \
-        || die "le démarrage de la stack a échoué"
-    vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose ps" || true
+    compose "up -d --build" || die "le démarrage de la stack a échoué"
+    compose "ps" || true
 
     # Test reel de connexion : le mot de passe du .env n'est pris en compte
     # par postgres qu'a la creation du volume.
     log "Test de connexion a la base"
-    db_ok=$(vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && PGPASSWORD='$PG_PASSWORD' docker compose exec -T db psql -U openconcerto -d OpenConcerto -tAc 'select 1'" 2>/dev/null | tr -d '\r\n ')
+    db_ok=$(compose "exec -T db psql -U openconcerto -d OpenConcerto -tAc 'select 1'" 2>/dev/null | tr -d '\r\n ')
     if [ "$db_ok" = "1" ]; then
         info "connexion OK : base OpenConcerto accessible avec le mot de passe ci-dessus"
     else
         info "ATTENTION : connexion impossible avec ce mot de passe."
         info "  (le volume a peut-etre ete cree avec un autre mot de passe)"
-        info "  test : ssh -p $VM_PORT $VM_USER@$VM_HOST \"cd $VM_DIR/docker/openconcerto-1.7.6 && docker compose exec db psql -U openconcerto -d OpenConcerto\""
+        info "  test : ssh -p $VM_PORT $VM_USER@$VM_HOST \"cd $VM_DIR/docker/openconcerto-1.7.6 && docker compose -f docker-compose.yml -f docker-compose.fr_FR.yml exec db psql -U openconcerto -d OpenConcerto\""
     fi
 fi
 
