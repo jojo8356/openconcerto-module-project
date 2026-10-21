@@ -266,7 +266,7 @@ if [ "$APPLY" = "1" ]; then
             elif [ "$PORT" = "5433" ] && [ -f "$COMPOSE" ] && command -v docker >/dev/null 2>&1; then
                 export PSQL_CMD="docker compose -f $COMPOSE exec -T db psql -U $ROLE"
             else
-                export PSQL_CMD="sudo -u postgres psql -p $PORT"
+                export PSQL_CMD="psql -h $HOST -p $PORT -U $ROLE"
             fi
         fi
         echo "  commande SQL : $PSQL_CMD"
