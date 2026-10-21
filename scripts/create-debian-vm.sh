@@ -37,6 +37,16 @@
 #
 set -euo pipefail
 
+# Si QEMU a ete installe « a cote » (sans root) par install-qemu-noroot.sh,
+# on reprend son PATH et ses LD_LIBRARY_PATH.
+for envf in "$HOME/qemu-local/qemu-env.sh" "/opt/qemu-local/qemu-env.sh"; do
+    if [ -f "$envf" ]; then
+        # shellcheck disable=SC1090
+        . "$envf"
+        break
+    fi
+done
+
 VM_DIR="${VM_DIR:-$HOME/debian-vm}"
 DIST=""
 DISK_SIZE="8G"
@@ -92,14 +102,13 @@ COMMAND="${COMMAND:-install}"
 qemu_hint() {
     cat <<'HINT'
 
-  QEMU n'est pas installé. Sans droits administrateur, on peut l'installer
-  « a cote » (paquets extraits, pas installes) :
+  QEMU n'est pas installé. Sans droits administrateur, le script
+  install-qemu-noroot.sh l'installe « a cote » : il telecharge les
+  paquets avec « apt download », les extrait dans ~/qemu-local/root, puis
+  resout les bibliotheques manquantes (libcapstone.so.5, libfdt.so.1, ...).
 
-    mkdir -p ~/qemu-local && cd ~/qemu-local
-    apt download qemu-system-x86 qemu-system-common qemu-utils
-    for d in *.deb; do dpkg-deb -x "$d" root; done
-    export PATH="$HOME/qemu-local/root/usr/bin:$PATH"
-    export LD_LIBRARY_PATH="$HOME/qemu-local/root/usr/lib/x86_64-linux-gnu:$HOME/qemu-local/root/usr/lib:${LD_LIBRARY_PATH:-}"
+    bash install-qemu-noroot.sh
+    source ~/qemu-local/qemu-env.sh
 
   Une AppImage QEMU convient aussi (extraction avec --appimage-extract).
 

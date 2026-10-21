@@ -212,9 +212,35 @@ bash scripts/create-debian-vm-vbox.sh ssh
   répond) ;
 - `status`, `start`, `stop`, `ssh` et `delete` complètent l'outillage.
 
-Un script équivalent existe pour QEMU (`scripts/create-debian-vm.sh`), mais
-QEMU sans droits administrateur demande d'extraire ses dépendances à la
-main : **VirtualBox est nettement plus simple** quand il est déjà installé.
+### Si VirtualBox refuse de démarrer la VM
+
+```
+VBoxManage: error: VT-x is being used by another hypervisor (VERR_VMX_IN_VMX_ROOT_MODE)
+```
+
+Cela signifie que **votre poste est lui-même une machine virtuelle** et
+que l'hyperviseur de l'hôte possède déjà VT-x. VirtualBox n'a aucun mode
+émulé pour x86 : il lui faut VT-x/AMD-V, il ne peut donc pas démarrer de
+VM. Ce n'est pas contournable côté utilisateur.
+
+En revanche, si l'hôte a chargé KVM, **QEMU** peut s'en servir via
+`/dev/kvm` (c'est exactement l'hyperviseur qui bloque VirtualBox) :
+
+```sh
+bash scripts/install-qemu-noroot.sh   # installe QEMU sans droits root
+source ~/qemu-local/qemu-env.sh
+bash scripts/create-debian-vm.sh check
+bash scripts/create-debian-vm.sh install
+```
+
+`install-qemu-noroot.sh` télécharge les paquets avec `apt download` (qui
+n'exige pas root), les extrait dans `~/qemu-local/root`, puis **résout les
+bibliothèques manquantes** en boucle (`ldd` → nom du paquet → extraction) :
+c'est le piège classique de l'installation manuelle, où `qemu-system-x86_64`
+échoue sur `libcapstone.so.5`.
+
+`create-debian-vm.sh` fait la même chose que la version VirtualBox
+(netboot + preseed + SSH redirigé), avec KVM s'il est disponible.
 
 > Dans la VM, les services doivent écouter sur `0.0.0.0` et non `127.0.0.1`
 > pour être joignables depuis l'hôte (le NAT de VirtualBox redirige le
