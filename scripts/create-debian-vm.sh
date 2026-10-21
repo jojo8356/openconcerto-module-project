@@ -37,6 +37,10 @@
 #   --headless               console série dans le terminal (pas de fenêtre)
 #   --no-kvm                 forcer l'émulation logicielle (plus lent)
 #   --keep-http              ne pas arrêter le serveur HTTP après l'installation
+#   --tasks light|minimal|desktop
+#                            light (défaut) = « standard » + SSH, RIEN de graphique
+#                            minimal         = base + SSH, sans tasksel du tout
+#                            desktop         = avec GNOME (pour comparaison)
 #
 # Prérequis : qemu-system-x86_64, qemu-img, python3, curl ou wget.
 # Aucun droit administrateur n'est nécessaire.
@@ -56,6 +60,7 @@ done
 VM_DIR="${VM_DIR:-$HOME/debian-vm}"
 TASK_NAME=""
 TASK_LIST=""
+RUN_TASKSEL=1
 PRESEED_MD5=""
 DIST=""
 DISK_SIZE="8G"
@@ -80,7 +85,7 @@ die()  { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
 warn() { printf '  ATTENTION : %s\n' "$*" >&2; }
 
 usage() {
-    sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+    awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
     exit "${1:-0}"
 }
 
@@ -193,10 +198,10 @@ netboot_urls() {
 write_preseed() {
     local file="$1"
     case "$TASKS" in
-        light)    TASK_NAME="ssh-server"; TASK_LIST="ssh-server" ;;
-        standard) TASK_NAME="standard";   TASK_LIST="standard, ssh-server" ;;
-        desktop)  TASK_NAME="desktop";    TASK_LIST="desktop" ;;
-        *) die "taches inconnues : $TASKS (light | standard | desktop)" ;;
+        light)    TASK_NAME="ssh-server"; TASK_LIST="standard,ssh-server"; RUN_TASKSEL=1 ;;
+        minimal)  TASK_NAME="ssh-server"; TASK_LIST="ssh-server";         RUN_TASKSEL=0 ;;
+        desktop)  TASK_NAME="desktop";    TASK_LIST="standard,gnome-desktop"; RUN_TASKSEL=1 ;;
+        *) die "taches inconnues : $TASKS (light | minimal | desktop)" ;;
     esac
     info "installation des taches : $TASK_LIST"
     cat > "$file" <<PRESEED
@@ -234,10 +239,20 @@ d-i apt-setup/contrib boolean false
 d-i apt-setup/non-free-firmware boolean false
 d-i apt-setup/services-select multiselect security,updates
 d-i apt-setup/security_host string security.debian.org
+# --- logiciels : TERMINAL UNIQUEMENT (aucun bureau, aucun X) -------------
+# Sur Debian 13 (trixie) la question s'appelle « tasksel/first » et elle
+# appartient au paquet « tasksel » : le prefixe « d-i » y est FAUX.
+# On donne les deux formes (ancienne et nouvelle) pour bookworm et trixie.
+tasksel tasksel/first multiselect ${TASK_LIST}
 d-i tasksel/task string ${TASK_NAME}
 d-i tasksel/tasksel multiselect ${TASK_LIST}
-d-i pkgsel/include string openssh-server sudo
+# Exclusion explicite de tout ce qui est graphique, meme si l'installateur
+# le selectionne par defaut.
+d-i pkgsel/exclude string task-desktop task-desktop-environment task-gnome-desktop task-kde-desktop task-xfce-desktop task-lxde-desktop task-lxqt-desktop task-cinnamon-desktop task-mate-desktop task-gnome-flashback-desktop task-laptop task-web-server task-print-server task-mail-server task-dns-server task-database-server xserver-xorg xserver-xorg-core xinit x11-utils x11-apps xfonts-base gnome-core gnome-desktop-environment gnome-shell xfce4 xfce4-session plasma-desktop kde-plasma-desktop cinnamon mate-desktop-environment libreoffice libreoffice-core
+# Paquets indispensables : SSH, sudo, certificats (https), curl, editeur.
+d-i pkgsel/include string openssh-server sudo ca-certificates curl nano
 d-i pkgsel/upgrade select none
+d-i pkgsel/run_tasksel boolean ${RUN_TASKSEL}
 popularity-contest popularity-contest/participate boolean false
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/bootdev string /dev/vda
