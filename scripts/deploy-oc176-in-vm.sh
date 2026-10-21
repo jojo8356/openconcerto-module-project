@@ -234,15 +234,20 @@ if [ "$NO_START" = "0" ]; then
     compose "up -d --build" || die "le démarrage de la stack a échoué"
     compose "ps" || true
 
-    # Test reel de connexion : le mot de passe du .env n'est pris en compte
-    # par postgres qu'a la creation du volume.
+    # postgres n'a lu POSTGRES_PASSWORD qu'a la creation du volume : si le
+    # .env a change depuis, le mot de passe reel de la base est l'ancien.
+    # On resynchronise le role avec le .env (operation idempotente).
+    log "Synchronisation du mot de passe du role openconcerto"
+    compose "exec -T db psql -U openconcerto -d postgres -c \"ALTER ROLE openconcerto WITH PASSWORD '$PG_PASSWORD';\"" >/dev/null 2>&1 || true
+
+    # Test reel de connexion : en TCP ET avec le mot de passe (la socket
+    # locale du conteneur est en « trust », elle ne prouve rien).
     log "Test de connexion a la base"
-    db_ok=$(compose "exec -T db psql -U openconcerto -d OpenConcerto -tAc 'select 1'" 2>/dev/null | tr -d '\r\n ')
+    db_ok=$(compose "exec -T db bash -c \"PGPASSWORD='$PG_PASSWORD' psql -h 127.0.0.1 -U openconcerto -d OpenConcerto -tAc 'select 1'\"" 2>/dev/null | tr -d '\r\n ')
     if [ "$db_ok" = "1" ]; then
         info "connexion OK : base OpenConcerto accessible avec le mot de passe ci-dessus"
     else
         info "ATTENTION : connexion impossible avec ce mot de passe."
-        info "  (le volume a peut-etre ete cree avec un autre mot de passe)"
         info "  test : ssh -p $VM_PORT $VM_USER@$VM_HOST \"cd $VM_DIR/docker/openconcerto-1.7.6 && docker compose -f docker-compose.yml -f docker-compose.fr_FR.yml exec db psql -U openconcerto -d OpenConcerto\""
     fi
 fi
