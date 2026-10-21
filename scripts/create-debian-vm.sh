@@ -240,7 +240,7 @@ qemu_args() {
         -smp "$CPUS"
         -drive "file=${VM_DIR}/debian.qcow2,if=virtio,format=qcow2,cache=writeback"
         -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${SSH_PORT}-:22"
-        -device virtio-net-pci,netdev=net0
+        -device virtio-net-pci,netdev=net0,romfile=""
         -device virtio-rng-pci
     )
     # Repertoire des firmware (SeaBIOS, vgabios) : QEMU le cherche a cote de

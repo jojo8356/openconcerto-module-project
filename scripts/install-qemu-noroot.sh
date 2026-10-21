@@ -42,7 +42,7 @@ LIBDIR="$ROOT/usr/lib/x86_64-linux-gnu"
 LIBPATHS="$ROOT/usr/lib/x86_64-linux-gnu:$ROOT/usr/lib/x86_64-linux-gnu:$ROOT/lib/x86_64-linux-gnu"
 
 # ---------------------------------------------------------------- paquets
-BASE_PKGS="qemu-system-x86 qemu-system-common qemu-system-data qemu-utils seabios"
+BASE_PKGS="qemu-system-x86 qemu-system-common qemu-system-data qemu-utils seabios ipxe-qemu ovmf"
 
 # Le firmware PC (SeaBIOS) est livre dans un paquet a part et vit dans
 # /usr/share/seabios. Comme notre QEMU est extrait dans ~/qemu-local/root,
@@ -51,15 +51,20 @@ BASE_PKGS="qemu-system-x86 qemu-system-common qemu-system-data qemu-utils seabio
 copy_firmware() {
     local src
     mkdir -p "$ROOT/usr/share/qemu"
-    for src in "$ROOT/usr/share/seabios" "$ROOT/usr/share/qemu-bios" "$ROOT/usr/share/qemu"; do
+    for src in "$ROOT/usr/share/seabios" "$ROOT/usr/share/qemu-bios" \
+               "$ROOT/usr/lib/ipxe/qemu" "$ROOT/usr/share/OVMF" "$ROOT/usr/share/qemu"; do
         [ -d "$src" ] || continue
         cp -a "$src"/. "$ROOT/usr/share/qemu/" 2>/dev/null || true
     done
-    if [ -f "$ROOT/usr/share/qemu/bios-256k.bin" ]; then
-        info "firmware PC : bios-256k.bin present"
-        return 0
+    local missing=""
+    [ -f "$ROOT/usr/share/qemu/bios-256k.bin" ] || missing="$missing bios-256k.bin"
+    [ -f "$ROOT/usr/share/qemu/efi-virtio.rom" ] || missing="$missing efi-virtio.rom"
+    if [ -n "$missing" ]; then
+        warn "firmware manquant :$missing"
+        return 1
     fi
-    return 1
+    info "firmware : bios-256k.bin et efi-virtio.rom presents"
+    return 0
 }
 
 # Bibliotheques du systeme : elles sont normalement deja la ; on ne les
@@ -260,9 +265,10 @@ QEMU_BIN="$ROOT/usr/bin/qemu-system-x86_64"
 [ -x "$QEMU_BIN" ] || die "qemu-system-x86_64 n'a pas ete extrait dans $ROOT."
 
 if ! copy_firmware; then
-    warn "bios-256k.bin est introuvable : QEMU refusera de demarrer la VM."
-    info "le paquet « seabios » fournit ce fichier ; verifiez que :"
-    info "  apt-cache show seabios"
+    warn "QEMU refusera de demarrer la VM : le firmware est incomplet."
+    info "« seabios » fournit bios-256k.bin, « ipxe-qemu » fournit efi-virtio.rom."
+    info "verifiez que :"
+    info "  apt-cache show seabios ipxe-qemu"
 fi
 
 round=1
