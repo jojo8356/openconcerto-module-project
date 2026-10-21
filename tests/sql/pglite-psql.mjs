@@ -49,7 +49,13 @@ if (fromFile !== null) {
   sql = fromFile === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(fromFile, 'utf8')
 }
 if (sql === null) {
-  process.stderr.write('psql (shim pglite) : ni -c ni -f fourni\n')
+  // SQL envoye sur l'entree standard (comme le fait le script de correctif)
+  try {
+    if (!process.stdin.isTTY) sql = fs.readFileSync(0, 'utf8')
+  } catch (_) { /* pas d'entree standard lisible */ }
+}
+if (sql === null || sql.trim() === '') {
+  process.stderr.write('psql (shim pglite) : ni -c ni -f fourni, et rien sur entree standard\n')
   process.exit(2)
 }
 

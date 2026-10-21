@@ -235,6 +235,8 @@ create schema "OpenConcerto42";
 create table "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT" ("ID" serial primary key, "ID_COMMANDE_ELEMENT" integer default 1);
 create schema "Default";
 create table "Default"."FACTURE_FOURNISSEUR_ELEMENT" ("ID" serial primary key, "ID_COMMANDE_ELEMENT" integer);
+create table "Default"."COMMANDE_ELEMENT" ("ID" serial primary key);
+create table "OpenConcerto42"."COMMANDE_ELEMENT" ("ID" serial primary key);
 alter table "Default"."FACTURE_FOURNISSEUR_ELEMENT" drop column "ID_COMMANDE_ELEMENT";
 SQL
 
@@ -249,6 +251,19 @@ else
     echo "FAIL le schema Default n'est pas le signale"
     FAIL=$((FAIL + 1))
 fi
+
+echo
+echo "== 10. diagnostic complet (diagnostic-transfert-fournisseur.sh) =="
+export PSQL_CMD="psql"
+OUTD=$(bash "$REPO/scripts/diagnostic-transfert-fournisseur.sh" -1 erp -2 abe 2>&1)
+contains "diagnostic : schema Default signale" "COLONNE MANQUANTE" "$OUTD"
+contains "diagnostic : societes listees" "Societes declarees" "$OUTD"
+contains "diagnostic : verdict" "ont la table du transfert SANS la colonne" "$OUTD"
+contains "diagnostic : etape droits" "Droits : erp (reference) vs abe (compte concerne)" "$OUTD"
+OUTE=$(bash "$REPO/scripts/diagnostic-transfert-fournisseur.sh" -1 erp -2 abe -f -y 2>&1)
+contains "diagnostic : correction appliquee" "Terminé sans erreur" "$OUTE"
+CNT=$(psql -X -A -t -d postgres -c "select count(*) from information_schema.columns where upper(column_name) = 'ID_COMMANDE_ELEMENT'")
+check "colonne presente dans les 2 schemas apres correctif" "2" "$CNT"
 
 echo
 if [ "$FAIL" -eq 0 ]; then

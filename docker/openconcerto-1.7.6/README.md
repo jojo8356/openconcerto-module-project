@@ -159,6 +159,39 @@ script de restauration. **Aucun rechargement de la base n'est nécessaire** :
 c'est un `UPDATE`/`DELETE` sur `USER_RIGHT`. En revanche l'utilisateur doit
 **se reconnecter**, les droits étant mis en cache côté client.
 
+### Diagnostic complet du transfert « commande fournisseur »
+
+Quand le transfert échoue pour un seul compte (`ID_COMMANDE_ELEMENT is not in
+table /FACTURE_FOURNISSEUR_ELEMENT/`), le problème est rarement un droit :
+c'est le **schéma** utilisé par la session, donc la société courante. Le
+script ci-dessous enchaîne tous les tests et donne un verdict :
+
+```sh
+scripts/diagnostic-transfert-fournisseur.sh                  # rapport (erp vs abe)
+scripts/diagnostic-transfert-fournisseur.sh -1 yves -2 gis   # par prénom
+scripts/diagnostic-transfert-fournisseur.sh -f -n            # simulation des correctifs
+scripts/diagnostic-transfert-fournisseur.sh -f                # application
+```
+
+Étapes enchaînées :
+
+1. **configuration réellement utilisée par le client** (`main.properties`) —
+   si le client pointe ailleurs que la base testée, un avertissement est
+   affiché, car les résultats ne vaudraient rien ;
+2. **structure du transfert, schéma par schéma** : présence de la table
+   `FACTURE_FOURNISSEUR_ELEMENT` et de sa colonne `ID_COMMANDE_ELEMENT` dans
+   *tous* les schémas de la base (c'est le contrôle clé) ;
+3. **droits effectifs** des deux comptes et leur différentiel (délégué à
+   `test-droits-utilisateur.sh`, qui doit être dans le même dossier) ;
+4. **société mémorisée par le client** : `User.properties`, clé `LastSociete`
+   — le client retient la dernière société utilisée et la propose par défaut
+   à la connexion ; c'est elle qui détermine le schéma employé ;
+5. **verdict global**, et avec `-f`, application des correctifs (structure
+   puis droits).
+
+> Le script est **strictement read-only par défaut**. `-f` est la seule option
+> qui écrit, `-n` fait_simuler sans écrire.
+
 Le script est validé de bout en bout contre un vrai PostgreSQL (pglite, sans
 installation) avec des tables créées comme OpenConcerto les crée — noms de
 tables et de colonnes en MAJUSCULES, entre guillemets :
