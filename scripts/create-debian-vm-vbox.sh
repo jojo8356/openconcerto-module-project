@@ -178,6 +178,29 @@ ensure_iso() {
     esac
 }
 
+# Ostype Debian : le format de « VBoxManage list ostypes » a changé au fil
+# des versions. VirtualBox 7.x liste « ID / Description: Debian_64 -- ... »,
+# les versions plus anciennes listent « Debian_12   Debian 12 (64-bit) ».
+# On préfère une variante 64 bits, et la détection ne doit jamais faire
+# échouer le script.
+detect_ostype() {
+    local list ids id
+    list=$(vbox list ostypes 2>/dev/null || true)
+    ids=$(printf '%s\n' "$list" | sed -n 's/^ID \/ Description: \([^ ]*\) --.*/\1/p')
+    if [ -z "$ids" ]; then
+        ids=$(printf '%s\n' "$list" | awk '$1 ~ /^Debian/ {print $1}')
+    fi
+    for id in Debian_64 Debian_12 Debian_11 Debian_10 Debian_9 Debian; do
+        if printf '%s\n' "$ids" | grep -qx "$id"; then
+            printf '%s' "$id"
+            return 0
+        fi
+    done
+    id=$(printf '%s\n' "$ids" | head -n 1 || true)
+    [ -n "$id" ] || return 1
+    printf '%s' "$id"
+}
+
 vm_exists() {
     vbox list vms 2>/dev/null | grep -q "\"$VM_NAME\""
 }
@@ -196,7 +219,7 @@ cmd_check() {
         command -v "$c" >/dev/null 2>&1 && info "OK   $c" || info "MANQUE $c"
     done
     info "OSTypes Debian disponibles :"
-    vbox list ostypes 2>/dev/null | grep -i debian | sed 's/^/    /' | head -5
+    { vbox list ostypes 2>/dev/null || true; } | grep -i debian | sed 's/^/    /' | head -5 || true
     info "VM existante : $(vm_exists && echo oui || echo non)"
     return 0
 }
@@ -216,12 +239,13 @@ cmd_install() {
     mkdir -p "$VM_DIR"
 
     log "Création de la VM '$VM_NAME'"
-    local ostype="Debian_12"
-    if ! vbox list ostypes | grep -q "^Debian_12"; then
-        ostype=$(vbox list ostypes | grep -i "^Debian" | head -n 1 | awk '{print $1}')
-    fi
+    local ostype out
+    ostype=$(detect_ostype) || die "aucun type d'OS Debian propose par cette version de VirtualBox."
     info "type d'OS : $ostype"
-    vbox createvm --name "$VM_NAME" --ostype "$ostype" --register >/dev/null
+    if ! out=$(vbox createvm --name "$VM_NAME" --ostype "$ostype" --register 2>&1); then
+        printf '%s\n' "$out" >&2
+        die "creation de la VM impossible (ostype : $ostype)"
+    fi
 
     vbox modifyvm "$VM_NAME" \
         --memory "$RAM" \
@@ -234,18 +258,22 @@ cmd_install() {
         --audio none \
         --usb off \
         --clipboard off \
-        --draganddrop off >/dev/null
+        --draganddrop off >/dev/null || die "la configuration de la VM a echoue."
 
     local size_mb=$(( ${DISK_SIZE%G} * 1024 ))
-    vbox modifymedium disk --filename "$VM_DIR/${VM_NAME}.vdi" --format VDI --resize "$size_mb" >/dev/null
-    vbox storagectl "$VM_NAME" --name SATA --add sata --controller IntelAhci --portcount 1 >/dev/null
+    vbox modifymedium disk --filename "$VM_DIR/${VM_NAME}.vdi" --format VDI --resize "$size_mb" >/dev/null \
+        || die "creation du disque VDI impossible."
+    vbox storagectl "$VM_NAME" --name SATA --add sata --controller IntelAhci --portcount 1 >/dev/null \
+        || die "ajout du controleur SATA impossible."
     vbox storageattach "$VM_NAME" --storagectl SATA --port 0 --device 0 --type hdd \
-        --medium "$VM_DIR/${VM_NAME}.vdi" >/dev/null
+        --medium "$VM_DIR/${VM_NAME}.vdi" >/dev/null || die "attache du disque impossible."
+    [ -f "$VM_DIR/${VM_NAME}.vdi" ] || die "le disque $VM_DIR/${VM_NAME}.vdi est absent."
     info "disque : $VM_DIR/${VM_NAME}.vdi ($DISK_SIZE)"
 
     log "Installation automatique (mode unattended de VirtualBox)"
-    vbox unattended "$VM_NAME" detect --iso "$iso_path" || info "(détection de l'ISO : information seulement)"
-    vbox unattended "$VM_NAME" install \
+    vbox unattended "$VM_NAME" detect --iso "$iso_path" >/dev/null 2>&1 \
+        || info "(detection de l'ISO : information seulement)"
+    if ! out=$(vbox unattended "$VM_NAME" install \
         --iso "$iso_path" \
         --user "$VM_USER" \
         --password "$VM_PASSWORD" \
@@ -257,8 +285,11 @@ cmd_install() {
         --install-basic-package \
         --package openssh-server \
         --package sudo \
-        --image dvd >/dev/null
-    info "preseed généré, l'installation démarre au prochain lancement."
+        --image dvd 2>&1); then
+        printf '%s\n' "$out" >&2
+        die "l'installation unattended a echoue (ISO : $iso_path)."
+    fi
+    info "preseed genere, l'installation demarre au prochain lancement."
 
     cmd_start
     if [ "$WAIT_SSH" = "1" ]; then
@@ -316,7 +347,8 @@ cmd_ssh() {
 cmd_status() {
     if vm_exists; then
         log "État de la VM '$VM_NAME'"
-        vbox showvminfo "$VM_NAME" | grep -E "Name:|State:|Guest OS|Storage Controller Name|SATA.*\.vdi" | sed 's/^/  /'
+        { vbox showvminfo "$VM_NAME" 2>/dev/null || true; } \
+            | grep -E "Name:|State:|Guest OS|SATA.*\.vdi" | sed 's/^/  /' || true
     else
         info "la VM '$VM_NAME' n'existe pas"
     fi
