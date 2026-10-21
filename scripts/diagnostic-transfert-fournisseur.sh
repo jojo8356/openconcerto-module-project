@@ -92,7 +92,11 @@ done
 
 command -v psql >/dev/null 2>&1 || die "'psql' introuvable. Installe le client PostgreSQL."
 
-[ -n "$PASSWORD" ] || [ -n "${PGPASSWORD:-}" ] || PASSWORD="${PGPASSWORD:-}"
+# Le mot de passe vient de -P, sinon de l'environnement PGPASSWORD.
+# (la chaine "||" precedente laissait PASSWORD vide quand PGPASSWORD etait defini)
+if [ -z "$PASSWORD" ]; then
+    PASSWORD="${PGPASSWORD:-}"
+fi
 if [ -z "$PASSWORD" ] && [ -f "$STACK_DIR/.env" ]; then
     PASSWORD=$(sed -n 's/^POSTGRES_PASSWORD=//p' "$STACK_DIR/.env" | head -n 1)
 fi
