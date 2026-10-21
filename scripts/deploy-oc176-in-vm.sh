@@ -263,6 +263,13 @@ if [ -n "$DUMP" ]; then
     vsudo 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-client' || true
     vssh "cd '$VM_DIR' && PGPASSWORD='$PG_PASSWORD' bash scripts/restore-openconcerto-dump.sh -f '$remote_dump' -d OpenConcerto -U openconcerto -h 127.0.0.1 -p 5433 -y" \
         || die "la restauration a échoué"
+
+    # Correctif ID_COMMANDE_ELEMENT : applique a TOUS les schemas de la base
+    # restauree (le nom du schema varie d'un serveur a l'autre).
+    log "Correctif ID_COMMANDE_ELEMENT sur tous les schemas"
+    vssh "cd '$VM_DIR' && PGPASSWORD='$PG_PASSWORD' PSQL_CMD='psql -h 127.0.0.1 -p 5433 -U openconcerto' bash scripts/fix-facture-fournisseur-all-schemas.sh -d OpenConcerto -y" || true
+    info "schemas finances de la colonne ID_COMMANDE_ELEMENT :"
+    compose "exec -T db psql -U openconcerto -d OpenConcerto -tAc \"SELECT table_schema FROM information_schema.columns WHERE table_name='FACTURE_FOURNISSEUR_ELEMENT' AND column_name='ID_COMMANDE_ELEMENT' ORDER BY table_schema\"" 2>/dev/null | sed 's/^/  /' || true
 fi
 
 # ------------------------------------------------------------------ controle

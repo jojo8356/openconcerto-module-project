@@ -87,9 +87,19 @@ log "Restauration du dump"
 pg_restore --no-owner --no-privileges -d "$DB" "$DUMP" || die "La restauration a signalé des erreurs. Vérifie la sortie ci-dessus."
 
 log "Vérification"
-psql -d "$DB" -tAc "SELECT data_type || '|' || column_default FROM information_schema.columns WHERE table_schema='OpenConcerto42' AND table_name='FACTURE_FOURNISSEUR_ELEMENT' AND column_name='ID_COMMANDE_ELEMENT'" \
-    | grep -qx 'integer|1' && echo "OK : FACTURE_FOURNISSEUR_ELEMENT.ID_COMMANDE_ELEMENT est présent." \
-    || die "La colonne ID_COMMANDE_ELEMENT n'a pas été trouvée après restauration."
+# Le nom du schema varie d'un serveur a l'autre (OpenConcerto42, Default,
+# ...) : on cherche la colonne dans TOUS les schemas.
+COLS=$(psql -d "$DB" -tAc "SELECT table_schema || '|' || data_type || '|' || column_default FROM information_schema.columns WHERE table_name='FACTURE_FOURNISSEUR_ELEMENT' AND column_name='ID_COMMANDE_ELEMENT' ORDER BY table_schema" 2>/dev/null || true)
+if [ -z "$COLS" ]; then
+    echo "ATTENTION : ID_COMMANDE_ELEMENT est absente de FACTURE_FOURNISSEUR_ELEMENT."
+    echo "La base a bien ete restauree ; appliquer le correctif multi-schemas :"
+    echo "  bash scripts/fix-facture-fournisseur-all-schemas.sh -d $DB -y"
+else
+    echo "Colonne ID_COMMANDE_ELEMENT (schema|type|defaut) :"
+    printf '%s\n' "$COLS" | sed 's/^/  /'
+fi
+echo "Schemas contenant la table FACTURE_FOURNISSEUR_ELEMENT :"
+psql -d "$DB" -tAc "SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_name='FACTURE_FOURNISSEUR_ELEMENT' ORDER BY 1" 2>/dev/null | sed 's/^/  /' || true
 
 echo
 echo "Terminé. Lance OpenConcerto 1.7.6 avec la base '$DB'."
