@@ -213,6 +213,19 @@ elif [ -z "$DB_PASSWORD" ]; then
     [ -n "$DB_PASSWORD" ] && PASSWORD_SOURCE="fichier $ENV_FILE"
 fi
 if [ -z "$DB_PASSWORD" ]; then
+    # la configuration du client OC contient le mot de passe reellement
+    # utilise par l'application (cle server.password)
+    for conf in "${OC_CONF:-}" "$HOME/.config/OpenConcerto/main.properties" "$HOME/.openconcerto/main.properties"; do
+        [ -n "$conf" ] && [ -f "$conf" ] || continue
+        cand=$(sed -n 's/^server\.password=//p' "$conf" | head -1 | tr -d '\r')
+        if [ -n "$cand" ]; then
+            DB_PASSWORD=$cand
+            PASSWORD_SOURCE="configuration du client OC ($conf)"
+            break
+        fi
+    done
+fi
+if [ -z "$DB_PASSWORD" ]; then
     DB_PASSWORD=$(container_value POSTGRES_PASSWORD 2>/dev/null || true)
     [ -n "$DB_PASSWORD" ] && PASSWORD_SOURCE="environnement du conteneur"
 fi
@@ -278,6 +291,42 @@ find_driver() {
 
 DRIVER=$(find_driver || true)
 
+# ------------------------------------------------- psql dans le conteneur
+# Le conteneur PostgreSQL autorise les connexions locales (socket unix) sans
+# mot de passe : c'est le moyen le plus sur de lire la base, quel que soit
+# l'etat du mot de passe du role. On fabrique un petit « psql » qui appelle
+# le binaire du conteneur.
+PSQL_WRAPPER_DIR=""
+make_psql_wrapper() {
+    PSQL_WRAPPER_DIR=$(mktemp -d 2>/dev/null) || return 1
+    cat > "$PSQL_WRAPPER_DIR/psql" <<EOF
+#!/usr/bin/env bash
+# psql execute DANS le conteneur PostgreSQL de la stack.
+# La connexion passe par le socket local du conteneur : aucun mot de passe
+# n'est necessaire.
+file=""
+prev=""
+for a in "\$@"; do
+  if [ "\$prev" = "-f" ]; then file="\$a"; fi
+  prev="\$a"
+done
+PSQL_ARGS=(-X -v ON_ERROR_STOP=1 --csv -U "\${PGUSER:-$DB_USER}" -d "\${PGDATABASE:-$DB_NAME}")
+if [ -n "\$file" ]; then
+  exec $RUNTIME exec -i $CID psql "\${PSQL_ARGS[@]}" -f - < "\$file"
+fi
+exec $RUNTIME exec -i $CID psql "\${PSQL_ARGS[@]}"
+EOF
+    chmod +x "$PSQL_WRAPPER_DIR/psql" 2>/dev/null || { rm -rf "$PSQL_WRAPPER_DIR"; PSQL_WRAPPER_DIR=""; return 1; }
+    return 0
+}
+
+if [ "$MODE" != "container" ] && make_psql_wrapper; then
+    info "transport : psql dans le conteneur $CID (socket local, sans mot de passe)"
+    TRANSPORT_LOCAL=1
+else
+    TRANSPORT_LOCAL=0
+fi
+
 # ------------------------------------------------------------- mode local
 run_local() {
     local javac java
@@ -297,11 +346,15 @@ run_local() {
     "$javac" -proc:none -encoding UTF-8 -d "$CLASSES_DIR" "@$sources" || return "$NEED_TOOLS"
 
     local cp="$CLASSES_DIR"
-    if [ -n "$DRIVER" ]; then
+    local extra_path=""
+    if [ "$TRANSPORT_LOCAL" -eq 1 ]; then
+        # le « psql » du conteneur passe en premier dans le PATH
+        extra_path="$PSQL_WRAPPER_DIR:"
+    elif [ -n "$DRIVER" ]; then
         info "pilote JDBC : $DRIVER"
         cp="$cp:$DRIVER"
     elif command -v psql >/dev/null 2>&1; then
-        info "transport psql : $(command -v psql)"
+        info "transport psql du poste : $(command -v psql)"
     else
         info "ni pilote JDBC ni psql sur ce poste : execution en mode conteneur"
         return "$NEED_TOOLS"
@@ -315,7 +368,7 @@ run_local() {
     export PGUSER="$DB_USER"
     local args=(--host "$DB_HOST" --port "$DB_PORT" --db "$DB_NAME" --user "$DB_USER")
     [ -n "$SCHEMAS" ] && args+=(--schemas "$SCHEMAS")
-    "$java" -cp "$cp" "$MAIN_CLASS" "${args[@]}"
+    PATH="$extra_path$PATH" "$java" -cp "$cp" "$MAIN_CLASS" "${args[@]}"
     return $?
 }
 
@@ -380,6 +433,8 @@ case "$MODE" in
         fi
         ;;
 esac
+
+[ -n "$PSQL_WRAPPER_DIR" ] && rm -rf "$PSQL_WRAPPER_DIR"
 
 echo
 if [ "$CODE" -eq 0 ]; then
