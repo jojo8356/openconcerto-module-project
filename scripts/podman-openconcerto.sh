@@ -254,6 +254,17 @@ prepare_storage_conf() {
             echo "ignore_chown_errors = \"true\""
         } >> "$conf"
     fi
+    # Podman avertit si le pilote de stockage n'est pas explicite : on l'écrit,
+    # sinon chaque commande affiche le WARN.
+    if ! grep -q "^\[storage\]" "$conf"; then
+        {
+            echo
+            echo "[storage]"
+            echo "driver = \"overlay\""
+        } > "$conf.storage.tmp"
+        cat "$conf" >> "$conf.storage.tmp"
+        mv "$conf.storage.tmp" "$conf"
+    fi
     info "storage.conf : ignore_chown_errors activé ($conf)"
 }
 
@@ -282,7 +293,9 @@ cmd_up_noroot() {
         fi
         image="openconcerto176-db-fr"
     fi
-    run podman run -d --name "$NOROOT_CONTAINER" \
+    local out rc=0
+    if [ "$DRY" = "1" ]; then
+        out=$(podman run -d --name "$NOROOT_CONTAINER" \
         --userns=keep-id --user "$(id -u):$(id -g)" \
         -e POSTGRES_USER="$DB_USER" \
         -e POSTGRES_PASSWORD="$DB_PASSWORD" \
@@ -290,10 +303,38 @@ cmd_up_noroot() {
         -e POSTGRES_INITDB_ARGS="--encoding=UTF8" \
         -p "127.0.0.1:$DB_PORT:5432" \
         -v "$STACK_DIR/pgdata:/var/lib/postgresql/data" \
-        "$image" postgres -c unix_socket_directories=/tmp
-    if [ "$DRY" = "1" ]; then
+        "$image" postgres -c unix_socket_directories=/tmp 2>&1) || rc=$?
+        printf '  [dry-run] podman run -d --name %s --userns=keep-id --user %s:%s ... %s postgres -c unix_socket_directories=/tmp\n' \
+            "$NOROOT_CONTAINER" "$(id -u)" "$(id -g)" "$image"
         return 0
     fi
+    out=$(podman run -d --name "$NOROOT_CONTAINER" \
+        --userns=keep-id --user "$(id -u):$(id -g)" \
+        -e POSTGRES_USER="$DB_USER" \
+        -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+        -e POSTGRES_DB="$DB_NAME" \
+        -e POSTGRES_INITDB_ARGS="--encoding=UTF8" \
+        -p "127.0.0.1:$DB_PORT:5432" \
+        -v "$STACK_DIR/pgdata:/var/lib/postgresql/data" \
+        "$image" postgres -c unix_socket_directories=/tmp 2>&1) || rc=$?
+    printf '%s\n' "$out"
+    if printf '%s' "$out" | grep -q "ID-mapped copy"; then
+        echo
+        echo "  ERREUR : Podman rootless doit creer une copie ID-mappee de l'image"
+        echo "  (les fichiers de l'image appartiennent a des UID/GID non mappables)."
+        echo "  Sans plage d'UID/GID secondaires dans /etc/subuid, cette copie est"
+        echo "  impossible : le mode --no-root ne peut pas aller plus loin."
+        echo
+        echo "  Solution : faire ajouter la plage par l'administrateur du poste :"
+        echo
+        echo "    sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $(id -un)"
+        echo "    podman system migrate"
+        echo
+        echo "  En attendant, les tests (droits, structure) peuvent etre lances"
+        echo "  directement sur la base native, sans conteneur."
+        return 1
+    fi
+    [ "$rc" = "0" ] || return "$rc"
     log "Attente de PostgreSQL"
     local cid i=0
     cid=$(db_container)
