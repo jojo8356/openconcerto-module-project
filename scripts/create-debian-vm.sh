@@ -337,14 +337,35 @@ EOF
 
     log "Installation de Debian (sans interface, tout est pré-rempli)"
     info "l'installateur écrit dans ce terminal (console série) ; Ctrl-A X pour quitter."
+
+    # Chien de garde : si l'installateur ne recupere pas le preseed, il
+    # installe les valeurs par défaut (bureau complet) : on le dit tout de
+    # suite plutot que de le laisser telercharger 1 Go.
+    (
+        for _ in $(seq 1 24); do
+            if grep -q "GET /preseed.cfg" "$VM_DIR/http.log" 2>/dev/null; then
+                printf '\n[preseed] recupere par l\x27installateur : OK\n' >&2
+                exit 0
+            fi
+            sleep 5
+        done
+        printf '\n[preseed] ATTENTION : l\x27installateur n\x27a pas recupere le preseed !\n' >&2
+        printf '[preseed] il va donc installer les valeurs par defaut (bureau complet).\n' >&2
+        printf '[preseed] journal du serveur HTTP : %s\n' "$VM_DIR/http.log" >&2
+    ) &
+    WATCH_PID=$!
+
     qemu_args install
     set +e
     qemu-system-x86_64 "${QEMU_ARGS[@]}" 2>&1 | tee "$VM_DIR/install.log"
     RC=${PIPESTATUS[0]}
     set -e
+    kill "$WATCH_PID" 2>/dev/null || true
     if [ "$KEEP_HTTP" = "0" ]; then
         kill "$HTTP_PID" 2>/dev/null || true
     fi
+    info "requetes recues par le serveur du preseed :"
+    sed -n '1,10p' "$VM_DIR/http.log" 2>/dev/null | sed 's/^/    /' || true
     if [ "$RC" != "0" ]; then
         printf '\n'
         tail -20 "$VM_DIR/install.log" 2>/dev/null || true
