@@ -32,6 +32,8 @@
 #   --password MDP      mot de passe du compte (défaut : oc)
 #   --timeout MINUTES   attente maximale pendant l'installation (defaut : 45)
 #   --no-wait           ne pas attendre la fin de l'installation
+#   --default-preseed   utiliser le preseed de VirtualBox au lieu du nôtre
+#                       (systeme complet, avec bureau)
 #
 # Prérequis : VBoxManage (VirtualBox 6.1 ou plus), curl, ssh.
 #
@@ -49,6 +51,7 @@ VM_USER="oc"
 VM_PASSWORD="oc"
 TIMEOUT_MIN=45
 WAIT_SSH=1
+USE_DEFAULT_PRESEED=0
 
 log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -76,6 +79,7 @@ while [ $# -gt 0 ]; do
         --password) VM_PASSWORD="$2"; shift 2 ;;
         --timeout)  TIMEOUT_MIN="$2"; shift 2 ;;
         --no-wait)  WAIT_SSH=0; shift ;;
+        --default-preseed) USE_DEFAULT_PRESEED=1; shift ;;
         -h|--help)  usage 0 ;;
         *)
             if [ -z "$COMMAND" ]; then COMMAND="$1"; else EXTRA+=("$1"); fi
@@ -299,6 +303,75 @@ add_storage_controller() {
     return 1
 }
 
+# Preseed minimal inspire de celui d'Oracle (src/VBox/Main/UnattendedTemplates/
+# debian_preseed.cfg). Les @@VBOX_INSERT_*@@ sont remplaces par VirtualBox :
+# on garde donc les memes noms de variables, et on ajoute la selection
+# "standard + ssh-server" (aucun bureau) qui n'existe pas dans le modele
+# officiel.
+write_preseed() {
+    local file="$1"
+    cat > "$file" <<'PRESEED'
+### Partitionnement
+d-i partman-auto/disk string /dev/sda
+d-i partman-auto/method string regular
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-md/device_remove_md boolean true
+d-i partman-auto/choose_recipe select atomic
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+
+### Locale (fr_FR.UTF-8 pour OpenConcerto)
+d-i debian-installer/locale string @@VBOX_INSERT_LOCALE@@
+d-i localechooser/supported-locales multiselect fr_FR.UTF-8 UTF-8
+d-i console-setup/ask_detect boolean false
+d-i console-setup/layoutcode string fr
+d-i keyboard-configuration/xkb-keymap select fr
+
+### Reseau
+d-i netcfg/get_hostname string @@VBOX_INSERT_HOSTNAME_WITHOUT_DOMAIN@@
+d-i netcfg/get_domain string @@VBOX_INSERT_HOSTNAME_DOMAIN@@
+d-i netcfg/choose_interface select auto
+
+### Horloge
+d-i clock-setup/utc-auto boolean true
+d-i clock-setup/utc boolean true
+d-i time/zone string @@VBOX_INSERT_TIME_ZONE_UX@@
+
+### Paquets : systeme minimal, sans bureau, avec openssh-server
+d-i base-installer/kernel/override-image string linux-image-amd64
+d-i pkgsel/install-language-support boolean false
+d-i tasksel/task string standard
+d-i tasksel/tasksel multiselect standard, ssh-server
+d-i pkgsel/include string openssh-server
+d-i pkgsel/upgrade select none
+
+### Miroirs
+d-i apt-setup/use_mirror boolean true
+d-i mirror/country string manual
+d-i mirror/http/hostname string deb.debian.org
+d-i mirror/http/directory string /debian
+d-i mirror/http/proxy string
+
+### Utilisateur (oc) et root
+d-i passwd/user-fullname string @@VBOX_INSERT_USER_FULL_NAME@@
+d-i passwd/username string @@VBOX_INSERT_USER_LOGIN@@
+d-i passwd/user-password-crypted password @@VBOX_INSERT_USER_PASSWORD_SHACRYPT512@@
+d-i passwd/root-login boolean true
+d-i passwd/root-password-crypted password @@VBOX_INSERT_ROOT_PASSWORD_SHACRYPT512@@
+d-i passwd/user-default-groups string sudo
+
+### Grub
+d-i grub-installer/grub2_instead_of_grub_legacy boolean true
+d-i grub-installer/only_debian boolean true
+d-i grub-installer/bootdev string default
+
+### Redemarrage
+d-i finish-install/reboot_in_progress note
+PRESEED
+}
+
 cmd_install() {
     need_vbox
     local iso_path
@@ -359,21 +432,30 @@ cmd_install() {
     info "disque : $VM_DIR/${VM_NAME}.vdi ($DISK_SIZE)"
 
     log "Installation automatique (mode unattended de VirtualBox)"
-    vbox unattended "$VM_NAME" detect --iso "$iso_path" >/dev/null 2>&1 \
+    # Syntaxe documentee (man VBoxManage unattended) : « unattended detect »
+    # ne prend que l'ISO, et toutes les options s'ecrivent --option=valeur.
+    vbox unattended detect --iso="$iso_path" >/dev/null 2>&1 \
         || info "(detection de l'ISO : information seulement)"
-    if ! out=$(vbox unattended "$VM_NAME" install \
-        --iso "$iso_path" \
-        --user "$VM_USER" \
-        --password "$VM_PASSWORD" \
-        --fullname "OpenConcerto" \
-        --locale fr_FR \
-        --country FR \
-        --keyboard fr \
-        --timezone Europe/Paris \
-        --install-basic-package \
-        --package openssh-server \
-        --package sudo \
-        --image dvd 2>&1); then
+
+    local -a un_args
+    un_args=(
+        "--iso=$iso_path"
+        "--user=$VM_USER"
+        "--user-password=$VM_PASSWORD"
+        "--admin-password=$VM_PASSWORD"
+        "--full-user-name=OpenConcerto"
+        "--locale=fr_FR"
+        "--country=FR"
+        "--time-zone=Europe/Paris"
+        "--no-install-additions"
+    )
+    if [ "$USE_DEFAULT_PRESEED" = "0" ]; then
+        local preseed="$VM_DIR/preseed.cfg"
+        write_preseed "$preseed"
+        info "preseed minimal ecrit : $preseed"
+        un_args+=("--script-template=$preseed")
+    fi
+    if ! out=$(vbox unattended install "$VM_NAME" "${un_args[@]}" 2>&1); then
         printf '%s\n' "$out" >&2
         die "l'installation unattended a echoue (ISO : $iso_path)."
     fi

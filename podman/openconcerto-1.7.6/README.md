@@ -200,9 +200,12 @@ bash scripts/create-debian-vm-vbox.sh ssh
 ```
 
 - l'installateur Debian est téléchargé (ISO *netinst*) et un `preseed`
-  minimal est généré par VirtualBox : aucun bureau, aucun paquet
-  recommandé, locale `fr_FR.UTF-8`, compte `oc` avec `sudo` sans mot de
-  passe ;
+  minimal est écrit puis passé à VirtualBox (`--script-template`) :
+  installation **sans bureau** (`standard` + `ssh-server`), aucun paquet
+  recommandé, locale `fr_FR.UTF-8`, compte `oc` (mot de passe `oc`) membre
+  du groupe `sudo` ;
+  - `--default-preseed` utilise à la place le preseed de VirtualBox (système
+  complet, avec bureau) ;
 - la VM est démarrée en mode *headless*, avec SSH redirigé sur le port 2222
   de l'hôte ;
 - la commande `install` attend la fin de l'installation (le port SSH
