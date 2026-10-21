@@ -15,7 +15,7 @@
 //
 // Sortie : 0 si tous les controles passent, 1 sinon.
 //
-//import { PGlite } from '@electric-sql/pglite'
+import { PGlite } from '@electric-sql/pglite'
 
 const db = new PGlite()
 await db.exec(`
