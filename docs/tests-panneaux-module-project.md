@@ -69,7 +69,7 @@ Quatre controles, tous joues sur les schemas qui contiennent une table
 ### 4.1 Dans la VM (là où PostgreSQL et `psql` sont installes)
 
 ```bash
-bash scripts/run-panel-tests-in-vm.sh
+bash scripts/panel-tests-in-vm.sh
 ```
 
 Le script installe un JDK headless dans la VM si besoin, y telecharge les
@@ -144,7 +144,7 @@ RESULTAT : ECHEC (6 controle(s) en echec)
 | `tests/org/openconcerto/modules/project/panels/JdbcSqlClient.java` | transport JDBC (si le pilote est present) |
 | `tests/org/openconcerto/modules/project/panels/PsqlSqlClient.java` | transport `psql` (mode CSV) |
 | `scripts/run-panel-tests.sh` | compilation + execution |
-| `scripts/run-panel-tests-in-vm.sh` | execution dans la VM |
+| `scripts/panel-tests-in-vm.sh` | execution dans la VM |
 | `tests/sql/fixture-panneaux.sql` | base de test avec anomalies volontaires |
 | `tests/sql/fixture-panneaux-nettoye.sql` | la meme base, sans anomalie |
 | `tests/sql/e2e-panneaux.sh` | test de bout en bout (pglite) |
