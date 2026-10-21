@@ -205,11 +205,21 @@ for f in docker/openconcerto-1.7.6/docker-compose.yml \
 done
 vssh "chmod +x '$VM_DIR'/scripts/*.sh"
 
-# Mot de passe PostgreSQL : généré s'il n'est pas fourni.
+# Mot de passe PostgreSQL : on CONSERVE celui deja ecrit dans le .env.
+# Important : le conteneur postgres ne lit POSTGRES_PASSWORD qu'a la
+# creation du volume ; changer la valeur ne change donc pas le mot de
+# passe reel de la base. On ne regenere jamais un mot de passe existant.
+ENV_FILE="$VM_DIR/docker/openconcerto-1.7.6/.env"
+if [ -z "$PG_PASSWORD" ]; then
+    PG_PASSWORD=$(vssh "sed -n 's/^POSTGRES_PASSWORD=//p' '$ENV_FILE' 2>/dev/null | head -1" 2>/dev/null | tr -d '\r\n')
+fi
 if [ -z "$PG_PASSWORD" ]; then
     PG_PASSWORD=$(vssh 'head -c 18 /dev/urandom | od -An -tx1 | tr -d " \n"' 2>/dev/null || echo "oc176secret")
+    info "nouveau mot de passe PostgreSQL genere"
+else
+    info "mot de passe PostgreSQL existant conserve"
 fi
-vssh "printf '%s\n' 'POSTGRES_USER=openconcerto' 'POSTGRES_PASSWORD=$PG_PASSWORD' 'POSTGRES_DB=OpenConcerto' 'PG_HOST_PORT=5433' 'ADMINER_PORT=8082' > '$VM_DIR/docker/openconcerto-1.7.6/.env'"
+vssh "printf '%s\n' 'POSTGRES_USER=openconcerto' 'POSTGRES_PASSWORD=$PG_PASSWORD' 'POSTGRES_DB=OpenConcerto' 'PG_HOST_PORT=5433' 'ADMINER_PORT=8082' > '$ENV_FILE'"
 info "mot de passe PostgreSQL : $PG_PASSWORD"
 
 # ------------------------------------------------------------------ démarrage
@@ -218,6 +228,18 @@ if [ "$NO_START" = "0" ]; then
     vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose up -d" \
         || die "le démarrage de la stack a échoué"
     vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose ps" || true
+
+    # Test reel de connexion : le mot de passe du .env n'est pris en compte
+    # par postgres qu'a la creation du volume.
+    log "Test de connexion a la base"
+    db_ok=$(vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && PGPASSWORD='$PG_PASSWORD' docker compose exec -T db psql -U openconcerto -d OpenConcerto -tAc 'select 1'" 2>/dev/null | tr -d '\r\n ')
+    if [ "$db_ok" = "1" ]; then
+        info "connexion OK : base OpenConcerto accessible avec le mot de passe ci-dessus"
+    else
+        info "ATTENTION : connexion impossible avec ce mot de passe."
+        info "  (le volume a peut-etre ete cree avec un autre mot de passe)"
+        info "  test : ssh -p $VM_PORT $VM_USER@$VM_HOST \"cd $VM_DIR/docker/openconcerto-1.7.6 && docker compose exec db psql -U openconcerto -d OpenConcerto\""
+    fi
 fi
 
 # ------------------------------------------------------------------ dump
