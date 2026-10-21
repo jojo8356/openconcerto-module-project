@@ -690,7 +690,7 @@ else
         if [ "${MISSING_EXPLICIT:-0}" != "0" ]; then
             echo "     dont ${MISSING_EXPLICIT} REFUS EXPLICITE(S) : une ligne"
             echo "     « HAVE_RIGHT = false » posee par $L2. Ces lignes priment"
-            echo "     sur le repli : l'option -x du correctif les supprime."
+            echo "     sur le repli : le droit est REFUSE pour $L2."
         fi
     fi
     if [ "${SHADOW:-0}" != "0" ]; then
@@ -703,8 +703,15 @@ else
         echo "  => $ECRITURE_MANQUANTE droit(s) d'ECRITURE sur les tables du transfert"
         echo "     accordés à $L1 et manquants pour $L2 : cause directe de l'échec."
     fi
-    echo "  => Le correctif -f donne à $L2 les droits de $L1 (référence) ;"
-    echo "     l'option -x supprime en plus les droits en trop de $L2."
+    echo "  => Correctif -f : il donne à $L2 les droits de $L1 (référence)."
+    echo "     ATTENTION : sur un REFUS EXPLICITE de $L2, -f ecrase le « false »"
+    echo "     par le droit de $L1 (escalade de privileges). L'option -x ne"
+    echo "     supprime PAS ces lignes (les memes couples existent chez $L1,"
+    echo "     souvent via l'utilisateur par defaut) et les supprimer donnerait"
+    echo "     encore PLUS de droits a $L2, par le repli."
+    echo "     => n'appliquez -f que si l'ecart porte sur un droit reellement"
+    echo "        utile (ecriture sur les tables du transfert), jamais sur un"
+    echo "        simple refus de menu."
 fi
 
 # ---------------------------------------------------------------- correctif
