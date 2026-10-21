@@ -25,6 +25,7 @@ DUMP=""
 NO_START=0
 PURGE_DESKTOP=0
 PURGE_X11=0
+PUBLISH_LAN=0
 PG_PASSWORD=""
 
 log()  { printf '\n==> %s\n' "$*"; }
@@ -44,6 +45,8 @@ Déploie la stack OpenConcerto 1.7.6 (Docker) dans la VM Debian.
   --no-start       ne pas démarrer la stack
   --purge-desktop  supprimer les paquets de bureau et LibreOffice de la VM
   --purge-x11     supprimer les bibliotheques X11 clientes (sans X ni bureau)
+  --publish-lan   publier PostgreSQL et Adminer sur le reseau local
+                  (0.0.0.0) au lieu de 127.0.0.1
 USAGE
     exit 0
 }
@@ -59,6 +62,7 @@ while [ $# -gt 0 ]; do
         --no-start) NO_START=1; shift ;;
         --purge-desktop) PURGE_DESKTOP=1; shift ;;
         --purge-x11)    PURGE_X11=1; shift ;;
+        --publish-lan)  PUBLISH_LAN=1; shift ;;
         -h|--help) usage ;;
         *) die "option inconnue : $1" ;;
     esac
@@ -210,6 +214,14 @@ for f in docker/openconcerto-1.7.6/docker-compose.yml \
     info "téléchargé : $f"
 done
 vssh "chmod +x '$VM_DIR'/scripts/*.sh"
+
+# Publication sur le reseau local : le client OpenConcerto tourne sur une
+# autre machine, elle doit pouvoir joindre la base directement.
+if [ "$PUBLISH_LAN" = "1" ]; then
+    log "Publication des ports sur le reseau local"
+    vssh "sed -i 's/127\.0\.0\.1://g' '$VM_DIR/docker/openconcerto-1.7.6/docker-compose.yml'"
+    info "PostgreSQL et Adminer publies sur 0.0.0.0 (5433 et 8082)"
+fi
 
 # Mot de passe PostgreSQL : on CONSERVE celui deja ecrit dans le .env.
 # Important : le conteneur postgres ne lit POSTGRES_PASSWORD qu'a la
