@@ -59,10 +59,14 @@ HEADLESS=0
 FORCE_TCG=0
 KEEP_HTTP=0
 HTTP_PORT="8099"
+TIMEOUT_MIN=30
+WAIT_SSH=1
+FRESH=0
 
 log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
 die()  { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
+warn() { printf '  ATTENTION : %s\n' "$*" >&2; }
 
 usage() {
     sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
@@ -84,6 +88,9 @@ while [ $# -gt 0 ]; do
         --headless) HEADLESS=1; shift ;;
         --no-kvm)   FORCE_TCG=1; shift ;;
         --keep-http) KEEP_HTTP=1; shift ;;
+        --timeout)   TIMEOUT_MIN="$2"; shift 2 ;;
+        --no-wait)   WAIT_SSH=0; shift ;;
+        --fresh)     FRESH=1; shift ;;
         -h|--help)  usage 0 ;;
         *)
             if [ -z "$COMMAND" ]; then
@@ -205,10 +212,10 @@ d-i apt-setup/contrib boolean false
 d-i apt-setup/non-free-firmware boolean false
 d-i apt-setup/services-select multiselect security,updates
 d-i apt-setup/security_host string security.debian.org
-tasksel tasksel/first multiselect standard, ssh-server
+d-i tasksel/task string standard
+d-i tasksel/tasksel multiselect standard, ssh-server
 d-i pkgsel/include string openssh-server sudo
-d-i pkgsel/upgrade select safe-upgrade
-d-i pkgsel/update-policy select unattended-upgrades
+d-i pkgsel/upgrade select none
 popularity-contest popularity-contest/participate boolean false
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/bootdev string /dev/vda
@@ -217,8 +224,7 @@ d-i finish-install/keep-consoles boolean false
 d-i cdrom-detect/eject boolean true
 d-i preseed/late_command string \\
     echo '${VM_USER} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${VM_USER}; \\
-    chmod 440 /etc/sudoers.d/${VM_USER}; \\
-    systemctl enable --now unattended-upgrades || true
+    chmod 440 /etc/sudoers.d/${VM_USER}
 PRESEED
     info "preseed écrit : $file"
 }
@@ -273,6 +279,10 @@ cmd_install() {
 $(netboot_urls)
 EOF
 
+    if [ "$FRESH" = "1" ] && [ -f "$VM_DIR/debian.qcow2" ]; then
+        info "disque supprimé (--fresh) : $VM_DIR/debian.qcow2"
+        rm -f "$VM_DIR/debian.qcow2"
+    fi
     if [ ! -f "$VM_DIR/debian.qcow2" ]; then
         qemu-img create -f qcow2 "$VM_DIR/debian.qcow2" "$DISK_SIZE" >/dev/null
         [ -f "$VM_DIR/debian.qcow2" ] || die "qemu-img n'a pas créé le disque $VM_DIR/debian.qcow2"
@@ -309,7 +319,44 @@ EOF
     fi
 
     log "Premier démarrage depuis le disque"
-    cmd_start
+    cmd_start_daemon
+    if [ "$WAIT_SSH" = "1" ]; then
+        wait_ssh || true
+    fi
+}
+
+# Demarre la VM en arriere-plan (le terminal reste libre).
+cmd_start_daemon() {
+    [ -f "$VM_DIR/debian.qcow2" ] || die "Aucun disque dans $VM_DIR (lance d'abord « install »)."
+    qemu_args start
+    log "Démarrage de la VM (en arrière-plan)"
+    nohup qemu-system-x86_64 "${QEMU_ARGS[@]}" > "$VM_DIR/console.log" 2>&1 &
+    echo $! > "$VM_DIR/qemu.pid"
+    info "pid : $(cat "$VM_DIR/qemu.pid")"
+    info "console de la VM : tail -f $VM_DIR/console.log"
+}
+
+# Attend que le serveur SSH de la VM réponde : c'est le signal fiable de
+# fin d'installation.
+wait_ssh() {
+    local waited=0 limit=$(( TIMEOUT_MIN * 60 ))
+    log "Attente du serveur SSH (port $SSH_PORT)"
+    while [ "$waited" -lt "$limit" ]; do
+        if (exec 3<>/dev/tcp/127.0.0.1/"$SSH_PORT") 2>/dev/null; then
+            exec 3<&- 2>/dev/null || true
+            info "SSH répond : l'installation est terminée."
+            info "connexion : ssh -p $SSH_PORT ${VM_USER}@127.0.0.1   (mot de passe : $VM_PASSWORD)"
+            return 0
+        fi
+        sleep 10
+        waited=$(( waited + 10 ))
+        if [ $(( waited % 60 )) -eq 0 ]; then
+            info "encore en cours... ($(( waited / 60 )) min)"
+        fi
+    done
+    warn "delai depasse : le port $SSH_PORT ne repond pas."
+    info "consulte la console : tail -f $VM_DIR/console.log"
+    return 1
 }
 
 cmd_start() {
