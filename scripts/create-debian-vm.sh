@@ -239,7 +239,7 @@ qemu_args() {
         -m "$RAM"
         -smp "$CPUS"
         -drive "file=${VM_DIR}/debian.qcow2,if=virtio,format=qcow2,cache=writeback"
-        -netdev "user,id=net0,hostfwd=tcp:${SSH_PORT}-:22"
+        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${SSH_PORT}-:22"
         -device virtio-net-pci,netdev=net0
         -device virtio-rng-pci
     )
