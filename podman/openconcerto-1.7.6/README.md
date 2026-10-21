@@ -68,6 +68,16 @@ bash ~/oc-176-podman/podman-openconcerto.sh status
 PostgreSQL est publié sur `127.0.0.1:5433` (le cluster natif occupe déjà
 5432), Adminer sur `http://127.0.0.1:8082`.
 
+Si la stack **Docker** tourne déjà sur 5433, déplace la stack Podman :
+
+```zsh
+sed -i 's/^PG_HOST_PORT=.*/PG_HOST_PORT=5434/' ~/oc-176-podman/.env
+```
+
+Le port est relu automatiquement dans `.env` par le script (l'option
+`--port` reste prioritaire), donc `up`, `copy`, `client` et `diagnose` restent
+cohérents.
+
 Si la base source est en `fr_FR.UTF-8`, il faut une image qui contient la
 locale ; le volume doit alors être vierge :
 

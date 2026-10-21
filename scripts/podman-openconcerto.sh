@@ -46,6 +46,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 STACK_DIR="$HOME/oc-176-podman"
 PROJECT="openconcerto176"
 DB_PORT="5433"
+PORT_SET=0
 ADMINER_PORT="8082"
 DB_NAME="OpenConcerto"
 DB_USER="openconcerto"
@@ -97,7 +98,7 @@ ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --dir)      STACK_DIR="$2"; shift 2 ;;
-        --port)     DB_PORT="$2"; shift 2 ;;
+        --port)     DB_PORT="$2"; PORT_SET=1; shift 2 ;;
         --adminer-port) ADMINER_PORT="$2"; shift 2 ;;
         --base)     DB_NAME="$2"; shift 2 ;;
         --user)     DB_USER="$2"; shift 2 ;;
@@ -145,6 +146,14 @@ load_env() {
     fi
     if [ -z "$DB_PASSWORD" ] && [ -f "$STACK_DIR/.env" ]; then
         DB_PASSWORD=$(sed -n 's/^POSTGRES_PASSWORD=//p' "$STACK_DIR/.env" | head -n 1)
+    fi
+    # Le port publié fait foi : s'il est défini dans .env (PG_HOST_PORT), on
+    # l'utilise, sauf si --port a été passé explicitement. C'est ce qui évite
+    # que la stack Podman et la stack Docker se marchent dessus sur 5433.
+    if [ "$PORT_SET" = "0" ] && [ -f "$STACK_DIR/.env" ]; then
+        local env_port
+        env_port=$(sed -n 's/^PG_HOST_PORT=//p' "$STACK_DIR/.env" | head -n 1)
+        [ -n "$env_port" ] && DB_PORT="$env_port"
     fi
 }
 
@@ -219,6 +228,7 @@ cmd_down() {
 
 cmd_status() {
     need_podman
+    load_env
     log "État de la stack ($PROJECT)"
     "${COMPOSE[@]}" -p "$PROJECT" "${COMPOSE_FILES[@]}" ps
     echo
@@ -350,6 +360,7 @@ cmd_restore() {
 cmd_client() {
     local target="${shift_args[0]:-container}"
     local switch="$SCRIPT_DIR/switch-openconcerto-client-db.sh"
+    load_env
     [ -f "$switch" ] || die "Script absent : $switch (télécharge-le dans le même dossier)."
     local dryopt=""
     [ "$DRY" = "1" ] && dryopt="-n"
