@@ -235,9 +235,15 @@ bash scripts/create-debian-vm.sh install
 
 `install-qemu-noroot.sh` télécharge les paquets avec `apt download` (qui
 n'exige pas root), les extrait dans `~/qemu-local/root`, puis **résout les
-bibliothèques manquantes** en boucle (`ldd` → nom du paquet → extraction) :
-c'est le piège classique de l'installation manuelle, où `qemu-system-x86_64`
-échoue sur `libcapstone.so.5`.
+bibliothèques manquantes** en boucle (`ldd` → candidats de paquets →
+extraction → **vérification que la .so est bien arrivée**) : c'est le piège
+classique de l'installation manuelle, où `qemu-system-x86_64` échoue sur
+`libcapstone.so.5`. La vérification est indispensable : certains paquets
+existent mais ne fournissent pas la bibliothèque (paquets de transition
+`t64`, méta-paquets comme `ndctl`).
+
+Le script peut être relancé autant de fois que nécessaire : les paquets
+déjà téléchargés sont conservés dans `~/qemu-local/debs`.
 
 `create-debian-vm.sh` fait la même chose que la version VirtualBox
 (netboot + preseed + SSH redirigé), avec KVM s'il est disponible.
