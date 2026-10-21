@@ -263,11 +263,13 @@ if [ "$NO_START" = "0" ]; then
     # Test reel de connexion : en TCP ET avec le mot de passe (la socket
     # locale du conteneur est en « trust », elle ne prouve rien).
     log "Test de connexion a la base"
-    db_ok=$(vssh "PGPASSWORD='$PG_PASSWORD' psql -X -h 127.0.0.1 -p 5433 -U openconcerto -d postgres -tAc 'select 1'" 2>/dev/null | tr -d '\r\n ')
+    db_out=$(vssh "PGPASSWORD='$PG_PASSWORD' psql -X -h 127.0.0.1 -p 5433 -U openconcerto -d postgres -tAc 'select 1'" 2>&1)
+    db_ok=$(printf '%s' "$db_out" | tr -d '\r\n ')
     if [ "$db_ok" = "1" ]; then
         info "connexion OK : base OpenConcerto accessible avec le mot de passe ci-dessus"
     else
         info "ATTENTION : connexion impossible avec ce mot de passe."
+        info "  psql a repondu : $db_out"
         info "  test : ssh -p $VM_PORT $VM_USER@$VM_HOST \"cd $VM_DIR/docker/openconcerto-1.7.6 && docker compose -f docker-compose.yml -f docker-compose.fr_FR.yml exec db psql -U openconcerto -d OpenConcerto\""
     fi
 fi

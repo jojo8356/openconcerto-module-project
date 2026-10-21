@@ -109,14 +109,17 @@ if [ "$FORCE_DOCKER" = "1" ]; then
     command -v docker >/dev/null 2>&1 || die "'docker' introuvable dans le PATH."
     BASE="${BASE:-OpenConcerto}"
 else
-    if PGPASSWORD="$PASSWORD" psql -X -h "$HOST" -p "$PORT" -U "$ROLE" -d postgres -tAc "select 1" >/dev/null 2>&1; then
+    # On capture la sortie de psql (y compris l'erreur) : sans cela, un
+    # simple echec de connexion ne dit rien de la cause reelle.
+    conn_out=$(PGPASSWORD="$PASSWORD" psql -X -h "$HOST" -p "$PORT" -U "$ROLE" -d postgres -tAc "select 1" 2>&1)
+    if [ "$conn_out" = "1" ]; then
         BASE="${BASE:-OpenConcerto}"
     elif [ -f "$COMPOSE" ] && command -v docker >/dev/null 2>&1 \
          && docker compose -f "$COMPOSE" exec -T db psql -U "$ROLE" -d postgres -tAc "select 1" >/dev/null 2>&1; then
         USE_DOCKER=1
         BASE="${BASE:-OpenConcerto}"
     else
-        die "Aucune connexion possible sur $HOST:$PORT (base $BASE, role $ROLE). Verifie que le conteneur tourne et que le mot de passe est le bon."
+        die "Aucune connexion possible sur $HOST:$PORT (base $BASE, role $ROLE). Verifie que le conteneur tourne et que le mot de passe est le bon. Reponse de psql : $conn_out"
     fi
 fi
 
