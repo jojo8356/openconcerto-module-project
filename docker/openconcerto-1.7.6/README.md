@@ -159,6 +159,15 @@ script de restauration. **Aucun rechargement de la base n'est nécessaire** :
 c'est un `UPDATE`/`DELETE` sur `USER_RIGHT`. En revanche l'utilisateur doit
 **se reconnecter**, les droits étant mis en cache côté client.
 
+Le script est validé de bout en bout contre un vrai PostgreSQL (pglite, sans
+installation) avec des tables créées comme OpenConcerto les crée — noms de
+tables et de colonnes en MAJUSCULES, entre guillemets :
+
+```sh
+npm install @electric-sql/pglite
+bash tests/sql/e2e-droits.sh
+```
+
 ## 6. Arrêt et suppression
 
 ```sh

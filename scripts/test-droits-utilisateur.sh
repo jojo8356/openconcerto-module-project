@@ -47,6 +47,10 @@
 #   -h           cette aide
 #
 # Variables : PGPASSWORD, OC_CONF
+#
+# Test : tests/sql/e2e-droits.sh execute ce script de bout en bout contre un
+# vrai PostgreSQL (pglite) avec des tables creees comme OpenConcerto les
+# cree (noms en MAJUSCULES, entre guillemets).
 # END_UTILISE
 
 set -euo pipefail
@@ -145,21 +149,29 @@ run_sql "select version()"
 
 # Tables des droits : on les cherche, elles ne s'appellent pas forcément pareil
 # selon la version (USER_COMMON en 1.5/1.7, d'autres noms ailleurs).
+#
+# Deux formes sont conservées pour chaque table :
+#   T_*_RAW : schema.table  -> pour les recherches dans information_schema
+#   T_*     : "schema"."table" -> pour les requêtes. Les guillemets sont
+#             indispensables : sans eux PostgreSQL replie l'identifiant en
+#             minuscules (common.user_common) et RIGHT est un mot réservé.
 T_USERS=""; T_RIGHTS=""; T_CODES=""; T_ACCES=""
-while IFS='|' read -r sch tab; do
+T_USERS_RAW=""; T_RIGHTS_RAW=""; T_CODES_RAW=""; T_ACCES_RAW=""
+while IFS='|' read -r sch tab quoted; do
     [ -n "$tab" ] || continue
+    [ -n "$quoted" ] || quoted="$sch.$tab"
     case "$tab" in
         USER_COMMON|UTILISATEUR_COMMON|UTILISATEUR|USER)
-            [ -n "$T_USERS" ] || T_USERS="$sch.$tab" ;;
+            if [ -z "$T_USERS" ]; then T_USERS="$quoted"; T_USERS_RAW="$sch.$tab"; fi ;;
         USER_RIGHT|DROIT_UTILISATEUR|UTILISATEUR_DROIT|USER_RIGHTS)
-            [ -n "$T_RIGHTS" ] || T_RIGHTS="$sch.$tab" ;;
+            if [ -z "$T_RIGHTS" ]; then T_RIGHTS="$quoted"; T_RIGHTS_RAW="$sch.$tab"; fi ;;
         RIGHT|DROIT|TYPE_DROIT)
-            [ -n "$T_CODES" ] || T_CODES="$sch.$tab" ;;
+            if [ -z "$T_CODES" ]; then T_CODES="$quoted"; T_CODES_RAW="$sch.$tab"; fi ;;
         ACCES_SOCIETE|ACCES_SOCIETES)
-            [ -n "$T_ACCES" ] || T_ACCES="$sch.$tab" ;;
+            if [ -z "$T_ACCES" ]; then T_ACCES="$quoted"; T_ACCES_RAW="$sch.$tab"; fi ;;
     esac
 done <<EOF
-$(run_sql_at "select table_schema, table_name from information_schema.tables where table_name in ('USER_COMMON','UTILISATEUR_COMMON','UTILISATEUR','USER','USER_RIGHT','DROIT_UTILISATEUR','UTILISATEUR_DROIT','USER_RIGHTS','RIGHT','DROIT','TYPE_DROIT','ACCES_SOCIETE','ACCES_SOCIETES') order by table_schema, table_name")
+$(run_sql_at "select table_schema, table_name, quote_ident(table_schema)||'.'||quote_ident(table_name) from information_schema.tables where table_name in ('USER_COMMON','UTILISATEUR_COMMON','UTILISATEUR','USER','USER_RIGHT','DROIT_UTILISATEUR','UTILISATEUR_DROIT','USER_RIGHTS','RIGHT','DROIT','TYPE_DROIT','ACCES_SOCIETE','ACCES_SOCIETES') order by table_schema, table_name")
 EOF
 
 [ -n "$T_USERS" ] || die "Table des utilisateurs introuvable (USER_COMMON attendu)."
@@ -167,25 +179,59 @@ EOF
 [ -n "$T_CODES" ] || die "Table des codes de droits introuvable (RIGHT attendue)."
 
 log "Tables utilisées"
-printf '  utilisateurs : %s\n' "$T_USERS"
-printf '  droits       : %s\n' "$T_RIGHTS"
-printf '  codes        : %s\n' "$T_CODES"
-[ -n "$T_ACCES" ] && printf '  accès societe: %s\n' "$T_ACCES"
+printf '  utilisateurs : %s\n' "$T_USERS_RAW"
+printf '  droits       : %s\n' "$T_RIGHTS_RAW"
+printf '  codes        : %s\n' "$T_CODES_RAW"
+[ -n "$T_ACCES_RAW" ] && printf '  accès societe: %s\n' "$T_ACCES_RAW"
 
 # Les colonnes doivent exister
-COLS=$(run_sql_at "select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_schema||'.'||table_name = '$T_RIGHTS'")
+COLS=$(run_sql_at "select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_schema||'.'||table_name = '$T_RIGHTS_RAW'")
 case "$COLS" in
     *ID_USER_COMMON*) ;;
-    *) die "La table $T_RIGHTS n'a pas de colonne ID_USER_COMMON (colonnes : $COLS)." ;;
+    *) die "La table $T_RIGHTS_RAW n'a pas de colonne ID_USER_COMMON (colonnes : $COLS)." ;;
 esac
 case "$COLS" in
     *HAVE_RIGHT*) ;;
-    *) die "La table $T_RIGHTS n'a pas de colonne HAVE_RIGHT (colonnes : $COLS)." ;;
+    *) die "La table $T_RIGHTS_RAW n'a pas de colonne HAVE_RIGHT (colonnes : $COLS)." ;;
 esac
+
+# ---------------------------------------------------------------- colonnes
+# Les colonnes d'OpenConcerto sont en MAJUSCULES et doivent être citées :
+# sans guillemets, PostgreSQL replie l'identifiant en minuscules et la
+# requête échoue (column "id" does not exist). On va donc chercher le nom
+# réel de chaque colonne, puis le citer.
+col() {
+    run_sql_at "select quote_ident(column_name) from information_schema.columns where table_schema||'.'||table_name = '$1' and lower(column_name) = lower('$2') limit 1"
+}
+req_col() {
+    local v
+    v=$(col "$1" "$2")
+    [ -n "$v" ] || die "Colonne '$2' introuvable dans $1."
+    printf '%s' "$v"
+}
+C_U_ID=$(req_col "$T_USERS_RAW" id)
+C_U_LOGIN=$(req_col "$T_USERS_RAW" login)
+C_U_NOM=$(req_col "$T_USERS_RAW" nom)
+C_U_PRENOM=$(req_col "$T_USERS_RAW" prenom)
+C_U_ADMIN=$(col "$T_USERS_RAW" admin)
+C_U_SUPER=$(col "$T_USERS_RAW" superuser)
+C_R_ID=$(req_col "$T_RIGHTS_RAW" id)
+C_R_USER=$(req_col "$T_RIGHTS_RAW" id_user_common)
+C_R_RIGHT=$(req_col "$T_RIGHTS_RAW" id_right)
+C_R_OBJECT=$(req_col "$T_RIGHTS_RAW" object)
+C_R_HAVE=$(req_col "$T_RIGHTS_RAW" have_right)
+C_C_ID=$(req_col "$T_CODES_RAW" id)
+C_C_CODE=$(req_col "$T_CODES_RAW" code)
+C_C_NOM=$(req_col "$T_CODES_RAW" nom)
+C_A_USER=""; C_A_SOC=""
+if [ -n "$T_ACCES_RAW" ]; then
+    C_A_USER=$(col "$T_ACCES_RAW" id_user_common)
+    C_A_SOC=$(col "$T_ACCES_RAW" id_societe_common)
+fi
 
 # ---------------------------------------------------------------- utilisateurs
 # On récupère tous les utilisateurs, on filtre en bash (insensible aux accents).
-USERS=$(run_sql_at "select id, login, coalesce(nom,''), coalesce(prenom,'') from $T_USERS order by id")
+USERS=$(run_sql_at "select $C_U_ID as id, $C_U_LOGIN as login, coalesce($C_U_NOM,'') as nom, coalesce($C_U_PRENOM,'') as prenom from $T_USERS order by $C_U_ID")
 
 norm() {
     printf '%s' "$1" | tr 'A-ZÀÂÄÉÈÊËÎÏÔÖÛÜÇŒÆ' 'aazaaeeeeiioouu(coe' | tr -d "'" | tr -s ' '
@@ -207,7 +253,7 @@ EOF
 }
 
 log "Utilisateurs"
-run_sql "select id, login, nom, prenom from $T_USERS order by id"
+run_sql "select $C_U_ID as id, $C_U_LOGIN as login, $C_U_NOM as nom, $C_U_PRENOM as prenom from $T_USERS order by $C_U_ID"
 
 MATCH1=$(find_user "$PAT1" || true)
 MATCH2=$(find_user "$PAT2" || true)
@@ -236,48 +282,39 @@ L2=$(printf '%s' "$U2" | cut -d'|' -f2)
 [ "$ID1" != "$ID2" ] || die "Les deux motifs désignent le même utilisateur ($L1)."
 
 # Drapeaux ADMIN / SUPERUSER (colonnes facultatives)
-UCOLS=$(run_sql_at "select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_schema||'.'||table_name = '$T_USERS'")
-FLAG_ADMIN=""
-FLAG_SUPER=""
-case "$UCOLS" in
-    *ADMIN*) FLAG_ADMIN="ADMIN" ;;
-esac
-case "$UCOLS" in
-    *SUPERUSER*) FLAG_SUPER="SUPERUSER" ;;
-esac
-
-SQL_FLAGS="u.id"
-[ -n "$FLAG_ADMIN" ] && SQL_FLAGS="$SQL_FLAGS, coalesce(u.$FLAG_ADMIN::text,'?')"
-[ -n "$FLAG_SUPER" ] && SQL_FLAGS="$SQL_FLAGS, coalesce(u.$FLAG_SUPER::text,'?')"
+SQL_FLAGS="u.$C_U_ID as id"
+[ -n "$C_U_ADMIN" ] && SQL_FLAGS="$SQL_FLAGS, coalesce(u.$C_U_ADMIN::text,'?') as admin"
+[ -n "$C_U_SUPER" ] && SQL_FLAGS="$SQL_FLAGS, coalesce(u.$C_U_SUPER::text,'?') as superuser"
 
 log "Utilisateurs comparés"
 printf '  référence   : id=%s  %s  (%s)\n' "$ID1" "$L1" "$U1"
 printf '  concerné    : id=%s  %s  (%s)\n' "$ID2" "$L2" "$U2"
-run_sql "select $SQL_FLAGS from $T_USERS u where u.id in ($ID1, $ID2)"
+run_sql "select $SQL_FLAGS from $T_USERS u where u.$C_U_ID in ($ID1, $ID2)"
 
 # ---------------------------------------------------------------- droits bruts
 log "Droits bruts (table USER_RIGHT, dans l'ordre des ID)"
 printf -- "  l'ordre compte : pour un couple (CODE, OBJECT), c'est la ligne d'ID le plus bas qui l'emporte.\n\n"
-run_sql "select ur.id as id_ligne, u2.login, r.code, r.nom, coalesce('['||ur.object||']','<tous>') as objet, ur.have_right
+run_sql "select ur.$C_R_ID as id_ligne, u2.$C_U_LOGIN as login, r.$C_C_CODE as code, r.$C_C_NOM as nom, coalesce('['||ur.$C_R_OBJECT||']','<tous>') as objet, ur.$C_R_HAVE as have_right
          from $T_RIGHTS ur
-         join $T_CODES r on r.id = ur.id_right
-         join $T_USERS u2 on u2.id = ur.id_user_common
-         where ur.id_user_common in ($ID1, $ID2)
-         order by ur.id_user_common, ur.id"
+         join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
+         join $T_USERS u2 on u2.$C_U_ID = ur.$C_R_USER
+         where ur.$C_R_USER in ($ID1, $ID2)
+         order by ur.$C_R_USER, ur.$C_R_ID"
 
 # ---------------------------------------------------------------- droit effectifs
 EFF_CTE="with eff as (
-    select distinct on (ur.id_user_common, r.code, coalesce(ur.object,''))
-           ur.id_user_common, ur.id, r.code, r.nom, ur.object, ur.have_right
+    select distinct on (ur.$C_R_USER, r.$C_C_CODE, coalesce(ur.$C_R_OBJECT,''))
+           ur.$C_R_USER as id_user_common, ur.$C_R_ID as id, r.$C_C_CODE as code,
+           r.$C_C_NOM as nom, ur.$C_R_OBJECT as object, ur.$C_R_HAVE as have_right
     from $T_RIGHTS ur
-    join $T_CODES r on r.id = ur.id_right
-    where ur.id_user_common in ($ID1, $ID2)
-    order by ur.id_user_common, r.code, coalesce(ur.object,''), ur.id
+    join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
+    where ur.$C_R_USER in ($ID1, $ID2)
+    order by ur.$C_R_USER, r.$C_C_CODE, coalesce(ur.$C_R_OBJECT,''), ur.$C_R_ID
 )"
 
 log "Droits effectifs (1re ligne par couple CODE/OBJECT)"
 run_sql "$EFF_CTE
-         select e.id_user_common, e.id as id_ligne, e.code, coalesce('['||e.object||']','<tous>') as objet, e.have_right
+         select e.id_user_common as id_user_common, e.id as id_ligne, e.code as code, coalesce('['||e.object||']','<tous>') as objet, e.have_right as have_right
          from eff e order by e.id_user_common, e.code, e.object"
 
 # ---------------------------------------------------------------- différentiel
@@ -300,7 +337,7 @@ printf '%s\n' "$DIFF"
 # ---------------------------------------------------------------- tables du transfert
 log "Droits sur les tables du transfert (FACTURE / COMMANDE / FOURNISSEUR / TIERS)"
 run_sql "$EFF_CTE
-         select e.id_user_common, e.code, coalesce('['||e.object||']','<tous>') as objet, e.have_right
+         select e.id_user_common as id_user_common, e.code as code, coalesce('['||e.object||']','<tous>') as objet, e.have_right as have_right
          from eff e
          where e.code in ('TABLE_ALL_RIGHTS','TABLE_ALL_MODIF_RIGHTS','INSERT_ROW','UPDATE_ROW','SELECT_ROW','DELETE_ROW')
            and (coalesce(e.object,'') ~* 'FACTURE|COMMANDE|FOURNISSEUR|TIERS' or coalesce(e.object,'') = '')
@@ -309,14 +346,14 @@ run_sql "$EFF_CTE
 # ---------------------------------------------------------------- sociétés
 if [ -n "$T_ACCES" ]; then
     log "Accès aux sociétés"
-    run_sql "select acc.id_user_common, u.login, acc.id_societe_common
-             from $T_ACCES acc join $T_USERS u on u.id = acc.id_user_common
-             where acc.id_user_common in ($ID1, $ID2)
-             order by acc.id_user_common"
+    run_sql "select acc.$C_A_USER as id_user_common, u.$C_U_LOGIN as login, acc.$C_A_SOC as id_societe_common
+             from $T_ACCES acc join $T_USERS u on u.$C_U_ID = acc.$C_A_USER
+             where acc.$C_A_USER in ($ID1, $ID2)
+             order by acc.$C_A_USER"
     ACC_DIFF=$(run_sql_at "select count(*) from (
-        select id_societe_common from $T_ACCES where id_user_common = $ID1
+        select $C_A_SOC from $T_ACCES where $C_A_USER = $ID1
         except
-        select id_societe_common from $T_ACCES where id_user_common = $ID2) x")
+        select $C_A_SOC from $T_ACCES where $C_A_USER = $ID2) x")
     if [ "$ACC_DIFF" != "0" ]; then
         echo
         echo "  ATTENTION : $L2 a accès à des sociétés que $L1 n'a pas (ou inversement)."
@@ -335,11 +372,11 @@ where u1.have_right = true and (u2.have_right is null or u2.have_right = false)"
 SHADOW=$(run_sql_at "$EFF_CTE,
 tgt as (select * from eff where id_user_common = $ID2)
 select count(*) from $T_RIGHTS ur
-join $T_CODES r on r.id = ur.id_right
-join tgt on tgt.code = r.code and coalesce(tgt.object,'') = coalesce(ur.object,'')
-where ur.id_user_common = $ID2
-  and ur.id <> tgt.id
-  and ur.have_right is distinct from tgt.have_right")
+join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
+join tgt on tgt.code = r.$C_C_CODE and coalesce(tgt.object,'') = coalesce(ur.$C_R_OBJECT,'')
+where ur.$C_R_USER = $ID2
+  and ur.$C_R_ID <> tgt.id
+  and ur.$C_R_HAVE is distinct from tgt.have_right")
 
 printf '  droits accordés à %s mais absents ou refusés pour %s : %s\n' "$L1" "$L2" "${MISSING:-0}"
 printf '  lignes de %s ignorées par OpenConcerto (masquées)     : %s\n' "$L2" "${SHADOW:-0}"
@@ -374,17 +411,17 @@ if [ "$APPLY" = "1" ]; then
 
     # Sauvegarde exécutable : on rejoue les lignes d'origine (sans l'ID, pour
     # ne pas désynchroniser la séquence) dans leur ordre d'origine, qui compte.
-    run_sql_at "select 'INSERT INTO $T_RIGHTS (id_user_common, id_right, object, have_right) VALUES (' ||
-                       ur.id_user_common || ', ' || ur.id_right || ', ' ||
-                       case when ur.object is null then 'NULL' else quote_literal(ur.object) end || ', ' ||
-                       case when ur.have_right then 'true' else 'false' end || ');'
-                from $T_RIGHTS ur where ur.id_user_common = $ID2 order by ur.id" \
+    run_sql_at "select 'INSERT INTO $T_RIGHTS ($C_R_USER, $C_R_RIGHT, $C_R_OBJECT, $C_R_HAVE) VALUES (' ||
+                       ur.$C_R_USER || ', ' || ur.$C_R_RIGHT || ', ' ||
+                       case when ur.$C_R_OBJECT is null then 'NULL' else quote_literal(ur.$C_R_OBJECT) end || ', ' ||
+                       case when ur.$C_R_HAVE then 'true' else 'false' end || ');'
+                from $T_RIGHTS ur where ur.$C_R_USER = $ID2 order by ur.$C_R_ID" \
         > "$BACKUP_SQL.INSERT"
     {
         echo "-- Restauration des droits de $L2 (id $ID2) — état avant le correctif"
         echo "-- Généré le $(date '+%Y-%m-%d %H:%M:%S')"
         echo "BEGIN;"
-        echo "DELETE FROM $T_RIGHTS WHERE id_user_common = $ID2;"
+        echo "DELETE FROM $T_RIGHTS WHERE $C_R_USER = $ID2;"
         cat "$BACKUP_SQL.INSERT"
         echo "COMMIT;"
     } > "$BACKUP_SQL"
@@ -397,12 +434,12 @@ ref as (select * from eff where id_user_common = $ID1),
 tgt as (select * from eff where id_user_common = $ID2)
 select case
          when tgt.code is null then
-           'INSERT INTO $T_RIGHTS (id_user_common, id_right, object, have_right) VALUES ($ID2, (select id from $T_CODES where code = ' || quote_literal(ref.code) || '), ' ||
+           'INSERT INTO $T_RIGHTS ($C_R_USER, $C_R_RIGHT, $C_R_OBJECT, $C_R_HAVE) VALUES ($ID2, (select $C_C_ID from $T_CODES where $C_C_CODE = ' || quote_literal(ref.code) || '), ' ||
            case when ref.object is null then 'NULL' else quote_literal(ref.object) end || ', ' ||
            case when ref.have_right then 'true' else 'false' end || ');'
          when ref.have_right is distinct from tgt.have_right then
-           'UPDATE $T_RIGHTS SET have_right = ' || case when ref.have_right then 'true' else 'false' end ||
-           ' WHERE id = ' || tgt.id || ';'
+           'UPDATE $T_RIGHTS SET $C_R_HAVE = ' || case when ref.have_right then 'true' else 'false' end ||
+           ' WHERE $C_R_ID = ' || tgt.id || ';'
          else null
        end
 from ref full outer join tgt on ref.code = tgt.code and coalesce(ref.object,'') = coalesce(tgt.object,'')
@@ -415,18 +452,18 @@ where ref.have_right is distinct from tgt.have_right" | sed '/^$/d')
     DUP_SQL=$(run_sql_at "$EFF_CTE,
 ref as (select * from eff where id_user_common = $ID1),
 tgt as (select * from eff where id_user_common = $ID2)
-select 'DELETE FROM $T_RIGHTS WHERE id = ' || ur.id || ';'
+select 'DELETE FROM $T_RIGHTS WHERE $C_R_ID = ' || ur.$C_R_ID || ';'
 from $T_RIGHTS ur
-join $T_CODES r on r.id = ur.id_right
-join ref on ref.code = r.code and coalesce(ref.object,'') = coalesce(ur.object,'')
+join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
+join ref on ref.code = r.$C_C_CODE and coalesce(ref.object,'') = coalesce(ur.$C_R_OBJECT,'')
 join tgt on tgt.code = ref.code and coalesce(tgt.object,'') = coalesce(ref.object,'')
-where ur.id_user_common = $ID2
+where ur.$C_R_USER = $ID2
   and ref.have_right is distinct from tgt.have_right
   and exists (select 1 from $T_RIGHTS ur2
-              where ur2.id_user_common = $ID2
-                and ur2.id_right = ur.id_right
-                and coalesce(ur2.object,'') = coalesce(ur.object,'')
-                and ur2.id < ur.id)" | sed '/^$/d')
+              where ur2.$C_R_USER = $ID2
+                and ur2.$C_R_RIGHT = ur.$C_R_RIGHT
+                and coalesce(ur2.$C_R_OBJECT,'') = coalesce(ur.$C_R_OBJECT,'')
+                and ur2.$C_R_ID < ur.$C_R_ID)" | sed '/^$/d')
 
     FIX_FILE="$TMPDIR_SQL/correctif-${L2}.sql"
     {
