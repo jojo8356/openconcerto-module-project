@@ -112,6 +112,28 @@ scripts/switch-openconcerto-client-db.sh -t docker -r      # exécute, avec conf
 scripts/switch-openconcerto-client-db.sh -t native          # retour à la base native
 ```
 
+**Client sur une autre machine.** La pile n'écoute que sur `127.0.0.1` dans la VM,
+et QEMU n'exporte que le port SSH : pour joindre la base depuis un autre poste,
+on ouvre un tunnel SSH *sur le poste qui héberge la VM* :
+
+```sh
+ssh -p 2222 -N -L 0.0.0.0:5434:127.0.0.1:5433 -L 0.0.0.0:8083:127.0.0.1:8082 oc@127.0.0.1 &
+```
+
+Puis, sur le poste du client :
+
+```sh
+scripts/switch-openconcerto-client-db.sh -t remote -H IP-DU-POSTE-HOTE:5434 \
+    -d OpenConcerto -U openconcerto -P MOT-DE-PASSE -n   # plan
+scripts/switch-openconcerto-client-db.sh -t remote -H IP-DU-POSTE-HOTE:5434 \
+    -d OpenConcerto -U openconcerto -P MOT-DE-PASSE     # exécute
+```
+
+`-t remote` écrit `server.ip=IP\:PORT` (deux-points échappé, format
+OpenConcerto) ainsi que `server.login` / `server.password` : le client distant
+doit donc envoyer des identifiants, le rôle `openconcerto` de la base étant
+protégé par un mot de passe.
+
 Ce qu'il écrit :
 
 ```properties

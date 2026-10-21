@@ -19,9 +19,12 @@
 #   ./switch-openconcerto-client-db.sh -t docker [-r] [-n] [-y]
 #   ./switch-openconcerto-client-db.sh -t podman [-r] [-n] [-y]
 #   ./switch-openconcerto-client-db.sh -t native [-n] [-y]
+#   ./switch-openconcerto-client-db.sh -t remote -H IP[:PORT] [-n] [-y]
 #
 # Options :
-#   -t CIBLE    docker | podman | native
+#   -t CIBLE    docker | podman | native | remote
+#   -H HOTE     hote du serveur distant (obligatoire avec -t remote),
+#               avec ou sans port : 192.168.1.20  ou  192.168.1.20:5434
 #   -r          conteneur (docker/podman) : aligner le mot de passe du rôle
 #               SQL sur celui utilisé par le client (ALTER ROLE + .env)
 #   -c FICHIER  main.properties (défaut : ~/.config/OpenConcerto/main.properties)
@@ -51,15 +54,17 @@ STACK_DIR=""
 ALIGN_ROLE=0
 DRY=0
 ASSUME_YES=0
+REMOTE_HOST=""
 
 usage() {
     awk '/^# BEGIN_UTILISE/{f=1;next} /^# END_UTILISE/{f=0} f' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
-while getopts ":t:rc:p:d:U:P:o:nyh" opt; do
+while getopts ":t:rc:p:d:U:P:o:H:nyh" opt; do
     case "$opt" in
         t) TARGET="$OPTARG" ;;
+        H) REMOTE_HOST="$OPTARG" ;;
         r) ALIGN_ROLE=1 ;;
         c) CONF="$OPTARG" ;;
         p) PORT="$OPTARG" ;;
@@ -79,11 +84,11 @@ die() { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
 
 [ -n "$TARGET" ] || usage 1
 case "$TARGET" in
-    docker|podman|native) ;;
-    *) die "Cible inconnue : '$TARGET' (attendu : docker, podman ou native)" ;;
+    docker|podman|native|remote) ;;
+    *) die "Cible inconnue : '$TARGET' (attendu : docker, podman, native ou remote)" ;;
 esac
 
-if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
+if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ] || [ "$TARGET" = "remote" ]; then
     PORT="${PORT:-5433}"
     DB="${DB:-OpenConcerto}"
 else
@@ -115,10 +120,27 @@ CURRENT_DRIVER=$(get_prop "server.driver")
 # (\:) — c'est le format écrit par OpenConcerto (Properties : "\:" -> ":").
 # 127.0.0.1 et non "localhost" : le conteneur n'écoute que sur 127.0.0.1 et
 # "localhost" peut résoudre en ::1 (IPv6), où rien n'écoute.
-if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
+if [ "$TARGET" = "remote" ]; then
+    [ -n "$REMOTE_HOST" ] || die "-t remote exige -H HOTE[:PORT] (adresse du serveur PostgreSQL)."
+    [ "$ALIGN_ROLE" = "0" ] || die "-r n'a pas de sens avec -t remote (le rôle est sur l'autre machine)."
+    case "$REMOTE_HOST" in
+        *:*) NEW_IP=$(printf '%s' "$REMOTE_HOST" | sed 's/:/\\:/g') ;;
+        *)   NEW_IP="${REMOTE_HOST}\\:$PORT" ;;
+    esac
+    # hote/port reellement testes par le controle de connexion
+    CHK_HOST=$(printf '%s' "$REMOTE_HOST" | cut -d: -f1)
+    case "$REMOTE_HOST" in
+        *:*) CHK_PORT=$(printf '%s' "$REMOTE_HOST" | awk -F: '{print $NF}') ;;
+        *)   CHK_PORT="$PORT" ;;
+    esac
+elif [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
     NEW_IP="127.0.0.1\\:$PORT"
+    CHK_HOST="127.0.0.1"
+    CHK_PORT="$PORT"
 else
     NEW_IP="localhost\\:$PORT"
+    CHK_HOST="127.0.0.1"
+    CHK_PORT="$PORT"
 fi
 
 log "Configuration actuelle"
@@ -131,7 +153,11 @@ log "Cible $TARGET"
 printf '  server.ip        : %s\n' "$NEW_IP"
 printf '  systemRoot       : %s\n' "$DB"
 printf '  server.driver    : %s\n' "$CURRENT_DRIVER"
-if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
+if [ "$TARGET" = "remote" ]; then
+    printf '  server.login     : %s\n' "$SQL_USER"
+    printf '  server.password  : %s\n' "<${#SQL_PASSWORD} caractères, masqué>"
+    printf '  serveur distant  : %s (les identifiants sont écrits dans le fichier)\n' "$REMOTE_HOST"
+elif [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
     printf '  server.login     : %s\n' "$SQL_USER"
     printf '  server.password  : %s\n' "<${#SQL_PASSWORD} caractères, masqué>"
     if [ "$ALIGN_ROLE" = "1" ]; then
@@ -147,7 +173,9 @@ fi
 if [ "$DRY" = "1" ]; then
     echo
     echo "Dry-run : rien n'a été modifié. Pour appliquer :"
-    if [ "$TARGET" != "native" ] && [ "$ALIGN_ROLE" = "1" ]; then
+    if [ "$TARGET" = "remote" ]; then
+        printf '  bash %s -t remote -H %s\n' "$0" "$REMOTE_HOST"
+    elif [ "$TARGET" != "native" ] && [ "$ALIGN_ROLE" = "1" ]; then
         printf '  bash %s -t %s -r\n' "$0" "$TARGET"
     else
         printf '  bash %s -t %s\n' "$0" "$TARGET"
@@ -288,7 +316,7 @@ fi
 # ------------------------------------------------- contrôle de la connexion
 if command -v psql >/dev/null 2>&1; then
     log "Contrôle de la connexion avec les identifiants du client"
-    if OUT=$(PGPASSWORD="$SQL_PASSWORD" psql -h 127.0.0.1 -p "$PORT" -U "$SQL_USER" \
+    if OUT=$(PGPASSWORD="$SQL_PASSWORD" psql -h "$CHK_HOST" -p "$CHK_PORT" -U "$SQL_USER" \
                 -d "$DB" -tAc "select current_user || '|' || current_database()" 2>&1); then
         echo "  OK : connexion réussie -> $OUT"
     else
@@ -305,7 +333,21 @@ else
     echo "  (psql absent : contrôle de connexion non effectué)"
 fi
 
-if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
+if [ "$TARGET" = "remote" ]; then
+    cat <<EOF
+
+Prochaine étape :
+
+  1. Redémarrer COMPLETEMENT le client (les droits et les métadonnées
+     sont chargés à la connexion) :
+
+       cd /opt/openconcerto && sh OpenConcerto.sh
+
+     Le journal doit indiquer Ip:$REMOTE_HOST (base $DB).
+
+  2. Se reconnecter avec le compte concerné, puis rejouer le transfert.
+EOF
+elif [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
     cat <<EOF
 
 Prochaine étape :
