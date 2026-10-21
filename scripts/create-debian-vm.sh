@@ -243,6 +243,17 @@ qemu_args() {
         -device virtio-net-pci,netdev=net0
         -device virtio-rng-pci
     )
+    # Repertoire des firmware (SeaBIOS, vgabios) : QEMU le cherche a cote de
+    # son binaire, mais quand QEMU est extrait hors de /usr, il faut le
+    # indiquer explicitement.
+    local qbin datadir
+    qbin=$(command -v qemu-system-x86_64 || true)
+    if [ -n "$qbin" ]; then
+        datadir=$(cd "$(dirname "$qbin")/../share/qemu" 2>/dev/null && pwd || true)
+        if [ -n "$datadir" ] && [ -d "$datadir" ]; then
+            QEMU_ARGS+=(-L "$datadir")
+        fi
+    fi
     if have_kvm; then
         QEMU_ARGS+=(-enable-kvm -cpu host)
     else

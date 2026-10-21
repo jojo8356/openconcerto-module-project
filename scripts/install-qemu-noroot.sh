@@ -42,7 +42,25 @@ LIBDIR="$ROOT/usr/lib/x86_64-linux-gnu"
 LIBPATHS="$ROOT/usr/lib/x86_64-linux-gnu:$ROOT/usr/lib/x86_64-linux-gnu:$ROOT/lib/x86_64-linux-gnu"
 
 # ---------------------------------------------------------------- paquets
-BASE_PKGS="qemu-system-x86 qemu-system-common qemu-system-data qemu-utils"
+BASE_PKGS="qemu-system-x86 qemu-system-common qemu-system-data qemu-utils seabios"
+
+# Le firmware PC (SeaBIOS) est livre dans un paquet a part et vit dans
+# /usr/share/seabios. Comme notre QEMU est extrait dans ~/qemu-local/root,
+# les fichiers doivent aussi etre presents dans <racine>/usr/share/qemu,
+# que QEMU recherche a cote de son binaire.
+copy_firmware() {
+    local src
+    mkdir -p "$ROOT/usr/share/qemu"
+    for src in "$ROOT/usr/share/seabios" "$ROOT/usr/share/qemu-bios" "$ROOT/usr/share/qemu"; do
+        [ -d "$src" ] || continue
+        cp -a "$src"/. "$ROOT/usr/share/qemu/" 2>/dev/null || true
+    done
+    if [ -f "$ROOT/usr/share/qemu/bios-256k.bin" ]; then
+        info "firmware PC : bios-256k.bin present"
+        return 0
+    fi
+    return 1
+}
 
 # Bibliotheques du systeme : elles sont normalement deja la ; on ne les
 # extrait JAMAIS (sinon on casse l'hote).
@@ -240,6 +258,12 @@ done
 
 QEMU_BIN="$ROOT/usr/bin/qemu-system-x86_64"
 [ -x "$QEMU_BIN" ] || die "qemu-system-x86_64 n'a pas ete extrait dans $ROOT."
+
+if ! copy_firmware; then
+    warn "bios-256k.bin est introuvable : QEMU refusera de demarrer la VM."
+    info "le paquet « seabios » fournit ce fichier ; verifiez que :"
+    info "  apt-cache show seabios"
+fi
 
 round=1
 previous=""
