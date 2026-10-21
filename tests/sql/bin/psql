@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#
+# Faux « psql » : delegue a pglite-psql.mjs (PostgreSQL compile en
+# WebAssembly). Utilise par tests/sql/e2e-droits.sh pour faire tourner
+# scripts/test-droits-utilisateur.sh de bout en bout.
+#
+exec node "$(cd "$(dirname "$0")/.." && pwd)/pglite-psql.mjs" "$@"

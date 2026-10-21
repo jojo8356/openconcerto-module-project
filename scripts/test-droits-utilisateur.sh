@@ -42,6 +42,8 @@
 #   -c           forcer le conteneur (docker compose exec) au lieu du port publié
 #   -o DOSSIER   dossier de la stack (défaut : ~/oc-176-docker)
 #   -f           générer et appliquer le correctif SQL
+#   -x           avec -f : supprimer aussi les droits EN TROP de la cible
+#                 (les lignes absentes des droits de la reference)
 #   -n           dry-run : n'applique rien
 #   -y           pas de confirmation
 #   -h           cette aide
@@ -65,6 +67,7 @@ PASSWORD="${PGPASSWORD:-}"
 STACK_DIR="$HOME/oc-176-docker"
 FORCE_DOCKER=0
 APPLY=0
+STRICT=0
 DRY=0
 ASSUME_YES=0
 
@@ -73,7 +76,7 @@ usage() {
     exit "${1:-0}"
 }
 
-while getopts ":1:2:b:H:p:U:P:co:fnyh" opt; do
+while getopts ":1:2:b:H:p:U:P:co:fnxyh" opt; do
     case "$opt" in
         1) PAT1="$OPTARG" ;;
         2) PAT2="$OPTARG" ;;
@@ -85,6 +88,7 @@ while getopts ":1:2:b:H:p:U:P:co:fnyh" opt; do
         c) FORCE_DOCKER=1 ;;
         o) STACK_DIR="$OPTARG" ;;
         f) APPLY=1 ;;
+        x) STRICT=1 ;;
         n) DRY=1 ;;
         y) ASSUME_YES=1 ;;
         h) usage 0 ;;
@@ -303,6 +307,47 @@ printf '  référence   : id=%s  %s  (%s)\n' "$ID1" "$L1" "$U1"
 printf '  concerné    : id=%s  %s  (%s)\n' "$ID2" "$L2" "$U2"
 run_sql "select $SQL_FLAGS from $T_USERS u where u.$C_U_ID in ($ID1, $ID2)"
 
+# ------------------------------------------------- utilisateur par defaut
+# OpenConcerto applique un REPLI : lorsqu'un compte n'a AUCUN droit pour un
+# code donne, les droits de l'utilisateur « par defaut » sont utilises
+# (UserRightsManager.haveRight -> getDefaultUserId).  Cet utilisateur est la
+# ligne non definie de USER_COMMON : on la retrouve dans FWK_UNDEFINED_IDS,
+# sinon par le login « Indéfini ».
+DEF_ID=""
+DEF_WHY=""
+# (a) table FWK_UNDEFINED_IDS : c'est la source de verite d'OpenConcerto.
+USERS_SCHEMA=$(run_sql_at "select table_schema from information_schema.tables where table_schema||'.'||table_name = '$T_USERS_RAW' limit 1")
+UNDEF_Q=$(run_sql_at "select quote_ident(table_schema)||'.'||quote_ident(table_name) from information_schema.tables where upper(table_name) = 'FWK_UNDEFINED_IDS' order by (case when table_schema = '$USERS_SCHEMA' then 0 else 1 end), table_schema limit 1")
+if [ -n "$UNDEF_Q" ]; then
+    DEF_ID=$(run_sql_at "select \"UNDEFINED_ID\" from $UNDEF_Q where upper(\"TABLENAME\") like '%USER_COMMON%' limit 1")
+    [ -n "$DEF_ID" ] && DEF_WHY="table FWK_UNDEFINED_IDS"
+fi
+# (b) le compte « Indéfini » (comparaison insensible aux accents).
+if [ -z "$DEF_ID" ]; then
+    while IFS='|' read -r did dlogin dnom dprenom; do
+        [ -n "$did" ] || continue
+        dlabel=$(norm "$dlogin $dnom")
+        case "$dlabel" in
+            *indefini*|*undefined*) DEF_ID="$did"; DEF_WHY="login « Indéfini »"; break ;;
+        esac
+    done <<EOF
+$USERS
+EOF
+fi
+# (c) dernier recours : le plus petit identifiant.
+if [ -z "$DEF_ID" ]; then
+    DEF_ID=$(run_sql_at "select min($C_U_ID) from $T_USERS")
+    DEF_WHY="plus petit identifiant"
+fi
+[ -n "$DEF_ID" ] || die "Impossible d'identifier l'utilisateur par defaut (repli OpenConcerto)."
+
+log "Utilisateur par defaut (repli OpenConcerto)"
+DEF_FLAGS="u.$C_U_ID as id, u.$C_U_LOGIN as login"
+[ -n "$C_U_ADMIN" ] && DEF_FLAGS="$DEF_FLAGS, coalesce(u.$C_U_ADMIN::text,'?') as admin"
+[ -n "$C_U_SUPER" ] && DEF_FLAGS="$DEF_FLAGS, coalesce(u.$C_U_SUPER::text,'?') as superuser"
+run_sql "select $DEF_FLAGS from $T_USERS u where u.$C_U_ID = $DEF_ID"
+echo "  (source : $DEF_WHY)"
+
 # ---------------------------------------------------------------- droits bruts
 log "Droits bruts (table USER_RIGHT, dans l'ordre des ID)"
 printf -- "  l'ordre compte : pour un couple (CODE, OBJECT), c'est la ligne d'ID le plus bas qui l'emporte.\n\n"
@@ -310,10 +355,11 @@ run_sql "select ur.$C_R_ID as id_ligne, u2.$C_U_LOGIN as login, r.$C_C_CODE as c
          from $T_RIGHTS ur
          join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
          join $T_USERS u2 on u2.$C_U_ID = ur.$C_R_USER
-         where ur.$C_R_USER in ($ID1, $ID2)
+         where ur.$C_R_USER in ($ID1, $ID2, $DEF_ID)
          order by ur.$C_R_USER, ur.$C_R_ID"
 
 # ---------------------------------------------------------------- droit effectifs
+# Couples (CODE, OBJECT) bruts : 1re ligne l'emporte, sans expansion ni repli.
 EFF_CTE="with eff as (
     select distinct on (ur.$C_R_USER, r.$C_C_CODE, coalesce(ur.$C_R_OBJECT,''))
            ur.$C_R_USER as id_user_common, ur.$C_R_ID as id, r.$C_C_CODE as code,
@@ -324,36 +370,205 @@ EFF_CTE="with eff as (
     order by ur.$C_R_USER, r.$C_C_CODE, coalesce(ur.$C_R_OBJECT,''), ur.$C_R_ID
 )"
 
-log "Droits effectifs (1re ligne par couple CODE/OBJECT)"
-run_sql "$EFF_CTE
-         select e.id_user_common as id_user_common, e.id as id_ligne, e.code as code, coalesce('['||e.object||']','<tous>') as objet, e.have_right as have_right
-         from eff e order by e.id_user_common, e.code, e.object"
+# Modele fidele au moteur de droits d'OpenConcerto 1.7 (UserRightsManager) :
+#   * les lignes USER_RIGHT sont lues par ID croissant, la 1re l'emporte ;
+#   * un OBJECT NULL est un « joker » : il vaut pour tout objet demande ;
+#   * les droits « macro » sont decomposes :
+#       TABLE_ALL_RIGHTS       -> DELETE/UPDATE/INSERT/SELECT_ROW
+#       TABLE_ALL_MODIF_RIGHTS -> DELETE/UPDATE/INSERT_ROW
+#       LOCK_ADMIN             -> LOCK_MENU_ADMIN + TABLE_ALL_RIGHTS sur
+#                                 les tables USER_COMMON et USER_RIGHT ;
+#   * si le compte n'a AUCUN droit pour un code, OpenConcerto se replie sur
+#     l'utilisateur par defaut : ses droits a lui sont alors accordes ;
+#   * un SUPERUSER a tous les droits, meme sans ligne en base.
+OC_CTE="with base as (
+    select ur.$C_R_USER as uid, ur.$C_R_ID as id_ligne, r.$C_C_CODE as code,
+           ur.$C_R_OBJECT as object, ur.$C_R_HAVE as have
+    from $T_RIGHTS ur
+    join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
+    where ur.$C_R_USER in ($ID1, $ID2, $DEF_ID)
+), exp as (
+    select uid, id_ligne, 1 as rang, code, object, have from base
+    union all select uid, id_ligne, 2, 'DELETE_ROW', object, have from base where code = 'TABLE_ALL_RIGHTS'
+    union all select uid, id_ligne, 3, 'UPDATE_ROW', object, have from base where code = 'TABLE_ALL_RIGHTS'
+    union all select uid, id_ligne, 4, 'INSERT_ROW', object, have from base where code = 'TABLE_ALL_RIGHTS'
+    union all select uid, id_ligne, 5, 'SELECT_ROW', object, have from base where code = 'TABLE_ALL_RIGHTS'
+    union all select uid, id_ligne, 2, 'DELETE_ROW', object, have from base where code = 'TABLE_ALL_MODIF_RIGHTS'
+    union all select uid, id_ligne, 3, 'UPDATE_ROW', object, have from base where code = 'TABLE_ALL_MODIF_RIGHTS'
+    union all select uid, id_ligne, 4, 'INSERT_ROW', object, have from base where code = 'TABLE_ALL_MODIF_RIGHTS'
+    union all select uid, id_ligne, 2, 'LOCK_MENU_ADMIN', null::varchar, have from base where code = 'LOCK_ADMIN'
+), dedup as (
+    select distinct on (uid, code, object) uid, id_ligne, rang, code, object, have
+    from exp order by uid, code, object, id_ligne, rang
+), pairs as (
+    -- Couples compares : les droits BRUTS, tels qu'ils s'affichent dans
+    -- l'administration d'OpenConcerto.  La decomposition des droits macro
+    -- (TABLE_ALL_RIGHTS -> INSERT_ROW...) est traitee plus bas, dans la vue
+    -- operationnelle par table : on evite ainsi de compter 5 fois le meme
+    -- ecart.
+    select distinct code, object from base
+), uflag as (
+    select u.$C_U_ID as uid,
+           coalesce(u.$C_U_SUPER::text,'false') = 'true' as is_super
+    from $T_USERS u
+)"
+
+# Valeur effective d'un couple (CODE, OBJECT) pour un compte, en tenant compte
+# du repli sur l'utilisateur par defaut.
+VALS_SQL="$OC_CTE,
+vals as (
+    select p.code as code, p.object as object, u.uid as uid,
+           case when f.is_super then true else
+             (select e.have from dedup e
+               where e.uid = u.uid and e.code = p.code
+                 and (case when p.object is null
+                          then (e.object is null or e.have = false)
+                          else (e.object is null or e.object = p.object) end)
+               order by e.id_ligne, e.rang limit 1)
+           end as propre,
+           case when df.is_super then true else
+             (select e.have from dedup e
+               where e.uid = $DEF_ID and e.code = p.code
+                 and (case when p.object is null
+                          then (e.object is null or e.have = false)
+                          else (e.object is null or e.object = p.object) end)
+                 and not exists (select 1 from dedup du
+                                 where du.uid = u.uid and du.code = e.code
+                                   and du.object is not distinct from e.object)
+               order by e.id_ligne, e.rang limit 1)
+           end as repli
+    from pairs p
+    cross join (values ($ID1),($ID2)) as u(uid)
+    join uflag f on f.uid = u.uid
+    join uflag df on df.uid = $DEF_ID
+)"
+
+log "Droits effectifs (repli sur l'utilisateur par defaut inclus)"
+run_sql "$VALS_SQL
+         select v.uid as id_user_common, v.code as code,
+                coalesce('['||v.object||']','<tous>') as objet,
+                coalesce(v.propre::text,'-') as \"propre\",
+                coalesce(v.repli::text,'-') as \"repli_defaut\",
+                coalesce(v.propre, v.repli, false)::text as \"effectif\",
+                case when v.propre is not null then 'propre'
+                     when v.repli is not null then 'repli'
+                     else 'aucun' end as origine
+         from vals v order by v.uid, v.code, coalesce(v.object,'')"
 
 # ---------------------------------------------------------------- différentiel
 log "Différentiel des droits effectifs"
-DIFF_SQL="$EFF_CTE,
-u1 as (select * from eff where id_user_common = $ID1),
-u2 as (select * from eff where id_user_common = $ID2)
-select coalesce(u1.code, u2.code) as code,
-       coalesce('['||u1.object||']','<tous>') as objet_ref,
-       u1.have_right as \"droit_$L1\",
-       u2.have_right as \"droit_$L2\",
-       case when u1.have_right is distinct from u2.have_right then 'DIFFERENT' else '' end as statut
-from u1 full outer join u2 on u1.code = u2.code and coalesce(u1.object,'') = coalesce(u2.object,'')
-where u1.have_right is distinct from u2.have_right
-order by 1, 2"
-
-DIFF=$(run_sql "$DIFF_SQL")
+DIFF=$(run_sql "$VALS_SQL
+select v1.code as code,
+       coalesce('['||v1.object||']','<tous>') as objet,
+       coalesce(v1.propre, v1.repli, false) as \"droit_$L1\",
+       case when v1.propre is not null then 'propre' when v1.repli is not null then 'repli' else 'aucun' end as \"origine_$L1\",
+       coalesce(v2.propre, v2.repli, false) as \"droit_$L2\",
+       case when v2.propre is not null then 'propre' when v2.repli is not null then 'repli' else 'aucun' end as \"origine_$L2\",
+       case when coalesce(v1.propre, v1.repli, false) is distinct from coalesce(v2.propre, v2.repli, false) then 'DIFFERENT' else '' end as statut
+from vals v1 join vals v2 on v1.code = v2.code and coalesce(v1.object,'') = coalesce(v2.object,'')
+where v1.uid = $ID1 and v2.uid = $ID2
+order by 1, 2")
 printf '%s\n' "$DIFF"
 
+# Les refus explicites meritent une section a part : ce sont les lignes
+# « HAVE_RIGHT = false » posees par la cible sur un droit que la reference
+# accorde.  Elles se distinguent des droits simplement ABSENTS, et le moteur
+# d'OpenConcerto les traite differemment (une ligne refusee l'emporte sur le
+# repli vers l'utilisateur par defaut).
+log "Refus explicites de $L2 (droits accordés à $L1 mais refusés par $L2)"
+REFUS=$(run_sql "$VALS_SQL
+select v1.code as code,
+       coalesce('['||v1.object||']','<tous>') as objet,
+       coalesce(v1.propre, v1.repli, false) as "droit_$L1",
+       v2.propre as "droit_$L2",
+       case when v2.propre is null then 'ligne absente' else 'ligne en refus' end as nature
+from vals v1 join vals v2 on v1.code = v2.code and coalesce(v1.object,'') = coalesce(v2.object,'')
+where v1.uid = $ID1 and v2.uid = $ID2
+  and coalesce(v1.propre, v1.repli, false) = true
+  and coalesce(v2.propre, v2.repli, false) = false
+order by 1, 2")
+printf '%s\n' "$REFUS"
+
 # ---------------------------------------------------------------- tables du transfert
-log "Droits sur les tables du transfert (FACTURE / COMMANDE / FOURNISSEUR / TIERS)"
-run_sql "$EFF_CTE
-         select e.id_user_common as id_user_common, e.code as code, coalesce('['||e.object||']','<tous>') as objet, e.have_right as have_right
-         from eff e
-         where e.code in ('TABLE_ALL_RIGHTS','TABLE_ALL_MODIF_RIGHTS','INSERT_ROW','UPDATE_ROW','SELECT_ROW','DELETE_ROW')
-           and (coalesce(e.object,'') ~* 'FACTURE|COMMANDE|FOURNISSEUR|TIERS' or coalesce(e.object,'') = '')
-         order by e.id_user_common, e.code, e.object"
+# Les droits de tables sont stockes avec l'objet « schema"."table » ; le
+# moteur compare les NOMS, donc un droit sur « FACTURE » (sans schema) vaut
+# pour tous les schemas.  On calcule ici, pour chaque table du transfert et
+# chaque droit (INSERT/UPDATE/DELETE/SELECT), la valeur EFFECTIVE, repli sur
+# l'utilisateur par defaut compris.
+TABLES_CTE="$OC_CTE,
+norm as (
+    select uid, id_ligne, rang, code, object, have,
+           case when object is null then null
+                when position('.' in replace(object, chr(34), '')) > 0
+                     then split_part(replace(object, chr(34), ''), '.', 2)
+                else replace(object, chr(34), '') end as tbl,
+           case when object is null then null
+                when position('.' in replace(object, chr(34), '')) > 0
+                     then split_part(replace(object, chr(34), ''), '.', 1)
+                else null end as sch
+    from dedup
+), tabs as (
+    select table_schema as sch, table_name as tab
+    from information_schema.tables
+    where table_schema not in ('pg_catalog','information_schema')
+      and upper(table_name) in ('FACTURE','FACTURE_ELEMENT','FACTURE_FOURNISSEUR','FACTURE_FOURNISSEUR_ELEMENT',
+                                 'COMMANDE','COMMANDE_ELEMENT','COMMANDE_FOURNISSEUR','COMMANDE_FOURNISSEUR_ELEMENT',
+                                 'TIERS','FOURNISSEUR','FOURNISSEUR_ELEMENT')
+    union
+    select split_part(replace(object, chr(34), ''), '.', 1),
+           split_part(replace(object, chr(34), ''), '.', 2)
+    from base
+    where object is not null
+      and position('.' in object) > 0
+      and upper(replace(object, chr(34), '')) ~ '(FACTURE|COMMANDE|FOURNISSEUR|TIERS)'
+), codes(code) as (values ('INSERT_ROW'),('UPDATE_ROW'),('DELETE_ROW'),('SELECT_ROW'))"
+
+TABLES_Q="select t.sch||'.'||t.tab as tab, c.code as code,
+       x1.have as \"droit_$L1\",
+       case when x1.uid = $ID1 then 'propre' when x1.uid = $DEF_ID then 'repli' else 'aucun' end as \"origine_$L1\",
+       x2.have as \"droit_$L2\",
+       case when x2.uid = $ID1 then 'propre' when x2.uid = $DEF_ID then 'repli' else 'aucun' end as \"origine_$L2\"
+from tabs t
+cross join codes c
+left join lateral (
+   select e.have as have, e.uid as uid
+   from norm e
+   where e.code = c.code and e.uid in ($ID1, $DEF_ID)
+     and (e.object is null or (e.tbl = t.tab and (e.sch is null or e.sch = t.sch)))
+     and (e.uid = $ID1 or not exists (select 1 from norm du
+                                     where du.uid = $ID1 and du.code = e.code
+                                       and du.object is not distinct from e.object))
+   order by (case when e.uid = $ID1 then 0 else 1 end), e.id_ligne, e.rang
+   limit 1
+) x1 on true
+left join lateral (
+   select e.have as have, e.uid as uid
+   from norm e
+   where e.code = c.code and e.uid in ($ID2, $DEF_ID)
+     and (e.object is null or (e.tbl = t.tab and (e.sch is null or e.sch = t.sch)))
+     and (e.uid = $ID2 or not exists (select 1 from norm du
+                                     where du.uid = $ID2 and du.code = e.code
+                                       and du.object is not distinct from e.object))
+   order by (case when e.uid = $ID2 then 0 else 1 end), e.id_ligne, e.rang
+   limit 1
+) x2 on true
+order by 1, 2"
+
+log "Droits effectifs sur les tables du transfert (INSERT / UPDATE / DELETE / SELECT)"
+TABLES_OUT=$(run_sql "$TABLES_CTE $TABLES_Q")
+printf '%s\n' "$TABLES_OUT"
+
+# Comptage des droits d'ECRITURE accordes a la reference et manquants a la cible.
+ECRITURE_MANQUANTE=$(run_sql_at "$TABLES_CTE
+select count(*) from ( $TABLES_Q ) z
+where z.code in ('INSERT_ROW','UPDATE_ROW')
+  and z.\"droit_$L1\" = true and z.\"droit_$L2\" is distinct from true")
+if [ "${ECRITURE_MANQUANTE:-0}" != "0" ]; then
+    echo
+    echo "  ATTENTION : $ECRITURE_MANQUANTE droit(s) d'ECRITURE accordés à $L1"
+    echo "  manquent à $L2 sur les tables du transfert (INSERT_ROW / UPDATE_ROW)."
+    echo "  C'est une cause directe de l'echec du transfert."
+fi
 
 # ------------------------------------------------- structure du transfert
 # Le message « ID_COMMANDE_ELEMENT is not in table /FACTURE_FOURNISSEUR_ELEMENT/ »
@@ -419,11 +634,23 @@ fi
 
 # ---------------------------------------------------------------- verdict
 log "Verdict"
-MISSING=$(run_sql_at "$EFF_CTE,
-u1 as (select * from eff where id_user_common = $ID1),
-u2 as (select * from eff where id_user_common = $ID2)
-select count(*) from u1 left join u2 on u1.code = u2.code and coalesce(u1.object,'') = coalesce(u2.object,'')
-where u1.have_right = true and (u2.have_right is null or u2.have_right = false)")
+MISSING=$(run_sql_at "$VALS_SQL
+select count(*) from vals v1 join vals v2 on v1.code = v2.code and coalesce(v1.object,'') = coalesce(v2.object,'')
+where v1.uid = $ID1 and v2.uid = $ID2
+  and coalesce(v1.propre, v1.repli, false) = true
+  and coalesce(v2.propre, v2.repli, false) = false")
+
+MISSING_EXPLICIT=$(run_sql_at "$VALS_SQL
+select count(*) from vals v1 join vals v2 on v1.code = v2.code and coalesce(v1.object,'') = coalesce(v2.object,'')
+where v1.uid = $ID1 and v2.uid = $ID2
+  and coalesce(v1.propre, v1.repli, false) = true
+  and v2.propre = false")
+
+MISSING_ABSENT=$(run_sql_at "$VALS_SQL
+select count(*) from vals v1 join vals v2 on v1.code = v2.code and coalesce(v1.object,'') = coalesce(v2.object,'')
+where v1.uid = $ID1 and v2.uid = $ID2
+  and coalesce(v1.propre, v1.repli, false) = true
+  and v2.propre is null and coalesce(v2.repli, false) = false")
 
 SHADOW=$(run_sql_at "$EFF_CTE,
 tgt as (select * from eff where id_user_common = $ID2)
@@ -436,6 +663,10 @@ where ur.$C_R_USER = $ID2
 
 printf '  droits accordés à %s mais absents ou refusés pour %s : %s\n' "$L1" "$L2" "${MISSING:-0}"
 printf '  lignes de %s ignorées par OpenConcerto (masquées)     : %s\n' "$L2" "${SHADOW:-0}"
+printf '  dont refus EXPLICITES (ligne en « false » chez %s)  : %s\n' "$L2" "${MISSING_EXPLICIT:-0}"
+printf '  dont droits simplement ABSENTS chez %s           : %s\n' "$L2" "${MISSING_ABSENT:-0}"
+echo "  droits d'écriture manquants sur les tables du transfert : ${ECRITURE_MANQUANTE:-0}"
+echo "  SYNTHESE droits_manquants=${MISSING:-0} lignes_masquees=${SHADOW:-0} ecriture_refusee=${ECRITURE_MANQUANTE:-0} refus_explicites=${MISSING_EXPLICIT:-0} droits_absents=${MISSING_ABSENT:-0}"
 
 if [ "${MISSING:-0}" = "0" ] && [ "${SHADOW:-0}" = "0" ]; then
     echo
@@ -454,6 +685,13 @@ else
     echo
     if [ "${MISSING:-0}" != "0" ]; then
         echo "  => $L2 n'a pas les droits que $L1 a (liste ci-dessus)."
+        echo "     Le repli sur l'utilisateur par défaut a été pris en compte :"
+        echo "     ces droits sont vraiment absents pour $L2."
+        if [ "${MISSING_EXPLICIT:-0}" != "0" ]; then
+            echo "     dont ${MISSING_EXPLICIT} REFUS EXPLICITE(S) : une ligne"
+            echo "     « HAVE_RIGHT = false » posee par $L2. Ces lignes priment"
+            echo "     sur le repli : l'option -x du correctif les supprime."
+        fi
     fi
     if [ "${SHADOW:-0}" != "0" ]; then
         echo "  => $SHADOW ligne(s) de USER_RIGHT pour $L2 sont IGNORÉES par OpenConcerto :"
@@ -461,7 +699,12 @@ else
         echo "     C'est très probablement l'origine du symptôme : les droits semblent"
         echo "     accordés dans l'interface, mais la ligne la plus ancienne l'emporte."
     fi
-    echo "  => Le correctif -f aligne les droits effectifs de $L1 sur ceux de $L2."
+    if [ "${ECRITURE_MANQUANTE:-0}" != "0" ]; then
+        echo "  => $ECRITURE_MANQUANTE droit(s) d'ECRITURE sur les tables du transfert"
+        echo "     accordés à $L1 et manquants pour $L2 : cause directe de l'échec."
+    fi
+    echo "  => Le correctif -f donne à $L2 les droits de $L1 (référence) ;"
+    echo "     l'option -x supprime en plus les droits en trop de $L2."
 fi
 
 # ---------------------------------------------------------------- correctif
@@ -489,6 +732,34 @@ if [ "$APPLY" = "1" ]; then
     rm -f "$BACKUP_SQL.INSERT"
     echo "  Script de restauration : $BACKUP_SQL"
 
+    # Option -x : suppression des droits EN TROP de la cible, c'est-a-dire les
+    # lignes dont le couple (CODE, OBJECT) n'existe pas chez la reference.
+    # Ces lignes sont listees AVANT le SQL de copie, et exclues de celui-ci :
+    # une ligne supprimee ne doit pas aussi etre UPDATEe.
+    DEL_EXTRA=""
+    EXTRA_IDS=""
+    if [ "$STRICT" = "1" ]; then
+        DEL_EXTRA=$(run_sql_at "$EFF_CTE,
+ref as (select * from eff where id_user_common = $ID1)
+select 'DELETE FROM $T_RIGHTS WHERE $C_R_ID = ' || ur.$C_R_ID || ';'
+from $T_RIGHTS ur
+join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
+where ur.$C_R_USER = $ID2
+  and not exists (select 1 from ref
+                  where ref.code = r.$C_C_CODE
+                    and coalesce(ref.object,'') = coalesce(ur.$C_R_OBJECT,''))
+order by ur.$C_R_ID" | sed '/^$/d')
+        EXTRA_IDS=$(run_sql_at "$EFF_CTE,
+ref as (select * from eff where id_user_common = $ID1)
+select string_agg(ur.$C_R_ID::text, ',')
+from $T_RIGHTS ur
+join $T_CODES r on r.$C_C_ID = ur.$C_R_RIGHT
+where ur.$C_R_USER = $ID2
+  and not exists (select 1 from ref
+                  where ref.code = r.$C_C_CODE
+                    and coalesce(ref.object,'') = coalesce(ur.$C_R_OBJECT,''))")
+    fi
+
     # SQL généré : on repart de l'état effectif de la référence
     FIX_SQL=$(run_sql_at "$EFF_CTE,
 ref as (select * from eff where id_user_common = $ID1),
@@ -504,7 +775,8 @@ select case
          else null
        end
 from ref full outer join tgt on ref.code = tgt.code and coalesce(ref.object,'') = coalesce(tgt.object,'')
-where ref.have_right is distinct from tgt.have_right" | sed '/^$/d')
+where ref.have_right is distinct from tgt.have_right
+  and (tgt.id is null or tgt.id not in (select unnest(string_to_array('$EXTRA_IDS', ','))::int))" | sed '/^$/d')
 
     # Les doublons (même couple, plusieurs lignes) sont neutralisés : seule
     # la ligne d'ID le plus bas compte, les suivantes sont ignorées par
@@ -541,6 +813,10 @@ where ur.$C_R_USER = $ID2
         if [ -n "$DUP_SQL" ]; then
             echo "-- suppression des lignes en doublon (seule la plus ancienne compte)"
             echo "$DUP_SQL"
+        fi
+        if [ -n "$DEL_EXTRA" ]; then
+            echo "-- suppression des droits en trop de $L2 (option -x)"
+            echo "$DEL_EXTRA"
         fi
         echo "COMMIT;"
     } > "$FIX_FILE"

@@ -54,6 +54,7 @@ PASSWORD=""
 FORCE_DOCKER=0
 STACK_DIR="${STACK_DIR:-$HOME/oc-176-docker}"
 APPLY=0
+STRICT=0
 DRYRUN=0
 ASSUME_YES=0
 CLIENT_CONF="${CLIENT_CONF:-$HOME/.config/OpenConcerto/main.properties}"
@@ -68,7 +69,7 @@ log() {
     echo "==> $*"
 }
 
-while getopts "1:2:b:H:p:U:P:o:cfnyh" opt; do
+while getopts "1:2:b:H:p:U:P:o:cfxyh" opt; do
     case "$opt" in
         1) REF="$OPTARG" ;;
         2) CIBLE="$OPTARG" ;;
@@ -80,6 +81,7 @@ while getopts "1:2:b:H:p:U:P:o:cfnyh" opt; do
         o) STACK_DIR="$OPTARG" ;;
         c) FORCE_DOCKER=1 ;;
         f) APPLY=1 ;;
+        x) STRICT=1 ;;
         n) DRYRUN=1 ;;
         y) ASSUME_YES=1 ;;
         h)
@@ -214,14 +216,21 @@ else
     [ -n "$PASSWORD" ] && set -- "$@" -P "$PASSWORD"
     [ "$FORCE_DOCKER" = "1" ] && set -- "$@" -c
     [ "$APPLY" = "1" ] && set -- "$@" -f
+    [ "$STRICT" = "1" ] && set -- "$@" -x
     [ "$DRYRUN" = "1" ] && set -- "$@" -n
     [ "$ASSUME_YES" = "1" ] && set -- "$@" -y
-    bash "$DROITS_SCRIPT" "$@"
+    DROITS_OUT=$(bash "$DROITS_SCRIPT" "$@" 2>&1)
     DROITS_RC=$?
+    printf '%s\n' "$DROITS_OUT"
     if [ "$DROITS_RC" != "0" ]; then
         echo
         echo "  (le script de droits a rendu le code $DROITS_RC : voir le message ci-dessus)"
     fi
+    # La synthese du script de droits est relue ici pour que le verdict
+    # global tienne compte des ecarts reellement detectes.
+    D_MANQUANTS=$(printf '%s\n' "$DROITS_OUT" | sed -n 's/.*SYNTHESE droits_manquants=\([0-9][0-9]*\).*/\1/p' | head -1)
+    D_ECRITURE=$(printf '%s\n' "$DROITS_OUT" | sed -n 's/.*ecriture_refusee=\([0-9][0-9]*\).*/\1/p' | head -1)
+    D_REFUS=$(printf '%s\n' "$DROITS_OUT" | sed -n 's/.*refus_explicites=\([0-9][0-9]*\).*/\1/p' | head -1)
 fi
 
 # ------------------------------------------------- 4. societe memorisee (client)
@@ -257,6 +266,25 @@ if [ "$SCHEMAS_MANQUANTS" != "0" ]; then
     PROBLEMES=$((PROBLEMES + 1))
 else
     echo "  [1] ID_COMMANDE_ELEMENT est presente dans tous les schemas : OK"
+fi
+
+if [ -n "${D_MANQUANTS:-}" ] && [ "${D_MANQUANTS:-0}" != "0" ]; then
+    echo "  [3] $D_MANQUANTS droit(s) accordes a $REF sont absents ou refuses pour $CIBLE"
+    echo "      (repli sur l'utilisateur par defaut inclus : le manque est reel)."
+    if [ "${D_REFUS:-0}" != "0" ]; then
+        echo "      dont ${D_REFUS} REFUS EXPLICITE(S) : une ligne 'HAVE_RIGHT = false'"
+        echo "      posee par $CIBLE. Ces lignes priment sur le repli vers"
+        echo "      l'utilisateur par defaut : c'est la piste la plus probable."
+    fi
+    if [ "${D_ECRITURE:-0}" != "0" ]; then
+        echo "      dont $D_ECRITURE droit(s) d'ECRITURE sur les tables du transfert :"
+        echo "      cause directe de l'echec du transfert."
+    fi
+    echo "      Correctif : le script de droits avec -f (ajouter -x pour supprimer"
+    echo "      les droits en trop de $CIBLE)."
+    PROBLEMES=$((PROBLEMES + 1))
+elif [ -n "${D_MANQUANTS:-}" ]; then
+    echo "  [3] aucun ecart de droits entre $REF et $CIBLE (repli par defaut inclus)"
 fi
 
 if [ "$APPLY" = "1" ]; then

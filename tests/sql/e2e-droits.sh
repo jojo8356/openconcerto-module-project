@@ -173,7 +173,7 @@ insert into "Common"."USER_RIGHT" ("ID","ID_USER_COMMON","ID_RIGHT","OBJECT","HA
   (31, 4, 5, '"OpenConcerto42"."FACTURE_FOURNISSEUR"', true);
 SQL
 OUTP=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 yves -2 paul 2>&1)
-echo "$OUTP" | sed -n '/Droits sur les tables du transfert/,/Accès aux sociétés/p' | sed 's/^/    /'
+echo "$OUTP" | sed -n '/Droits effectifs sur les tables du transfert/,/Accès aux sociétés/p' | sed 's/^/    /'
 contains "droit par table détecté" "INSERT_ROW" "$OUTP"
 contains "objet tableau détecté" "FACTURE_FOURNISSEUR" "$OUTP"
 
@@ -218,15 +218,10 @@ contains "verdict : probleme hors droits" "Le problème n'est donc probablement 
 
 # 8d. les droits par table doivent etre listes, et le droit global de abe
 #     (TABLE_ALL_RIGHTS) doit apparaitre dans cette section
-SEC=$(printf '%s\n' "$OUTB" | sed -n '/Droits sur les tables du transfert/,/^$/p')
-contains "section droits par table presente" "Droits sur les tables du transfert" "$OUTB"
-if printf '%s\n' "$SEC" | grep -qE '^18[[:space:]]*\|[[:space:]]*TABLE_ALL_RIGHTS'; then
-    echo "OK   droit TABLE_ALL_RIGHTS liste pour abe (id 18)"
-    PASS=$((PASS + 1))
-else
-    echo "FAIL droit TABLE_ALL_RIGHTS absent pour abe (id 18)"
-    FAIL=$((FAIL + 1))
-fi
+SEC=$(printf '%s\n' "$OUTB" | sed -n '/Droits effectifs sur les tables du transfert/,/^$/p')
+contains "section droits par table presente" "Droits effectifs sur les tables du transfert" "$OUTB"
+contains "repli sur l'utilisateur par defaut affiche" "repli_defaut" "$OUTB"
+contains "droits effectifs listingues par compte" "Droits effectifs (repli sur l'utilisateur par defaut inclus)" "$OUTB"
 
 echo
 echo "== 9. structure du transfert par schema (cause reelle du bug) =="
@@ -264,6 +259,51 @@ OUTE=$(bash "$REPO/scripts/diagnostic-transfert-fournisseur.sh" -1 erp -2 abe -f
 contains "diagnostic : correction appliquee" "Terminé sans erreur" "$OUTE"
 CNT=$(psql -X -A -t -d postgres -c "select count(*) from information_schema.columns where upper(column_name) = 'ID_COMMANDE_ELEMENT'")
 check "colonne presente dans les 2 schemas apres correctif" "2" "$CNT"
+
+echo
+echo "== 11. repli sur l'utilisateur par defaut (le compte Indéfini est SUPERUSER) =="
+# erp (17) a TABLE_ALL_RIGHTS ; abe (18) ne l'a pas.  Sans droit chez
+# l'utilisateur par defaut, le repli ne peut rien accorder.
+psql -X -d postgres -v ON_ERROR_STOP=1 -f - <<'SQL'
+delete from "Common"."USER_RIGHT" where "ID" = 41;
+SQL
+OUTF=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 erp -2 abe 2>&1)
+contains "utilisateur par defaut identifie" "Utilisateur par defaut (repli OpenConcerto)" "$OUTF"
+contains "colonne repli_defaut presente" "repli_defaut" "$OUTF"
+# « Indéfini » est SUPERUSER : le repli accorde tous les droits, donc
+# l'ecart disparait.  C'est le comportement reel d'OpenConcerto.
+contains "repli superuser : plus aucun ecart" "droits accordés à erp mais absents ou refusés pour abe : 0" "$OUTF"
+# Sans SUPERUSER, et sans droit pour ce code, l'ecart est reel.
+psql -X -d postgres -v ON_ERROR_STOP=1 -f - <<'SQL'
+update "Common"."USER_COMMON" set "SUPERUSER" = false where "ID" = 101;
+SQL
+OUTF2=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 erp -2 abe 2>&1)
+contains "sans superuser : ecart reel detecte" "droits accordés à erp mais absents ou refusés pour abe : 1" "$OUTF2"
+if printf '%s\n' "$OUTF2" | grep -qE "dont droits simplement ABSENTS chez abe +: 1"; then
+    echo "OK   droit absent (pas refuse) compte a part"
+    PASS=$((PASS + 1))
+else
+    echo "FAIL droit absent (pas refuse) compte a part"
+    FAIL=$((FAIL + 1))
+fi
+
+echo
+echo "== 12. option -x : suppression des droits en trop =="
+# gisele (3) a un droit DROIT_SPECIFIQUE que yves (2) n'a pas : -x doit
+# proposer de le supprimer, -f seul doit le laisser en place.
+psql -X -d postgres -v ON_ERROR_STOP=1 -f - <<'SQL'
+update "Common"."USER_COMMON" set "PRENOM" = 'YveTest' where "ID" = 2;
+update "Common"."USER_COMMON" set "PRENOM" = 'GisTest' where "ID" = 3;
+insert into "Common"."USER_RIGHT" ("ID","ID_USER_COMMON","ID_RIGHT","OBJECT","HAVE_RIGHT") values
+  (70, 3, 6, null, true);
+SQL
+OUTX=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 YveTest -2 GisTest -f -n -x 2>&1)
+RCX=$?
+check "code de sortie (-x dry-run)" "0" "$RCX"
+contains "suppression du droit en trop" 'DELETE FROM "Common"."USER_RIGHT" WHERE "ID" = 70;' "$OUTX"
+contains "mention de l'option -x" "suppression des droits en trop de gisele" "$OUTX"
+OUTNX=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 YveTest -2 GisTest -f -n 2>&1)
+not_contains "sans -x, pas de suppression" 'DELETE FROM "Common"."USER_RIGHT" WHERE "ID" = 70;' "$OUTNX"
 
 echo
 if [ "$FAIL" -eq 0 ]; then
