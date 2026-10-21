@@ -25,4 +25,4 @@ Thumbs.db
 .agents/
 _bmad/
 _bmad-output/
-
+node_modules
