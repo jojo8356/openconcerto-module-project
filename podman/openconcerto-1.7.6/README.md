@@ -183,6 +183,40 @@ Le mode normal (`up`, sans `--no-root`) reste préférable : il donne un
 conteneneur `postgres` classique, avec Adminer et une gestion standard des
 permissions.
 
+## Si la machine n'a vraiment aucun droit administrateur
+
+Le mode `--no-root` ne peut pas aller plus loin : sans plage d'UID/GID
+secondaires, Podman rootless ne sait pas exécuter l'image `postgres`. La
+solution propre est alors de travailler **dans une machine virtuelle Debian**,
+où tu es root : Podman y fonctionne en mode rootful, sans aucune restriction.
+
+`scripts/create-debian-vm-vbox.sh` crée cette VM avec VirtualBox, en
+installation entièrement automatique :
+
+```sh
+bash scripts/create-debian-vm-vbox.sh check
+bash scripts/create-debian-vm-vbox.sh install
+bash scripts/create-debian-vm-vbox.sh ssh
+```
+
+- l'installateur Debian est téléchargé (ISO *netinst*) et un `preseed`
+  minimal est généré par VirtualBox : aucun bureau, aucun paquet
+  recommandé, locale `fr_FR.UTF-8`, compte `oc` avec `sudo` sans mot de
+  passe ;
+- la VM est démarrée en mode *headless*, avec SSH redirigé sur le port 2222
+  de l'hôte ;
+- la commande `install` attend la fin de l'installation (le port SSH
+  répond) ;
+- `status`, `start`, `stop`, `ssh` et `delete` complètent l'outillage.
+
+Un script équivalent existe pour QEMU (`scripts/create-debian-vm.sh`), mais
+QEMU sans droits administrateur demande d'extraire ses dépendances à la
+main : **VirtualBox est nettement plus simple** quand il est déjà installé.
+
+> Dans la VM, les services doivent écouter sur `0.0.0.0` et non `127.0.0.1`
+> pour être joignables depuis l'hôte (le NAT de VirtualBox redirige le
+> port 2222 vers le port 22 de la VM).
+
 ## Dépannage : « potentially insufficient UIDs or GIDs available in user namespace »
 
 Symptôme (Podman **rootless**) :
