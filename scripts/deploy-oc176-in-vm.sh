@@ -24,6 +24,7 @@ VM_DIR="/home/$VM_USER/oc-176"
 DUMP=""
 NO_START=0
 PURGE_DESKTOP=0
+PURGE_X11=0
 PG_PASSWORD=""
 
 log()  { printf '\n==> %s\n' "$*"; }
@@ -42,6 +43,7 @@ Déploie la stack OpenConcerto 1.7.6 (Docker) dans la VM Debian.
   --dump FICHIER   dump à restaurer dans le conteneur après démarrage
   --no-start       ne pas démarrer la stack
   --purge-desktop  supprimer les paquets de bureau et LibreOffice de la VM
+  --purge-x11     supprimer les bibliotheques X11 clientes (sans X ni bureau)
 USAGE
     exit 0
 }
@@ -56,6 +58,7 @@ while [ $# -gt 0 ]; do
         --dump)    DUMP="$2"; shift 2 ;;
         --no-start) NO_START=1; shift ;;
         --purge-desktop) PURGE_DESKTOP=1; shift ;;
+        --purge-x11)    PURGE_X11=1; shift ;;
         -h|--help) usage ;;
         *) die "option inconnue : $1" ;;
     esac
@@ -167,6 +170,12 @@ if [ "$PURGE_DESKTOP" = "1" ]; then
     info "purge terminé"
 fi
 
+if [ "$PURGE_X11" = "1" ]; then
+    log "Suppression des bibliotheques X11 clientes"
+    vsudo 'DEBIAN_FRONTEND=noninteractive apt-get purge -y libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 xauth xdg-user-dirs 2>/dev/null; DEBIAN_FRONTEND=noninteractive apt-get autoremove -y --purge' || true
+    info "purge X11 terminé"
+fi
+
 # ------------------------------------------------------------------ docker
 log "Installation de Docker dans la VM (sans recommends)"
 vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io docker-cli || DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io || exit 1; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; systemctl enable --now docker; /usr/sbin/usermod -aG docker '"$VM_USER"' 2>/dev/null || true'
@@ -226,12 +235,18 @@ fi
 
 # ------------------------------------------------------------------ controle
 log "Contrôle : la VM ne contient que le strict nécessaire"
-nb_paquets=$(vssh "dpkg -l 2>/dev/null | awk '/^ii/{print \$2}' | grep -c -E '^(libreoffice|task-.*-desktop|gnome-desktop|xfce|lxde|lxqt)'" 2>/dev/null || echo "?")
-if [ "$nb_paquets" = "0" ]; then
-    info "OK : aucun paquet de bureau ni LibreOffice dans la VM"
+# grep -c renvoie 1 quand le compte est 0 : on neutralise pour garder le « 0 ».
+nb_graph=$(vssh "dpkg -l 2>/dev/null | awk '/^ii/{print \$2}' | grep -c -E '^(libreoffice|task-.*-desktop|gnome-desktop|xfce|lxde|lxqt|cinnamon|mate|plasma|xserver-xorg|xinit|mesa-.*-drivers)' || true" 2>/dev/null | tr -d '\n')
+nb_x11=$(vssh "dpkg -l 2>/dev/null | awk '/^ii/{print \$2}' | grep -c -E '^(libx11|libxcb|libxau|libxdmcp|libxext|libxkbcommon|xauth|xdg-user-dirs)' || true" 2>/dev/null | tr -d '\n')
+if [ "${nb_graph:-0}" = "0" ]; then
+    info "OK : aucun bureau, aucun environnement graphique, aucun LibreOffice dans la VM"
 else
-    info "ATTENTION : $nb_paquets paquet(s) de bureau/LibreOffice encore presents."
+    info "ATTENTION : ${nb_graph} paquet(s) de bureau/graphique presents."
     info "  purge : bash deploy-oc176-in-vm.sh --purge-desktop"
+fi
+if [ "${nb_x11:-0}" != "0" ]; then
+    info "${nb_x11} bibliotheque(s) X11 clientes (sans X, sans bureau) :"
+    info "  purifiables (si aucune dependance) : bash deploy-oc176-in-vm.sh --purge-x11"
 fi
 info "paquets installes (hors base) :"
 vssh "dpkg -l 2>/dev/null | awk '/^ii/{print \$2}' | tr '\n' ' '" | fold -s -w 78 | sed 's/^/  /' || true
