@@ -17,6 +17,7 @@ set -euo pipefail
 VM_HOST="127.0.0.1"
 VM_PORT="2222"
 VM_USER="oc"
+VM_PASSWORD="oc"
 GITHUB_REPO="jojo8356/openconcerto-module-project"
 GITHUB_REF="arena/61954a71-openconcerto-module-project"
 VM_DIR="/home/$VM_USER/oc-176"
@@ -36,6 +37,7 @@ Déploie la stack OpenConcerto 1.7.6 (Docker) dans la VM Debian.
   --port PORT      port SSH de la VM (défaut : 2222)
   --host HOTE      adresse de la VM (défaut : 127.0.0.1)
   --user UTIL      compte de la VM (défaut : oc)
+  --password MDE   mot de passe du compte (défaut : oc)
   --ref BRANCHE    branche GitHub de la stack
   --dump FICHIER   dump à restaurer dans le conteneur après démarrage
   --no-start       ne pas démarrer la stack
@@ -49,6 +51,7 @@ while [ $# -gt 0 ]; do
         --port)    VM_PORT="$2"; shift 2 ;;
         --host)    VM_HOST="$2"; shift 2 ;;
         --user)    VM_USER="$2"; shift 2 ;;
+        --password) VM_PASSWORD="$2"; shift 2 ;;
         --ref)     GITHUB_REF="$2"; shift 2 ;;
         --dump)    DUMP="$2"; shift 2 ;;
         --no-start) NO_START=1; shift ;;
@@ -63,6 +66,24 @@ SSH_OPTS=(-p "$VM_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/n
 
 # ssh dans la VM
 vssh() { ssh "${SSH_OPTS[@]}" "${VM_USER}@${VM_HOST}" "$@"; }
+
+# sudo : sans mot de passe si possible, sinon avec celui du compte
+SUDO_FLAG="-n"
+detect_sudo() {
+    if vssh 'sudo -n true' >/dev/null 2>&1; then
+        SUDO_FLAG="-n"
+    else
+        SUDO_FLAG="-S"
+        info "sudo sans mot de passe indisponible : le mot de passe du compte sera utilise"
+    fi
+}
+vsudo() {
+    if [ "$SUDO_FLAG" = "-n" ]; then
+        vssh "sudo -n $1"
+    else
+        vssh "printf '%s\n' '$VM_PASSWORD' | sudo -S $1"
+    fi
+}
 # scp vers la VM
 vscp() { scp -P "$VM_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               -o LogLevel=ERROR "$@"; }
@@ -79,17 +100,18 @@ done
 [ "$ok" = "1" ] || die "la VM ne repond pas sur le port $VM_PORT."
 
 info "VM joignable : $(vssh 'hostname' 2>/dev/null || echo '?')"
+detect_sudo
 
 # ------------------------------------------------------------------ purge
 if [ "$PURGE_DESKTOP" = "1" ]; then
     log "Suppression des paquets de bureau et de LibreOffice"
-    vssh 'sudo -n DEBIAN_FRONTEND=noninteractive apt-get purge -y "libreoffice*" "libreoffice-core" "gnome-desktop*" "task-*-desktop" "xfce*" "lxde*" "lxqt*" 2>/dev/null; sudo -n DEBIAN_FRONTEND=noninteractive apt-get autoremove -y --purge; sudo -n apt-get clean' || true
+    vsudo 'DEBIAN_FRONTEND=noninteractive apt-get purge -y "libreoffice*" "libreoffice-core" "gnome-desktop*" "task-*-desktop" "xfce*" "lxde*" "lxqt*" 2>/dev/null; DEBIAN_FRONTEND=noninteractive apt-get autoremove -y --purge; apt-get clean' || true
     info "purge terminé"
 fi
 
 # ------------------------------------------------------------------ docker
 log "Installation de Docker dans la VM (sans recommends)"
-vssh 'sudo -n DEBIAN_FRONTEND=noninteractive apt-get update -qq; sudo -n DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io; sudo -n DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || sudo -n DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; sudo -n systemctl enable --now docker'
+vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; systemctl enable --now docker; usermod -aG docker '"$VM_USER"
 
 info "docker  : $(vssh 'docker --version' 2>/dev/null || echo '?')"
 info "compose : $(vssh 'docker compose version' 2>/dev/null || vssh 'docker-compose --version' 2>/dev/null || echo 'aucun')"

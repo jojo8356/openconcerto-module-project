@@ -228,6 +228,7 @@ d-i passwd/user-password password ${VM_PASSWORD}
 d-i passwd/user-password-again password ${VM_PASSWORD}
 d-i user-setup/allow-password-weak boolean true
 d-i user-setup/encrypt-home boolean false
+d-i user-setup/additional-groups string sudo
 d-i partman-auto/method string regular
 d-i partman-auto/choose_recipe select atomic
 d-i partman-partitioning/confirm_write_new_label boolean true
@@ -260,8 +261,11 @@ d-i grub-installer/with_other_os boolean false
 d-i finish-install/keep-consoles boolean false
 d-i cdrom-detect/eject boolean true
 d-i preseed/late_command string \\
-    echo '${VM_USER} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${VM_USER}; \\
-    chmod 440 /etc/sudoers.d/${VM_USER}
+    mkdir -p /etc/sudoers.d; \\
+    printf '${VM_USER} ALL=(ALL) NOPASSWD:ALL\\n' > /etc/sudoers.d/${VM_USER}; \\
+    chmod 0440 /etc/sudoers.d/${VM_USER}; \\
+    usermod -aG sudo ${VM_USER}; \\
+    true
 PRESEED
     info "preseed écrit : $file"
 }
