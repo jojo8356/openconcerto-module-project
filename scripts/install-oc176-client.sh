@@ -144,7 +144,12 @@ else
     OC_DIR=$(find "$INSTALL_DIR" -maxdepth 2 -type d -name "OpenConcerto-$OC_VERSION*" | head -n 1)
     [ -n "$OC_DIR" ] || die "dossier du client introuvable apres extraction."
     info "client : $OC_DIR"
-    chmod +x "$OC_DIR"/*.sh 2>/dev/null || true
+    if [ -f "$OC_DIR/OpenConcerto.sh" ]; then
+        chmod +x "$OC_DIR"/*.sh 2>/dev/null || true
+    else
+        info "OpenConcerto.sh introuvable : contenu du dossier :"
+        ls -1 "$OC_DIR" | sed 's/^/    /'
+    fi
 fi
 
 # ------------------------------------------------------- configuration du client
