@@ -61,11 +61,27 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Session SSH multiplexee : le mot de passe n'est demande qu'UNE fois,
+# toutes les commandes suivantes reutilisent la meme connexion.
+CONTROL_PATH="/tmp/oc176-ssh-%r@%h:%p"
+KEY_FILE="$HOME/.ssh/id_ed25519_oc176"
+
 SSH_OPTS=(-p "$VM_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-          -o LogLevel=ERROR -o ConnectTimeout=10)
+          -o LogLevel=ERROR -o ConnectTimeout=10
+          -o ControlMaster=auto -o ControlPath="$CONTROL_PATH" -o ControlPersist=60)
+if [ -f "$KEY_FILE" ]; then
+    SSH_OPTS+=(-i "$KEY_FILE")
+fi
 
 # ssh dans la VM
 vssh() { ssh "${SSH_OPTS[@]}" "${VM_USER}@${VM_HOST}" "$@"; }
+
+# Ferme la session multiplexee a la fin (et en cas d'erreur).
+close_session() {
+    ssh -p "$VM_PORT" -o ControlPath="$CONTROL_PATH" -O exit \
+        "${VM_USER}@${VM_HOST}" >/dev/null 2>&1 || true
+}
+trap close_session EXIT
 
 # sudo : sans mot de passe si possible, sinon avec celui du compte
 SUDO_FLAG="-n"
@@ -91,20 +107,57 @@ vsudo() {
 }
 # scp vers la VM
 vscp() { scp -P "$VM_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              -o LogLevel=ERROR "$@"; }
+              -o LogLevel=ERROR -o ControlPath="$CONTROL_PATH" "$@"; }
+
+# Le port est sonde AVANT toute connexion ssh : on ne demande le mot de
+# passe que lorsque la VM ecoute vraiment.
+port_ready() {
+    (exec 3<>"/dev/tcp/$VM_HOST/$VM_PORT") 2>/dev/null || return 1
+    exec 3<&- 2>/dev/null || true
+    return 0
+}
 
 log "Attente de la VM (ssh -p $VM_PORT ${VM_USER}@$VM_HOST)"
 ok=0
 for _ in $(seq 1 30); do
-    if vssh true >/dev/null 2>&1; then
-        ok=1
-        break
+    if port_ready; then
+        if vssh true >/dev/null 2>&1; then
+            ok=1
+            break
+        fi
     fi
     sleep 5
 done
 [ "$ok" = "1" ] || die "la VM ne repond pas sur le port $VM_PORT."
 
 info "VM joignable : $(vssh 'hostname' 2>/dev/null || echo '?')"
+
+# Cle SSH : creee au premier passage, puis installee dans la VM. Les
+# executions suivantes n'affichent plus aucun mot de passe.
+setup_key() {
+    command -v ssh-keygen >/dev/null 2>&1 || return 1
+    mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+    if [ ! -f "$KEY_FILE" ]; then
+        ssh-keygen -t ed25519 -N '' -f "$KEY_FILE" -C "openconcerto-1.7.6-vm" >/dev/null 2>&1 || return 1
+        info "cle SSH creee : $KEY_FILE"
+    fi
+    [ -f "$KEY_FILE.pub" ] || return 1
+    local pub
+    pub=$(cat "$KEY_FILE.pub")
+    if vssh "grep -qF '$pub' ~/.ssh/authorized_keys 2>/dev/null"; then
+        info "cle SSH deja installee dans la VM"
+        return 0
+    fi
+    info "installation de la cle SSH dans la VM"
+    vssh "mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && grep -qF '$pub' ~/.ssh/authorized_keys || echo '$pub' >> ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys" >/dev/null 2>&1 || true
+    if vssh "grep -qF '$pub' ~/.ssh/authorized_keys 2>/dev/null"; then
+        info "cle SSH installee : les prochains lancements ne demanderont plus de mot de passe"
+    else
+        info "cle SSH non installee (pas grave : le mot de passe sera demande une fois par lancement)"
+    fi
+}
+setup_key
+
 detect_sudo
 
 # ------------------------------------------------------------------ purge
@@ -150,9 +203,9 @@ info "mot de passe PostgreSQL : $PG_PASSWORD"
 # ------------------------------------------------------------------ démarrage
 if [ "$NO_START" = "0" ]; then
     log "Démarrage de la stack (PostgreSQL + Adminer)"
-    vssh "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose up -d" \
+    vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose up -d" \
         || die "le démarrage de la stack a échoué"
-    vssh "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose ps" || true
+    vsudo "cd '$VM_DIR/docker/openconcerto-1.7.6' && docker compose ps" || true
 fi
 
 # ------------------------------------------------------------------ dump
@@ -162,7 +215,9 @@ if [ -n "$DUMP" ]; then
     vscp "$DUMP" "${VM_USER}@${VM_HOST}:$VM_DIR/dumps/"
     remote_dump="$VM_DIR/dumps/$(basename "$DUMP")"
     info "restauration de $remote_dump"
-    vssh "cd '$VM_DIR' && bash scripts/restore-openconcerto-dump.sh -f '$remote_dump' -d OpenConcerto -U openconcerto -h 127.0.0.1 -p 5433 -y" \
+    info "installation du client PostgreSQL dans la VM"
+    vsudo 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-client' || true
+    vssh "cd '$VM_DIR' && PGPASSWORD='$PG_PASSWORD' bash scripts/restore-openconcerto-dump.sh -f '$remote_dump' -d OpenConcerto -U openconcerto -h 127.0.0.1 -p 5433 -y" \
         || die "la restauration a échoué"
 fi
 
@@ -178,7 +233,7 @@ fi
 info "paquets installes (hors base) :"
 vssh "dpkg -l 2>/dev/null | awk '/^ii/{print \$2}' | tr '\n' ' '" | fold -s -w 78 | sed 's/^/  /' || true
 info "images docker :"
-vssh "docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}'" 2>/dev/null | sed 's/^/  /' || true
+vsudo "docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}'" 2>/dev/null | sed 's/^/  /' || true
 
 log "Récapitulatif"
 info "PostgreSQL : 127.0.0.1:5433 dans la VM (base OpenConcerto, role openconcerto)"
@@ -187,3 +242,5 @@ info "pour y acceder depuis l'hote :"
 info "  ssh -p $VM_PORT -L 8082:127.0.0.1:8082 -L 5433:127.0.0.1:5433 ${VM_USER}@${VM_HOST}"
 info "connexion  : ssh -p $VM_PORT ${VM_USER}@${VM_HOST}"
 info "stack      : cd $VM_DIR/docker/openconcerto-1.7.6 && docker compose ps"
+close_session
+info "session SSH fermee"
