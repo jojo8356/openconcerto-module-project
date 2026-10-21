@@ -119,8 +119,11 @@ vscp() { scp -P "$VM_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/de
 # Le port est sonde AVANT toute connexion ssh : on ne demande le mot de
 # passe que lorsque la VM ecoute vraiment.
 port_ready() {
+    # ATTENTION : un « exec » sans commande applique ses redirections au
+    # shell courant : un « exec 3<&- 2>/dev/null » redirigeait stderr vers
+    # /dev/null pour TOUT le reste du script (messages d'erreur muets).
     (exec 3<>"/dev/tcp/$VM_HOST/$VM_PORT") 2>/dev/null || return 1
-    exec 3<&- 2>/dev/null || true
+    exec 3<&-
     return 0
 }
 
@@ -186,7 +189,7 @@ vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=nonint
 
 info "docker  : $(vssh 'docker --version' 2>/dev/null || echo '?')"
 info "installation du client PostgreSQL dans la VM"
-vsudo 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-client' || true"
+vsudo 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-client' || true
 if ! vssh 'command -v docker' >/dev/null 2>&1; then
     info "diagnostic : $(vssh 'echo PATH=$PATH; ls -l /usr/bin/docker 2>&1; dpkg -l docker.io docker-cli 2>&1 | tail -3' 2>&1 | tr '\n' ' ')"
     die "l'installation de Docker a echoue dans la VM"
