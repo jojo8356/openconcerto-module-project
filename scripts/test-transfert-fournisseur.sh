@@ -112,9 +112,14 @@ for SCH in $SCHEMAS; do
                       from information_schema.columns
                      where table_schema = '$SCH' and table_name = 'FACTURE_FOURNISSEUR_ELEMENT'
                        and column_name <> 'ID'")
-    SELS=$(run_sql "select string_agg(case when column_name = 'ID_COMMANDE_ELEMENT'
+    # ORDRE est recale au maximum + 1 : sinon la ligne recopiee viole la
+    # contrainte d'unicite (ID_FACTURE_FOURNISSEUR, ORDRE).
+    SELS=$(run_sql "select string_agg(case
+                                            when column_name = 'ID_COMMANDE_ELEMENT'
                                               then '(select min(\"ID\") from \"$SCH\".\"COMMANDE_ELEMENT\")'
-                                              else quote_ident(column_name) end, ', ' order by ordinal_position)
+                                            when column_name = 'ORDRE'
+                                              then '(select coalesce(max(\"ORDRE\"),0)+1 from \"$SCH\".\"FACTURE_FOURNISSEUR_ELEMENT\")'
+                                            else quote_ident(column_name) end, ', ' order by ordinal_position)
                       from information_schema.columns
                      where table_schema = '$SCH' and table_name = 'FACTURE_FOURNISSEUR_ELEMENT'
                        and column_name <> 'ID'")
