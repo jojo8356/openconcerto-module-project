@@ -147,6 +147,84 @@ simule.
 Le fichier `compose.yaml` est volontairement compatible avec les deux
 outils : il ne contient ni `name:`, ni `container_name`, ni `version:`.
 
+## Dépannage : « potentially insufficient UIDs or GIDs available in user namespace »
+
+Symptôme (Podman **rootless**) :
+
+```
+Error: copying system image from manifest list: writing blob: adding layer
+with blob "sha256:…"/""/"sha256:…": unpacking failed (error: exit status 1;
+output: potentially insufficient UIDs or GIDs available in user namespace
+(requested 0:42 for /etc/gshadow): Check /etc/subuid and /etc/subgid if
+configured locally and run "podman system migrate")
+```
+
+Cause : en rootless, chaque fichier de l'image est rattaché à un UID/GID
+« secondaire » de l'utilisateur. Les images Debian contiennent des fichiers
+`root:shadow` (GID 42) : il faut une plage d'UID/GID secondaires assez large
+dans `/etc/subuid` et `/etc/subgid`, sinon l'extraction échoue. L'erreur
+suivante (`no container with name or ID "openconcerto176_db_1" found`) n'est
+qu'une conséquence : le conteneur n'a jamais été créé.
+
+Vérification :
+
+```zsh
+grep "^$(id -un):" /etc/subuid /etc/subgid
+```
+
+Si rien ne s'affiche, il faut créer la plage (une fois, avec `sudo`) :
+
+```zsh
+sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(id -un)"
+```
+
+Si `usermod` ne connaît pas `--add-subuids` (paquet `shadow` trop ancien) :
+
+```zsh
+sudo tee -a /etc/subuid >/dev/null <<EOF
+$(id -un):100000:65536
+EOF
+sudo tee -a /etc/subgid >/dev/null <<EOF
+$(id -un):100000:65536
+EOF
+```
+
+Puis, dans tous les cas, appliquer la nouvelle plage au stockage existant et
+relancer :
+
+```zsh
+podman system migrate
+podman pull docker.io/library/postgres:17-bookworm
+bash ~/oc-176-podman/podman-openconcerto.sh up
+```
+
+`podman system migrate` déplace le stockage : c'est long, mais sans
+risque pour les données.
+
+**Contournement sans droits administrateur** : ignorer les erreurs de
+propriété lors de l'extraction, pour ce seul utilisateur :
+
+```zsh
+python3 - <<'PYCODE'
+import pathlib
+p = pathlib.Path.home() / ".config/containers/storage.conf"
+p.parent.mkdir(parents=True, exist_ok=True)
+t = p.read_text() if p.exists() else ""
+if "ignore_chown_errors" in t:
+    print("déjà présent :", p)
+else:
+    if "[storage.options]" in t:
+        t = t.replace("[storage.options]", '[storage.options]\nignore_chown_errors = "true"', 1)
+    else:
+        t = t.rstrip() + '\n\n[storage.options]\nignore_chown_errors = "true"\n'
+    p.write_text(t)
+    print("ajouté dans", p)
+PYCODE
+```
+
+Le script `podman-openconcerto.sh up` contrôle la présence de la plage
+**avant** de tirer les images, et affiche cette procédure si elle manque.
+
 ## Notes
 
 - **Ports** : en rootless, un port < 1024 demanderait `podman unshare` ou

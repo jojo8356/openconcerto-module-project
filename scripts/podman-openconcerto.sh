@@ -61,6 +61,9 @@ FOLLOW=0
 COMMAND=""
 COMPOSE=()
 COMPOSE_FILES=()
+# Fichiers de plages d'UID/GID secondaires (surchargeables pour les tests)
+SUBUID_FILE="${SUBUID_FILE:-/etc/subuid}"
+SUBGID_FILE="${SUBGID_FILE:-/etc/subgid}"
 
 # ------------------------------------------------------------------ utils
 log()  { printf '\n==> %s\n' "$*"; }
@@ -180,6 +183,46 @@ db_psql_at() {
     podman exec -i "$cid" psql -X -A -t -U "$DB_USER" "$@"
 }
 
+# ------------------------------------------------------------------ rootless
+# En rootless, Podman a besoin d'une plage d'UID/GID secondaires
+# (/etc/subuid, /etc/subgid) pour extraire les images : les fichiers
+# appartenant à root:shadow (gid 42) n'ont sinon pas d'identifiant
+# correspondant dans le namespace de l'utilisateur et l'extraction echoue :
+#   "potentially insufficient UIDs or GIDs available in user namespace".
+check_rootless_ids() {
+    local user rootless subuid subgid
+    user=$(id -un)
+    rootless=$(podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null | tr -d '[:space:]')
+    [ "$rootless" = "true" ] || return 0
+    subuid=$(grep -E "^${user}:" "$SUBUID_FILE" 2>/dev/null | head -n 1)
+    subgid=$(grep -E "^${user}:" "$SUBGID_FILE" 2>/dev/null | head -n 1)
+    if [ -z "$subuid" ] || [ -z "$subgid" ]; then
+        echo
+        echo "  ERREUR : aucune plage d'UID/GID secondaires pour l'utilisateur '$user'."
+        echo "  L'extraction des images échouera avec :"
+        echo "    potentially insufficient UIDs or GIDs available in user namespace"
+        echo
+        echo "  Correctif (à faire une fois, avec les droits administrateur) :"
+        echo
+        echo "    sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $user"
+        echo "    podman system migrate"
+        echo
+        echo "  Si 'usermod' ne connaît pas --add-subuids (shadow ancien), éditer à la main :"
+        echo
+        echo "    sudo tee -a /etc/subuid >/dev/null <<EOF"
+        echo "    $user:100000:65536"
+        echo "    EOF"
+        echo "    sudo tee -a /etc/subgid >/dev/null <<EOF"
+        echo "    $user:100000:65536"
+        echo "    EOF"
+        echo "    podman system migrate"
+        echo
+        return 1
+    fi
+    info "plage d'UID/GID secondaires : $subuid"
+    return 0
+}
+
 # ------------------------------------------------------------------ commandes
 
 cmd_up() {
@@ -190,11 +233,31 @@ cmd_up() {
         info "image avec locale fr_FR.UTF-8 : compilation du Containerfile"
         run podman build -t openconcerto176-db-fr -f "$STACK_DIR/Containerfile" "$STACK_DIR"
     fi
-    run "${COMPOSE[@]}" -p "$PROJECT" "${COMPOSE_FILES[@]}" up -d
+    if [ "$DRY" != "1" ]; then
+        check_rootless_ids || die "Plage d'UID/GID secondaires manquante : corrige-la puis relance."
+    fi
     if [ "$DRY" = "1" ]; then
+        run "${COMPOSE[@]}" -p "$PROJECT" "${COMPOSE_FILES[@]}" up -d
         echo "  (dry-run : pas d'attente de la base)"
         return 0
     fi
+    local out rc=0
+    out=$("${COMPOSE[@]}" -p "$PROJECT" "${COMPOSE_FILES[@]}" up -d 2>&1) || rc=$?
+    printf '%s\n' "$out"
+    if printf '%s' "$out" | grep -q "insufficient UIDs or GIDs"; then
+        echo
+        echo "  ERREUR : Podman rootless n'a pas assez d'UID/GID secondaires pour"
+        echo "  extraire les images (fichiers root:shadow dans l'image)."
+        echo "  Correctif :"
+        echo
+        echo "    sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $(id -un)"
+        echo "    podman system migrate"
+        echo
+        echo "  (ou, pour le conteneur seul, ajouter 'ignore_chown_errors = \"true\"'"
+        echo "   dans [storage.options] de ~/.config/containers/storage.conf)"
+        return 1
+    fi
+    [ "$rc" = "0" ] || return "$rc"
     log "Attente de PostgreSQL"
     local cid i=0
     cid=$(db_container)
