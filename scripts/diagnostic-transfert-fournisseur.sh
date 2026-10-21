@@ -259,7 +259,11 @@ if [ "$APPLY" = "1" ]; then
         echo
         echo "  --- correction de structure (ID_COMMANDE_ELEMENT) ---"
         if [ -z "${PSQL_CMD:-}" ]; then
-            if [ -f "$COMPOSE" ] && command -v docker >/dev/null 2>&1; then
+            # Le correctif de structure doit viser la base que l'on teste :
+            # le conteneur (port publie 5433) ou le serveur natif.
+            if [ "$USE_DOCKER" = "1" ]; then
+                export PSQL_CMD="docker compose -f $COMPOSE exec -T db psql -U $ROLE"
+            elif [ "$PORT" = "5433" ] && [ -f "$COMPOSE" ] && command -v docker >/dev/null 2>&1; then
                 export PSQL_CMD="docker compose -f $COMPOSE exec -T db psql -U $ROLE"
             else
                 export PSQL_CMD="sudo -u postgres psql -p $PORT"
