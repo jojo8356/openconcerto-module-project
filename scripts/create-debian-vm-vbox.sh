@@ -201,6 +201,14 @@ detect_ostype() {
     printf '%s' "$id"
 }
 
+# Version majeure de VirtualBox : certaines options ont changé de nom
+# (par exemple --clipboard, remplacé par --clipboard-mode en 7.x).
+vbox_major() {
+    local v
+    v=$(vbox --version 2>/dev/null | head -n 1)
+    printf '%s' "$v" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1 | cut -d. -f1
+}
+
 vm_exists() {
     vbox list vms 2>/dev/null | grep -q "\"$VM_NAME\""
 }
@@ -242,12 +250,21 @@ cmd_install() {
     local ostype out
     ostype=$(detect_ostype) || die "aucun type d'OS Debian propose par cette version de VirtualBox."
     info "type d'OS : $ostype"
+    # options dont le nom a changé selon la version de VirtualBox
+    local audio_opt clipboard_opt
+    if [ "$(vbox_major)" -ge 7 ] 2>/dev/null; then
+        audio_opt="--audio-driver none"
+        clipboard_opt="--clipboard-mode disabled"
+    else
+        audio_opt="--audio none"
+        clipboard_opt="--clipboard off"
+    fi
     if ! out=$(vbox createvm --name "$VM_NAME" --ostype "$ostype" --register 2>&1); then
         printf '%s\n' "$out" >&2
         die "creation de la VM impossible (ostype : $ostype)"
     fi
 
-    vbox modifyvm "$VM_NAME" \
+    if ! out=$(vbox modifyvm "$VM_NAME" \
         --memory "$RAM" \
         --cpus "$CPUS" \
         --vram 16 \
@@ -255,10 +272,13 @@ cmd_install() {
         --nic1 nat \
         --natpf1 "ssh,tcp,,${SSH_PORT},,22" \
         --natpf1 "web,tcp,,8083,,80" \
-        --audio none \
+        "$audio_opt" \
         --usb off \
-        --clipboard off \
-        --draganddrop off >/dev/null || die "la configuration de la VM a echoue."
+        "$clipboard_opt" \
+        --draganddrop off 2>&1); then
+        printf '%s\n' "$out" >&2
+        die "la configuration de la VM a echoue."
+    fi
 
     local size_mb=$(( ${DISK_SIZE%G} * 1024 ))
     vbox modifymedium disk --filename "$VM_DIR/${VM_NAME}.vdi" --format VDI --resize "$size_mb" >/dev/null \
