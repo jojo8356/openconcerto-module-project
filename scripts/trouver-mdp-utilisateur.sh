@@ -41,7 +41,7 @@ info() { printf '  %s\n' "$*"; }
 die()  { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
 
 usage() {
-    awk '/^# Options/{f=1} f { if ($0 ~ /^# / || $0 ~ /^$/) print }' "$0" | sed 's/^# \{0,1\}//'
+    awk '/^# Options/{f=1} /^set -euo/{f=0} f { if ($0 ~ /^# / || $0 ~ /^$/) print }' "$0" | sed 's/^# \{0,1\}//'
     exit 0
 }
 
