@@ -62,6 +62,7 @@ HTTP_PORT="8099"
 TIMEOUT_MIN=30
 WAIT_SSH=1
 FRESH=0
+GUI=0
 
 log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -91,6 +92,7 @@ while [ $# -gt 0 ]; do
         --timeout)   TIMEOUT_MIN="$2"; shift 2 ;;
         --no-wait)   WAIT_SSH=0; shift ;;
         --fresh)     FRESH=1; shift ;;
+        --gui)       GUI=1; shift ;;
         -h|--help)  usage 0 ;;
         *)
             if [ -z "$COMMAND" ]; then
@@ -247,11 +249,18 @@ qemu_args() {
         QEMU_ARGS+=(-cpu max)
         info "KVM indisponible : émulation logicielle, l'installation sera nettement plus lente."
     fi
-    if [ "$HEADLESS" = "1" ] || [ -z "${DISPLAY:-}" ]; then
+    # Par defaut : aucune fenetre, tout passe par la console serie
+    # (necessaire quand seul qemu-system-x86 est installe : le module
+    # graphique GTK n'est pas fourni par ce paquet).
+    if [ "$HEADLESS" = "1" ] || [ "$GUI" = "0" ] || [ -z "${DISPLAY:-}" ]; then
         QEMU_ARGS+=(-display none -serial stdio)
         HEADLESS=1
-    else
+    elif qemu-system-x86_64 -display help 2>&1 | grep -q "gtk"; then
         QEMU_ARGS+=(-display gtk)
+    else
+        QEMU_ARGS+=(-display none -serial stdio)
+        HEADLESS=1
+        info "pas d'affichage GTK disponible : la console serie est utilisee."
     fi
     if [ "$mode" = "install" ]; then
         QEMU_ARGS+=(
@@ -305,17 +314,19 @@ EOF
     info "preseed : http://10.0.2.2:$HTTP_PORT/preseed.cfg (pid $HTTP_PID)"
 
     log "Installation de Debian (sans interface, tout est pré-rempli)"
-    info "si l'écran est noir, attends : l'installateur travaille en console série."
+    info "l'installateur écrit dans ce terminal (console série) ; Ctrl-A X pour quitter."
     qemu_args install
     set +e
-    qemu-system-x86_64 "${QEMU_ARGS[@]}"
-    RC=$?
+    qemu-system-x86_64 "${QEMU_ARGS[@]}" 2>&1 | tee "$VM_DIR/install.log"
+    RC=${PIPESTATUS[0]}
     set -e
     if [ "$KEEP_HTTP" = "0" ]; then
         kill "$HTTP_PID" 2>/dev/null || true
     fi
     if [ "$RC" != "0" ]; then
-        info "QEMU s'est arrêté avec le code $RC (normal si la VM a redémarré)."
+        printf '\n'
+        tail -20 "$VM_DIR/install.log" 2>/dev/null || true
+        die "l'installateur s'est arrêté avec le code $RC. Journal : $VM_DIR/install.log"
     fi
 
     log "Premier démarrage depuis le disque"
@@ -347,6 +358,11 @@ wait_ssh() {
             info "SSH répond : l'installation est terminée."
             info "connexion : ssh -p $SSH_PORT ${VM_USER}@127.0.0.1   (mot de passe : $VM_PASSWORD)"
             return 0
+        fi
+        if [ -f "$VM_DIR/qemu.pid" ] && ! kill -0 "$(cat "$VM_DIR/qemu.pid")" 2>/dev/null; then
+            warn "QEMU s'est arrêté."
+            tail -20 "$VM_DIR/console.log" 2>/dev/null || true
+            return 1
         fi
         sleep 10
         waited=$(( waited + 10 ))
