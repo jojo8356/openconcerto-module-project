@@ -155,8 +155,8 @@ run_sql "select version()"
 #   T_*     : "schema"."table" -> pour les requêtes. Les guillemets sont
 #             indispensables : sans eux PostgreSQL replie l'identifiant en
 #             minuscules (common.user_common) et RIGHT est un mot réservé.
-T_USERS=""; T_RIGHTS=""; T_CODES=""; T_ACCES=""
-T_USERS_RAW=""; T_RIGHTS_RAW=""; T_CODES_RAW=""; T_ACCES_RAW=""
+T_USERS=""; T_RIGHTS=""; T_CODES=""; T_ACCES=""; T_SOCIETES=""
+T_USERS_RAW=""; T_RIGHTS_RAW=""; T_CODES_RAW=""; T_ACCES_RAW=""; T_SOCIETES_RAW=""
 while IFS='|' read -r sch tab quoted; do
     [ -n "$tab" ] || continue
     [ -n "$quoted" ] || quoted="$sch.$tab"
@@ -169,9 +169,11 @@ while IFS='|' read -r sch tab quoted; do
             if [ -z "$T_CODES" ]; then T_CODES="$quoted"; T_CODES_RAW="$sch.$tab"; fi ;;
         ACCES_SOCIETE|ACCES_SOCIETES)
             if [ -z "$T_ACCES" ]; then T_ACCES="$quoted"; T_ACCES_RAW="$sch.$tab"; fi ;;
+        SOCIETE_COMMON|SOCIETE|SOCIETES)
+            if [ -z "$T_SOCIETES" ]; then T_SOCIETES="$quoted"; T_SOCIETES_RAW="$sch.$tab"; fi ;;
     esac
 done <<EOF
-$(run_sql_at "select table_schema, table_name, quote_ident(table_schema)||'.'||quote_ident(table_name) from information_schema.tables where table_name in ('USER_COMMON','UTILISATEUR_COMMON','UTILISATEUR','USER','USER_RIGHT','DROIT_UTILISATEUR','UTILISATEUR_DROIT','USER_RIGHTS','RIGHT','DROIT','TYPE_DROIT','ACCES_SOCIETE','ACCES_SOCIETES') order by table_schema, table_name")
+$(run_sql_at "select table_schema, table_name, quote_ident(table_schema)||'.'||quote_ident(table_name) from information_schema.tables where table_name in ('USER_COMMON','UTILISATEUR_COMMON','UTILISATEUR','USER','USER_RIGHT','DROIT_UTILISATEUR','UTILISATEUR_DROIT','USER_RIGHTS','RIGHT','DROIT','TYPE_DROIT','ACCES_SOCIETE','ACCES_SOCIETES','SOCIETE_COMMON','SOCIETE','SOCIETES') order by table_schema, table_name")
 EOF
 
 [ -n "$T_USERS" ] || die "Table des utilisateurs introuvable (USER_COMMON attendu)."
@@ -233,8 +235,18 @@ fi
 # On récupère tous les utilisateurs, on filtre en bash (insensible aux accents).
 USERS=$(run_sql_at "select $C_U_ID as id, $C_U_LOGIN as login, coalesce($C_U_NOM,'') as nom, coalesce($C_U_PRENOM,'') as prenom from $T_USERS order by $C_U_ID")
 
+# Normalisation pour la recherche : minuscules, puis suppression des accents.
+# Les substitutions sont faites en bash (et non avec tr) : tr travaille sur
+# des octets et ne remplace pas correctement les caractères accentués quand
+# la locale n'est pas en UTF-8.
 norm() {
-    printf '%s' "$1" | tr 'A-ZÀÂÄÉÈÊËÎÏÔÖÛÜÇŒÆ' 'aazaaeeeeiioouu(coe' | tr -d "'" | tr -s ' '
+    local s="${1,,}"
+    local pairs="à:a á:a â:a ã:a ä:a å:a è:e é:e ê:e ë:e ì:i í:i î:i ï:i ò:o ó:o ô:o õ:o ö:o ù:u ú:u û:u ü:u ý:y ÿ:y ç:c ñ:n æ:o œ:o š:s ž:z"
+    local p
+    for p in $pairs; do
+        s="${s//${p%:*}/${p#*:}}"
+    done
+    printf '%s' "$s" | tr -d "'" | tr -s ' '
 }
 
 find_user() {
@@ -343,6 +355,50 @@ run_sql "$EFF_CTE
            and (coalesce(e.object,'') ~* 'FACTURE|COMMANDE|FOURNISSEUR|TIERS' or coalesce(e.object,'') = '')
          order by e.id_user_common, e.code, e.object"
 
+# ------------------------------------------------- structure du transfert
+# Le message « ID_COMMANDE_ELEMENT is not in table /FACTURE_FOURNISSEUR_ELEMENT/ »
+# ne depend pas des droits : il depend du SCHEMA utilise par la session, donc
+# de la societe courante. On controle donc, pour chaque schema de la base, si
+# la table du transfert existe et si elle porte la colonne ID_COMMANDE_ELEMENT.
+log "Structure du transfert par schema (table FACTURE_FOURNISSEUR_ELEMENT)"
+STRUCT=$(run_sql_at "select t.table_schema || '|' || t.table_name || '|' || case when exists (select 1 from information_schema.columns c where c.table_schema = t.table_schema and c.table_name = t.table_name and upper(c.column_name) = 'ID_COMMANDE_ELEMENT') then 'colonne presente' else 'COLONNE MANQUANTE' end from information_schema.tables t where upper(t.table_name) = 'FACTURE_FOURNISSEUR_ELEMENT' and t.table_schema not in ('pg_catalog','information_schema') order by t.table_schema")
+STRUCT_MISSING=0
+if [ -z "$STRUCT" ]; then
+    echo "  (aucune table FACTURE_FOURNISSEUR_ELEMENT trouvee dans cette base)"
+else
+    while IFS='|' read -r sch tab state; do
+        [ -n "$sch" ] || continue
+        printf '  %-24s %-30s %s\n' "$sch" "$tab" "$state"
+        case "$state" in
+            *MANQUANTE*) STRUCT_MISSING=$((STRUCT_MISSING + 1)) ;;
+        esac
+    done <<EOF
+$STRUCT
+EOF
+fi
+if [ "$STRUCT_MISSING" != "0" ]; then
+    echo
+    echo "  ATTENTION : $STRUCT_MISSING schema(s) ont la table du transfert SANS la colonne"
+    echo "  ID_COMMANDE_ELEMENT. Toute operation de transfert dans ces schemas echoue avec"
+    echo "  « ID_COMMANDE_ELEMENT is not in table /FACTURE_FOURNISSEUR_ELEMENT/ »."
+    echo "  Correctif : scripts/fix-facture-fournisseur-all-schemas.sh"
+fi
+
+# ---------------------------------------------------------------- societes declarees
+if [ -n "$T_SOCIETES_RAW" ]; then
+    SC_ID=$(col "$T_SOCIETES_RAW" id)
+    SC_NOM=$(col "$T_SOCIETES_RAW" nom)
+    SC_SCHEMA=$(run_sql_at "select quote_ident(column_name) from information_schema.columns where table_schema||'.'||table_name = '$T_SOCIETES_RAW' and upper(column_name) like '%SCHEMA%' limit 1")
+    log "Societes declarees"
+    if [ -n "$SC_SCHEMA" ]; then
+        run_sql_at "select $SC_ID || ' | ' || coalesce($SC_NOM,'(sans nom)') || ' | schema: ' || coalesce($SC_SCHEMA::text,'') from $T_SOCIETES order by $SC_ID" | sed 's/^/  /'
+    else
+        run_sql_at "select $SC_ID || ' | ' || coalesce($SC_NOM,'(sans nom)') from $T_SOCIETES order by $SC_ID" | sed 's/^/  /'
+    fi
+    echo "  (la societe courante est choisie a la connexion, puis memorisee par le client)"
+fi
+
+
 # ---------------------------------------------------------------- sociétés
 if [ -n "$T_ACCES" ]; then
     log "Accès aux sociétés"
@@ -388,6 +444,11 @@ if [ "${MISSING:-0}" = "0" ] && [ "${SHADOW:-0}" = "0" ]; then
     echo "     - vérifier le message exact (error2.txt) ;"
     echo "     - vérifier que le tiers/fournisseur existe dans la société de $L2 ;"
     echo "     - vérifier la société courante du compte $L2 au moment de l'opération ;"
+    if [ "${STRUCT_MISSING:-0}" = "0" ]; then
+        echo "     - la colonne ID_COMMANDE_ELEMENT est présente dans tous les schémas ;"
+    else
+        echo "     - ATTENTION : $STRUCT_MISSING schéma(s) sans ID_COMMANDE_ELEMENT (voir plus haut) ;"
+    fi
     echo "     - faire rejouer l'opération par $L1 pour confirmer le périmètre."
 else
     echo

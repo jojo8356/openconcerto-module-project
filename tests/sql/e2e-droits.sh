@@ -66,10 +66,12 @@ create table "Common"."USER_RIGHT" (
 create table "Common"."ACCES_SOCIETE" (
   "ID" serial primary key, "ID_USER_COMMON" int, "ID_SOCIETE_COMMON" int);
 
+-- Les noms sont volontairement distincts de ceux du scenario reel (erp/abe)
+-- pour que les motifs restent non ambigus.
 insert into "Common"."USER_COMMON" ("ID","LOGIN","NOM","PRENOM","ADMIN","SUPERUSER") values
   (1,'admin','Administrateur','',true,true),
-  (2,'yves','POLSINELLI','Yves',false,false),
-  (3,'gisele','ABE','Gisèle',false,false);
+  (2,'yves','TEST','Test',false,false),
+  (3,'gisele','TEST','TestDeux',false,false);
 
 insert into "Common"."RIGHT" ("ID","CODE","NOM") values
   (1,'TABLE_ALL_RIGHTS','Tous les droits'),
@@ -182,6 +184,71 @@ OUTN=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 yves -2 gisele -b Open
 RCN=$?
 set -e
 check "code de sortie (cible native)" "0" "$RCN"
+
+echo
+echo "== 8. cas reel : logins erp / abe (jeu fourni par l'utilisateur) =="
+psql -X -d postgres -v ON_ERROR_STOP=1 -f - <<'SQL'
+insert into "Common"."USER_COMMON" ("ID","LOGIN","NOM","PRENOM","ADMIN","SUPERUSER") values
+  (101,'Indéfini','','',false,true),
+  (102,'Administrateur','Administrateur','',true,true),
+  (16,'root','','',false,false),
+  (17,'erp','POLSINELLI','Yves',false,false),
+  (18,'abe','REBSTOCK','Gisele',false,false);
+insert into "Common"."USER_RIGHT" ("ID","ID_USER_COMMON","ID_RIGHT","OBJECT","HAVE_RIGHT") values
+  (40, 17, 1, null, true),
+  (41, 18, 1, null, true);
+insert into "Common"."ACCES_SOCIETE" ("ID_USER_COMMON","ID_SOCIETE_COMMON") values (17,42),(18,42);
+SQL
+
+# 8a. un motif en majuscules doit retrouver le bon compte (regression : la
+#     normalisation des accents et des majuscules etait cassee)
+OUTA=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 POLSINELLI -2 REBSTOCK 2>&1)
+contains "motif 'POLSINELLI' retrouve erp (Yves)" "référence   : id=17  erp" "$OUTA"
+contains "motif 'REBSTOCK' retrouve abe (Gisele)" "concerné    : id=18  abe" "$OUTA"
+
+# 8b. le motif par le login doit fonctionner aussi
+OUTB=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 erp -2 abe 2>&1)
+contains "motif par login : erp" "référence   : id=17  erp" "$OUTB"
+contains "motif par login : abe" "concerné    : id=18  abe" "$OUTB"
+
+# 8c. droits strictement identiques -> aucun ecart, et le verdict doit
+#     orienter vers autre chose que les droits
+contains "droits identiques" "droits accordés à erp mais absents ou refusés pour abe : 0" "$OUTB"
+contains "verdict : probleme hors droits" "Le problème n'est donc probablement pas dans USER_RIGHT" "$OUTB"
+
+# 8d. les droits par table doivent etre listes, et le droit global de abe
+#     (TABLE_ALL_RIGHTS) doit apparaitre dans cette section
+SEC=$(printf '%s\n' "$OUTB" | sed -n '/Droits sur les tables du transfert/,/^$/p')
+contains "section droits par table presente" "Droits sur les tables du transfert" "$OUTB"
+if printf '%s\n' "$SEC" | grep -qE '^18[[:space:]]*\|[[:space:]]*TABLE_ALL_RIGHTS'; then
+    echo "OK   droit TABLE_ALL_RIGHTS liste pour abe (id 18)"
+    PASS=$((PASS + 1))
+else
+    echo "FAIL droit TABLE_ALL_RIGHTS absent pour abe (id 18)"
+    FAIL=$((FAIL + 1))
+fi
+
+echo
+echo "== 9. structure du transfert par schema (cause reelle du bug) =="
+psql -X -d postgres -v ON_ERROR_STOP=1 -f - <<'SQL'
+create schema "OpenConcerto42";
+create table "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT" ("ID" serial primary key, "ID_COMMANDE_ELEMENT" integer default 1);
+create schema "Default";
+create table "Default"."FACTURE_FOURNISSEUR_ELEMENT" ("ID" serial primary key, "ID_COMMANDE_ELEMENT" integer);
+alter table "Default"."FACTURE_FOURNISSEUR_ELEMENT" drop column "ID_COMMANDE_ELEMENT";
+SQL
+
+OUTC=$(bash "$REPO/scripts/test-droits-utilisateur.sh" -1 erp -2 abe 2>&1)
+contains "schema Default signale" "COLONNE MANQUANTE" "$OUTC"
+contains "schema OpenConcerto42 valide" "colonne presente" "$OUTC"
+contains "avertissement structure" "ATTENTION : 1 schema(s)" "$OUTC"
+if printf '%s\n' "$OUTC" | grep -A3 "^  Default " | grep -q "COLONNE MANQUANTE"; then
+    echo "OK   le schema Default est bien le signale"
+    PASS=$((PASS + 1))
+else
+    echo "FAIL le schema Default n'est pas le signale"
+    FAIL=$((FAIL + 1))
+fi
 
 echo
 if [ "$FAIL" -eq 0 ]; then
