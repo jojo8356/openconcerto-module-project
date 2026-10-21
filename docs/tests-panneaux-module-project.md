@@ -100,7 +100,30 @@ l'historique du shell) :
 PGPASSWORD='...' sh scripts/run-panel-tests.sh --host 127.0.0.1 --port 5434 --db OpenConcerto --user openconcerto
 ```
 
-### 4.3 Sans PostgreSQL : test de bout en bout avec pglite
+### 4.3 Contre la base Docker/Podman du poste (sans passer par la VM)
+
+Quand la base est dans la stack Podman du poste (`~/oc-176-podman`, port
+publie `127.0.0.1:5433`) :
+
+```bash
+bash scripts/panel-tests-docker.sh
+```
+
+Le script lit la configuration de la stack (`.env` : role, mot de passe, base,
+port), demarre la stack si elle est arretee, attend PostgreSQL, puis
+compile et execute la suite :
+
+* si le poste a un JDK (`javac`), tout tourne en local, avec le pilote JDBC
+  trouve automatiquement (y compris un JAR du client OpenConcerto qui
+  contient `org/postgresql/Driver.class`) ou `psql` ;
+* sinon, la compilation **et** l'execution se font dans un conteneur
+  `docker.io/library/eclipse-temurin:17-jdk` qui partage l'espace de reseau du
+  conteneur PostgreSQL (connexion sur `127.0.0.1:5432` de l'interieur).
+
+Options utiles : `--stack`, `--port`, `--db`, `--user`, `--schemas`,
+`--mode local|container`, `--jdk IMAGE`, `--jdbc JAR`, `--no-start`.
+
+### 4.4 Sans PostgreSQL : test de bout en bout avec pglite
 
 ```bash
 npm install
@@ -145,6 +168,7 @@ RESULTAT : ECHEC (6 controle(s) en echec)
 | `tests/org/openconcerto/modules/project/panels/PsqlSqlClient.java` | transport `psql` (mode CSV) |
 | `scripts/run-panel-tests.sh` | compilation + execution |
 | `scripts/panel-tests-in-vm.sh` | execution dans la VM |
+| `scripts/panel-tests-docker.sh` | execution contre la base Docker/Podman du poste |
 | `tests/sql/fixture-panneaux.sql` | base de test avec anomalies volontaires |
 | `tests/sql/fixture-panneaux-nettoye.sql` | la meme base, sans anomalie |
 | `tests/sql/e2e-panneaux.sh` | test de bout en bout (pglite) |
