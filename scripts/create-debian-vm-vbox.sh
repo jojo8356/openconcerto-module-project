@@ -246,6 +246,59 @@ modifyvm_group() {
     return 1
 }
 
+# Taille du disque en Mo : accepte 8G, 10G, 8192M, 20 (Go par defaut).
+disk_size_mb() {
+    local d="${DISK_SIZE:-8G}"
+    case "$d" in
+        *G) printf '%s' $(( ${d%G} * 1024 )) ;;
+        *g) printf '%s' $(( ${d%g} * 1024 )) ;;
+        *M) printf '%s' $(( ${d%M} )) ;;
+        *m) printf '%s' $(( ${d%m} )) ;;
+        *)  printf '%s' $(( d * 1024 )) ;;
+    esac
+}
+
+# Creation du disque VDI. Depuis VirtualBox 7.0, « modifymedium » ne sert
+# qu'a modifier un disque existant : la creation passe par
+# « createmedium ». Les deux ecritures du separateur « = » sont essayees.
+create_disk() {
+    local file="$1" size_mb="$2" out
+    if out=$(vbox createmedium disk --filename "$file" --size "$size_mb" --format VDI 2>&1) \
+        && [ -f "$file" ]; then
+        return 0
+    fi
+    printf '%s\n' "$out" >&2
+    if out=$(vbox createmedium disk --filename="$file" --size="$size_mb" --format=VDI 2>&1) \
+        && [ -f "$file" ]; then
+        return 0
+    fi
+    printf '%s\n' "$out" >&2
+    if out=$(vbox modifymedium disk --filename "$file" --format VDI --size "$size_mb" 2>&1) \
+        && [ -f "$file" ]; then
+        return 0
+    fi
+    printf '%s\n' "$out" >&2
+    return 1
+}
+
+# Controleur de stockage : le nom du controleur peut varier.
+add_storage_controller() {
+    local vm="$1" out
+    for out in 1; do
+        if vbox storagectl "$vm" --name SATA --add sata --controller IntelAhci --portcount 1 >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    if vbox storagectl "$vm" --name SATA --add sata --portcount 1 >/dev/null 2>&1; then
+        return 0
+    fi
+    if vbox storagectl "$vm" --name SATA --add ide --portcount 1 >/dev/null 2>&1; then
+        return 0
+    fi
+    vbox storagectl "$vm" --name SATA --add sata --controller IntelAhci --portcount 1
+    return 1
+}
+
 cmd_install() {
     need_vbox
     local iso_path
@@ -293,14 +346,16 @@ cmd_install() {
     modifyvm_group "$VM_NAME" "--clipboard-mode=disabled" "--clipboard=off" || true
     modifyvm_group "$VM_NAME" "--drag-and-drop=disabled" "--draganddrop=off" || true
 
-    local size_mb=$(( ${DISK_SIZE%G} * 1024 ))
-    vbox modifymedium disk --filename "$VM_DIR/${VM_NAME}.vdi" --format VDI --resize "$size_mb" >/dev/null \
-        || die "creation du disque VDI impossible."
-    vbox storagectl "$VM_NAME" --name SATA --add sata --controller IntelAhci --portcount 1 >/dev/null \
-        || die "ajout du controleur SATA impossible."
-    vbox storageattach "$VM_NAME" --storagectl SATA --port 0 --device 0 --type hdd \
-        --medium "$VM_DIR/${VM_NAME}.vdi" >/dev/null || die "attache du disque impossible."
+    local size_mb
+    size_mb=$(disk_size_mb)
+    create_disk "$VM_DIR/${VM_NAME}.vdi" "$size_mb" || die "creation du disque VDI impossible."
     [ -f "$VM_DIR/${VM_NAME}.vdi" ] || die "le disque $VM_DIR/${VM_NAME}.vdi est absent."
+    add_storage_controller "$VM_NAME" || die "ajout du controleur SATA impossible."
+    if ! out=$(vbox storageattach "$VM_NAME" --storagectl SATA --port 0 --device 0 --type hdd \
+        --medium "$VM_DIR/${VM_NAME}.vdi" 2>&1); then
+        printf '%s\n' "$out" >&2
+        die "attache du disque impossible."
+    fi
     info "disque : $VM_DIR/${VM_NAME}.vdi ($DISK_SIZE)"
 
     log "Installation automatique (mode unattended de VirtualBox)"
