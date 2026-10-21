@@ -300,6 +300,13 @@ cmd_install() {
     need qemu-img
     need python3
     detect_dist
+
+    # Un QEMU anterior peut encore tenir le port de redirection.
+    stop_running_vm
+    if port_busy; then
+        die "le port $SSH_PORT est deja utilise par un autre programme. Utilise --ssh-port 2223 (ou arrete le programme qui l'occupe)."
+    fi
+
     log "Préparation ($DIST, dossier $VM_DIR)"
     mkdir -p "$VM_DIR/netboot"
 
@@ -468,6 +475,26 @@ cmd_check() {
         return 1
     fi
     return 0
+}
+
+# Le port de redirection peut rester occupe par un QEMU lance
+# precedemment : on l'arrete avant de relancer l'installation.
+port_busy() {
+    (exec 3<>/dev/tcp/127.0.0.1/"$SSH_PORT") 2>/dev/null || return 1
+    exec 3<&- 2>/dev/null || true
+    return 0
+}
+
+stop_running_vm() {
+    if pgrep -f "qemu-system-x86_64.*debian-vm" >/dev/null 2>&1; then
+        info "une VM tourne deja : arret"
+        pkill -f "qemu-system-x86_64.*debian-vm" 2>/dev/null || true
+        local i
+        for i in $(seq 1 15); do
+            port_busy || return 0
+            sleep 1
+        done
+    fi
 }
 
 cmd_stop() {
