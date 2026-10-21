@@ -73,9 +73,15 @@ public final class PanelSql {
     /**
      * Condition SQL (sans le WHERE) qui selectionne exactement les lignes
      * affichees par le panneau.
+     *
+     * <p>
+     * La cle de la table AFFAIRE est lue dans le catalogue : elle ne s'appelle
+     * pas toujours « ID ».
+     * </p>
      */
-    public static String visibleWhere(Panel panel, String schema) {
+    public static String visibleWhere(Db db, Panel panel, String schema) throws Exception {
         final StringBuilder sb = new StringBuilder();
+        final String affaireKey = db.primaryKey(schema, "AFFAIRE");
         if (Panel.KIND_LIST.equals(panel.getKind())) {
             sb.append("1 = 1");
         } else if (Panel.KIND_STRUCTURE.equals(panel.getKind())) {
@@ -84,10 +90,10 @@ public final class PanelSql {
             final String expr = affaireExpr(panel);
             if (expr == null) {
                 // La table est la table des affaires elle-meme.
-                sb.append("t.\"ID\" <> 1");
+                sb.append("t.\"").append(affaireKey).append("\" <> 1");
             } else {
                 sb.append(expr).append(" IS NOT NULL AND ").append(expr).append(" <> 1 AND EXISTS (select 1 from ")
-                        .append(Db.qualified(schema, "AFFAIRE")).append(" aff where aff.\"ID\" = ").append(expr).append(")");
+                        .append(Db.qualified(schema, "AFFAIRE")).append(" aff where aff.\"").append(affaireKey).append("\" = ").append(expr).append(")");
             }
         }
         if (panel.getExtraCondition() != null) {
@@ -100,11 +106,13 @@ public final class PanelSql {
      * Condition « la ligne est rattachee a une affaire existante », sans le
      * filtre propre au panneau.
      */
-    public static String linkedWhere(Panel panel, String schema) {
+    public static String linkedWhere(Db db, Panel panel, String schema) throws Exception {
         final String expr = affaireExpr(panel);
         if (expr == null) {
             return "1 = 1";
         }
-        return expr + " IS NOT NULL AND " + expr + " <> 1 AND EXISTS (select 1 from " + Db.qualified(schema, "AFFAIRE") + " aff where aff.\"ID\" = " + expr + ")";
+        final String affaireKey = db.primaryKey(schema, "AFFAIRE");
+        return expr + " IS NOT NULL AND " + expr + " <> 1 AND EXISTS (select 1 from " + Db.qualified(schema, "AFFAIRE") + " aff where aff.\"" + affaireKey + "\" = "
+                + expr + ")";
     }
 }

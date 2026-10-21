@@ -57,12 +57,20 @@ public class VisibilitySuite implements Suite {
         final boolean hasAffaire = db.tableExists(schema, "AFFAIRE");
         final String from = PanelSql.fromClause(db, panel, schema, hasAffaire);
         final String key = db.primaryKey(schema, panel.getTable());
+        // vraie cle primaire de la table AFFAIRE
+        final String affaireKey = db.primaryKey(schema, "AFFAIRE");
         final String expr = PanelSql.affaireExpr(panel);
-        final String visibleWhere = PanelSql.visibleWhere(panel, schema);
-        final String linkedWhere = PanelSql.linkedWhere(panel, schema);
+        final String visibleWhere = PanelSql.visibleWhere(db, panel, schema);
+        final String linkedWhere = PanelSql.linkedWhere(db, panel, schema);
         final List chain = panel.getChain();
         final String deepest = chain.isEmpty() ? null : "p" + chain.size();
-        final String deepestKey = chain.isEmpty() ? key : db.primaryKey(schema, ((Panel.Link) chain.get(chain.size() - 1)).table);
+        final String deepestTable = chain.isEmpty() ? null : ((Panel.Link) chain.get(chain.size() - 1)).table;
+        // la cle de la mere est lue dans le catalogue : toutes les tables
+        // n'ont pas une colonne « ID »
+        final String deepestKey = deepestTable == null ? key : db.primaryKey(schema, deepestTable);
+        // le controle « la mere n'est pas rattachee a une affaire » n'a de sens
+        // que si la mere porte bien une colonne d'affaire
+        final boolean deepestHasAffaire = deepestTable != null && db.columns(schema, deepestTable).contains("ID_AFFAIRE");
 
         final StringBuilder sql = new StringBuilder("select count(*) as total");
         sql.append(", count(distinct t.\"").append(key).append("\") as distinct_ids");
@@ -70,14 +78,16 @@ public class VisibilitySuite implements Suite {
         sql.append(", count(*) filter (where ").append(linkedWhere).append(") as linked");
         if (expr != null) {
             sql.append(", count(*) filter (where ").append(expr).append(" is not null and ").append(expr).append(" <> 1 and not exists (select 1 from ")
-                    .append(Db.qualified(schema, "AFFAIRE")).append(" aff where aff.\"ID\" = ").append(expr).append(")) as dangling");
+                    .append(Db.qualified(schema, "AFFAIRE")).append(" aff where aff.\"").append(affaireKey).append("\" = ").append(expr).append(")) as dangling");
             sql.append(", count(*) filter (where ").append(expr).append(" = 1) as undefined");
             sql.append(", count(*) filter (where ").append(expr).append(" is null) as no_link");
         }
         if (deepest != null) {
             sql.append(", count(*) filter (where ").append(deepest).append(".\"").append(deepestKey).append("\" is null) as parent_missing");
-            sql.append(", count(*) filter (where ").append(deepest).append(".\"").append(deepestKey).append("\" is not null and ").append(deepest)
-                    .append(".\"ID_AFFAIRE\" is null) as parent_without_affaire");
+            if (deepestHasAffaire) {
+                sql.append(", count(*) filter (where ").append(deepest).append(".\"").append(deepestKey).append("\" is not null and ").append(deepest)
+                        .append(".\"ID_AFFAIRE\" is null) as parent_without_affaire");
+            }
         }
         sql.append(" from ").append(from);
 
@@ -110,7 +120,7 @@ public class VisibilitySuite implements Suite {
         if (dangling > 0) {
             report.fail(scope, dangling + " ligne(s) rattachees a une AFFAIRE INEXISTANTE : donnees cachees dans tous les panneaux. Exemples : "
                     + samples(db, from, expr + " is not null and " + expr + " <> 1 and not exists (select 1 from " + Db.qualified(schema, "AFFAIRE")
-                    + " aff where aff.\"ID\" = " + expr + ")"));
+                    + " aff where aff.\"" + affaireKey + "\" = " + expr + ")"));
         }
         if (parentMissing > 0) {
             report.fail(scope, parentMissing + " ligne(s) dont la table mere a disparu : donnees cachees. Exemples : "
@@ -118,7 +128,7 @@ public class VisibilitySuite implements Suite {
         }
         if (parentWithoutAffaire > 0) {
             report.warn(scope, parentWithoutAffaire + " ligne(s) dont la mere n'est rattachee a aucune affaire : invisibles dans l'historique. Exemples : "
-                    + samples(db, from, deepest + ".\"ID\" is not null and " + deepest + ".\"ID_AFFAIRE\" is null"));
+                    + samples(db, from, deepest + ".\"" + deepestKey + "\" is not null and " + deepest + ".\"ID_AFFAIRE\" is null"));
         }
         if (noLink > 0) {
             report.warn(scope, noLink + " ligne(s) non rattachees a une affaire : invisibles dans l'historique. Exemples : "

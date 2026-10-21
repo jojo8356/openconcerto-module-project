@@ -17,8 +17,14 @@ import java.util.List;
  *
  * <p>
  * On verifie aussi que le recensement des lignes (affichees + non rattachees
- * + orphelines + ligne technique) redonne exactement le nombre de lignes de la
- * table : aucune ligne ne disparait du controle.
+ * + orphelines + ligne technique) redonne exactement le nombre de lignes de
+ * la table : aucune ligne ne disparait du controle.
+ * </p>
+ *
+ * <p>
+ * Toutes les jointures se font sur la vraie cle primaire des tables (lues
+ * dans le catalogue PostgreSQL) : toutes les tables n'ont pas une colonne
+ * « ID ».
  * </p>
  */
 public class AggregateSuite implements Suite {
@@ -49,56 +55,70 @@ public class AggregateSuite implements Suite {
         }
     }
 
+    /**
+     * Condition « la ligne est rattachee a une affaire qui existe », sur la
+     * vraie cle primaire de la table AFFAIRE.
+     */
+    private static String existsAffaire(final String schema, final String expr, final String affaireKey) {
+        return " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"" + affaireKey + "\" = " + expr + ")";
+    }
+
     private void checkBilan(final Db db, final String schema, final String panelId, final Report report, final String scope) throws Exception {
+        // cles primaires reelles : toutes les tables n'ont pas une colonne « ID »
+        final String affaireKey = db.primaryKey(schema, "AFFAIRE");
+        final String ccKey = db.primaryKey(schema, "COMMANDE_CLIENT");
+        final String ffKey = db.primaryKey(schema, "FACTURE_FOURNISSEUR");
+        final String cmdKey = db.primaryKey(schema, "COMMANDE");
+        final String cc = Db.qualified(schema, "COMMANDE_CLIENT") + " c";
+        final String ff = Db.qualified(schema, "FACTURE_FOURNISSEUR") + " f";
+        final String cmd = Db.qualified(schema, "COMMANDE") + " c";
         if ("bilan.marche".equals(panelId)) {
             compare(db, report, scope, "montant du marche (COMMANDE_CLIENT.T_HT)",
-                    "select coalesce(sum(c.\"T_HT\"), 0) from " + Db.qualified(schema, "COMMANDE_CLIENT") + " c where c.\"ID_AFFAIRE\" is not null and c.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = c.\"ID_AFFAIRE\")",
+                    "select coalesce(sum(c.\"T_HT\"), 0) from " + cc + " where c.\"ID_AFFAIRE\" is not null and c.\"ID_AFFAIRE\" <> 1"
+                            + existsAffaire(schema, "c.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"T_HT\"), 0) from " + Db.qualified(schema, "COMMANDE_CLIENT"));
             compare(db, report, scope, "budget chiffre (CHIFFRAGE_COMMANDE_CLIENT.T_PA_HT)",
                     "select coalesce(sum(h.\"T_PA_HT\"), 0) from " + Db.qualified(schema, "CHIFFRAGE_COMMANDE_CLIENT") + " h"
-                            + " join " + Db.qualified(schema, "COMMANDE_CLIENT") + " c on c.\"ID\" = h.\"ID_COMMANDE_CLIENT\""
+                            + " join " + cc + " on c.\"" + ccKey + "\" = h.\"ID_COMMANDE_CLIENT\""
                             + " where c.\"ID_AFFAIRE\" is not null and c.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = c.\"ID_AFFAIRE\")",
+                            + existsAffaire(schema, "c.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"T_PA_HT\"), 0) from " + Db.qualified(schema, "CHIFFRAGE_COMMANDE_CLIENT"));
         } else if ("bilan.facture".equals(panelId)) {
             compare(db, report, scope, "montant facture (SAISIE_VENTE_FACTURE.T_HT)",
                     "select coalesce(sum(f.\"T_HT\"), 0) from " + Db.qualified(schema, "SAISIE_VENTE_FACTURE") + " f where f.\"ID_AFFAIRE\" is not null and f.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = f.\"ID_AFFAIRE\")",
+                            + existsAffaire(schema, "f.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"T_HT\"), 0) from " + Db.qualified(schema, "SAISIE_VENTE_FACTURE"));
             compare(db, report, scope, "avoirs clients deduits (AVOIR_CLIENT.MONTANT_HT)",
                     "select coalesce(sum(v.\"MONTANT_HT\"), 0) from " + Db.qualified(schema, "AVOIR_CLIENT") + " v where v.\"A_DEDUIRE\" and v.\"ID_AFFAIRE\" is not null"
-                            + " and v.\"ID_AFFAIRE\" <> 1 and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = v.\"ID_AFFAIRE\")",
+                            + " and v.\"ID_AFFAIRE\" <> 1" + existsAffaire(schema, "v.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"MONTANT_HT\"), 0) from " + Db.qualified(schema, "AVOIR_CLIENT") + " where \"A_DEDUIRE\"");
         } else if ("bilan.achats".equals(panelId)) {
             compare(db, report, scope, "achats (SAISIE_ACHAT.MONTANT_HT)",
                     "select coalesce(sum(s.\"MONTANT_HT\"), 0) from " + Db.qualified(schema, "SAISIE_ACHAT") + " s where s.\"ID_AFFAIRE\" is not null and s.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = s.\"ID_AFFAIRE\")",
+                            + existsAffaire(schema, "s.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"MONTANT_HT\"), 0) from " + Db.qualified(schema, "SAISIE_ACHAT"));
             compare(db, report, scope, "factures fournisseurs (FACTURE_FOURNISSEUR.T_HT)",
-                    "select coalesce(sum(f.\"T_HT\"), 0) from " + Db.qualified(schema, "FACTURE_FOURNISSEUR") + " f where f.\"ID_AFFAIRE\" is not null and f.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = f.\"ID_AFFAIRE\")",
+                    "select coalesce(sum(f.\"T_HT\"), 0) from " + ff + " where f.\"ID_AFFAIRE\" is not null and f.\"ID_AFFAIRE\" <> 1"
+                            + existsAffaire(schema, "f.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"T_HT\"), 0) from " + Db.qualified(schema, "FACTURE_FOURNISSEUR"));
             compare(db, report, scope, "articles de facture fournisseur (FACTURE_FOURNISSEUR_ELEMENT.T_PA_HT)",
                     "select coalesce(sum(e.\"T_PA_HT\"), 0) from " + Db.qualified(schema, "FACTURE_FOURNISSEUR_ELEMENT") + " e"
-                            + " join " + Db.qualified(schema, "FACTURE_FOURNISSEUR") + " f on f.\"ID\" = e.\"ID_FACTURE_FOURNISSEUR\""
-                            + " where f.\"ID_AFFAIRE\" is not null and f.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = f.\"ID_AFFAIRE\")",
+                            + " join " + ff + " on f.\"" + ffKey + "\" = e.\"ID_FACTURE_FOURNISSEUR\""
+                            + " where f.\"ID_AFFAIRE\" is not null and f.\"ID_AFFAIRE\" <> 1" + existsAffaire(schema, "f.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"T_PA_HT\"), 0) from " + Db.qualified(schema, "FACTURE_FOURNISSEUR_ELEMENT"));
             compare(db, report, scope, "avoirs fournisseurs (AVOIR_FOURNISSEUR.MONTANT_HT)",
                     "select coalesce(sum(v.\"MONTANT_HT\"), 0) from " + Db.qualified(schema, "AVOIR_FOURNISSEUR") + " v where v.\"ID_AFFAIRE\" is not null and v.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = v.\"ID_AFFAIRE\")",
+                            + existsAffaire(schema, "v.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"MONTANT_HT\"), 0) from " + Db.qualified(schema, "AVOIR_FOURNISSEUR"));
         } else if ("bilan.commandes_fournisseurs".equals(panelId)) {
             compare(db, report, scope, "commandes fournisseurs (COMMANDE.T_HT)",
-                    "select coalesce(sum(c.\"T_HT\"), 0) from " + Db.qualified(schema, "COMMANDE") + " c where c.\"ID_AFFAIRE\" is not null and c.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = c.\"ID_AFFAIRE\")",
+                    "select coalesce(sum(c.\"T_HT\"), 0) from " + cmd + " where c.\"ID_AFFAIRE\" is not null and c.\"ID_AFFAIRE\" <> 1"
+                            + existsAffaire(schema, "c.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"T_HT\"), 0) from " + Db.qualified(schema, "COMMANDE"));
             compare(db, report, scope, "articles commandes (COMMANDE_ELEMENT.T_PA_HT)",
                     "select coalesce(sum(e.\"T_PA_HT\"), 0) from " + Db.qualified(schema, "COMMANDE_ELEMENT") + " e"
-                            + " join " + Db.qualified(schema, "COMMANDE") + " c on c.\"ID\" = e.\"ID_COMMANDE\""
-                            + " where c.\"ID_AFFAIRE\" is not null and c.\"ID_AFFAIRE\" <> 1"
-                            + " and exists (select 1 from " + Db.qualified(schema, "AFFAIRE") + " a where a.\"ID\" = c.\"ID_AFFAIRE\")",
+                            + " join " + cmd + " on c.\"" + cmdKey + "\" = e.\"ID_COMMANDE\""
+                            + " where c.\"ID_AFFAIRE\" is not null and c.\"ID_AFFAIRE\" <> 1" + existsAffaire(schema, "c.\"ID_AFFAIRE\"", affaireKey),
                     "select coalesce(sum(\"T_PA_HT\"), 0) from " + Db.qualified(schema, "COMMANDE_ELEMENT"));
         }
     }
@@ -134,6 +154,7 @@ public class AggregateSuite implements Suite {
         if (!Catalogue.isModuleInstalled(db, schema)) {
             return;
         }
+        final String affaireKey = db.primaryKey(schema, "AFFAIRE");
         final List panelList = Catalogue.build(schema);
         for (int p = 0; p < panelList.size(); p++) {
             final Panel panel = (Panel) panelList.get(p);
@@ -150,9 +171,9 @@ public class AggregateSuite implements Suite {
             final boolean hasAffaire = db.tableExists(schema, "AFFAIRE");
             final String from = PanelSql.fromClause(db, panel, schema, hasAffaire);
             final String census = "select count(*) as total"
-                    + ", count(*) filter (where " + PanelSql.linkedWhere(panel, schema) + ") as linked"
+                    + ", count(*) filter (where " + PanelSql.linkedWhere(db, panel, schema) + ") as linked"
                     + ", count(*) filter (where " + expr + " is not null and " + expr + " <> 1 and not exists (select 1 from "
-                    + Db.qualified(schema, "AFFAIRE") + " aff where aff.\"ID\" = " + expr + ")) as dangling"
+                    + Db.qualified(schema, "AFFAIRE") + " aff where aff.\"" + affaireKey + "\" = " + expr + ")) as dangling"
                     + ", count(*) filter (where " + expr + " = 1) as undefined"
                     + ", count(*) filter (where " + expr + " is null) as no_link"
                     + " from " + from;

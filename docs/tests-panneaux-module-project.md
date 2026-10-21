@@ -35,6 +35,10 @@ Quatre controles, tous joues sur les schemas qui contiennent une table
 ## 2. Modele de donnees utilise
 
 * une ligne porte `ID_AFFAIRE` (directement, ou via sa table mere) ;
+* **les cles primaires sont lues dans le catalogue PostgreSQL**
+  (`pg_index` / `pg_class` / `pg_attribute`) et mises en cache : toutes les
+  tables n'ont pas une colonne « ID » (par exemple `DEVIS`, dont la cle
+  primaire s'appelle `ID_DEVIS`) ;
 * l'affaire `ID = 1` est la ligne technique « Indefini » : elle n'est jamais
   affichee dans l'historique ;
 * l'historique (`ProjectHistory`) affiche les lignes rattachees a l'affaire

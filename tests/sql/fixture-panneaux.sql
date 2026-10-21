@@ -43,13 +43,16 @@ CREATE TABLE "AFFAIRE" (
 );
 
 CREATE TABLE "ETAT_DEVIS" ("ID" serial PRIMARY KEY, "NOM" varchar(128));
+-- La table DEVIS n'a pas de colonne « ID » : sa cle primaire s'appelle
+-- « ID_DEVIS » (comme en production). Le harnais doit lire la vraie cle
+-- dans le catalogue PostgreSQL, et non supposer « ID ».
 CREATE TABLE "DEVIS" (
-  "ID" serial PRIMARY KEY, "NUMERO" varchar(256), "DATE" date,
+  "ID_DEVIS" serial PRIMARY KEY, "NUMERO" varchar(256), "DATE" date,
   "T_HT" bigint, "T_HA" bigint, "ID_CLIENT" integer REFERENCES "CLIENT" ("ID"),
   "ID_AFFAIRE" integer REFERENCES "AFFAIRE" ("ID"), "ID_ETAT_DEVIS" integer REFERENCES "ETAT_DEVIS" ("ID")
 );
 CREATE TABLE "DEVIS_ELEMENT" (
-  "ID" serial PRIMARY KEY, "ID_DEVIS" integer REFERENCES "DEVIS" ("ID"), "NOM" varchar(256),
+  "ID" serial PRIMARY KEY, "ID_DEVIS" integer REFERENCES "DEVIS" ("ID_DEVIS"), "NOM" varchar(256),
   "T_PV_HT" bigint, "ID_UNITE_VENTE" integer REFERENCES "UNITE_VENTE" ("ID"),
   "QTE" numeric, "QTE_UNITAIRE" numeric,
   "ID_ARTICLE" integer REFERENCES "ARTICLE" ("ID"), "ID_FAMILLE_ARTICLE" integer REFERENCES "FAMILLE_ARTICLE" ("ID")
@@ -129,7 +132,7 @@ VALUES (1, NULL, NULL, NULL, NULL, NULL, 1, 1),
        (3, 'A-002', 'Chantier 2', 2, '2026-02-20', 1, 3, 1),
        (4, 'A-003', 'Dossier clos', 1, '2026-03-01', 1, 6, 1);
 
-INSERT INTO "DEVIS" ("ID", "NUMERO", "DATE", "T_HT", "T_HA", "ID_CLIENT", "ID_AFFAIRE", "ID_ETAT_DEVIS")
+INSERT INTO "DEVIS" ("ID_DEVIS", "NUMERO", "DATE", "T_HT", "T_HA", "ID_CLIENT", "ID_AFFAIRE", "ID_ETAT_DEVIS")
 VALUES (1, 'D-1', '2026-01-11', 1000, 900, 1, 2, 3),
        (2, 'D-2', '2026-01-12', 500, 450, 1, 2, 3),
        (3, 'D-ORPHELIN', '2026-01-13', 700, 700, 1, 999, 3),

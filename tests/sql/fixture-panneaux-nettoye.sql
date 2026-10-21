@@ -11,15 +11,15 @@ BEGIN;
 SET LOCAL search_path TO "OpenConcerto42";
 
 -- Lignes orphelines ou sans affaire : elles disparaissent des panneaux.
-DELETE FROM "DEVIS" WHERE "ID" = 3;
-DELETE FROM "DEVIS" WHERE "ID" = 4;
+DELETE FROM "DEVIS" WHERE "ID_DEVIS" = 3;
+DELETE FROM "DEVIS" WHERE "ID_DEVIS" = 4;
 DELETE FROM "SAISIE_VENTE_FACTURE" WHERE "ID" = 3;
 DELETE FROM "COMMANDE_ELEMENT" WHERE "ID" = 2;
 DELETE FROM "COMMANDE" WHERE "ID" = 2;
 
 -- Le devis 5 passe « en attente » : l'onglet « Devis en attente » affiche
 -- donc une ligne.
-UPDATE "DEVIS" SET "ID_ETAT_DEVIS" = 2 WHERE "ID" = 5;
+UPDATE "DEVIS" SET "ID_ETAT_DEVIS" = 2 WHERE "ID_DEVIS" = 5;
 
 -- Colonne de rattachement de la ligne de facture fournisseur a la ligne de
 -- commande (le correctif applique en production).
