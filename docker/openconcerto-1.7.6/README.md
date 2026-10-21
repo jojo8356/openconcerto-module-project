@@ -1,5 +1,10 @@
 # Stack Docker pour OpenConcerto 1.7.6
 
+> **Variante Podman** : une pile identique, sans Docker, se trouve dans
+> [`podman/openconcerto-1.7.6/`](../../podman/openconcerto-1.7.6/README.md),
+> avec le script `scripts/podman-openconcerto.sh` (`up`, `down`, `status`,
+> `logs`, `copy`, `client`, `sql`, `diagnose`).
+
 PostgreSQL 17 + Adminer, pour faire tourner une base OpenConcerto 1.7.6 en
 conteneur. Le client OpenConcerto reste installé sur l'hôte : en multiposte,
 les clients se connectent directement à PostgreSQL, il n'y a pas de serveur

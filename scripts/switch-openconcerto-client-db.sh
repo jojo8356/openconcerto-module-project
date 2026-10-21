@@ -17,20 +17,22 @@
 #
 # Usage :
 #   ./switch-openconcerto-client-db.sh -t docker [-r] [-n] [-y]
+#   ./switch-openconcerto-client-db.sh -t podman [-r] [-n] [-y]
 #   ./switch-openconcerto-client-db.sh -t native [-n] [-y]
 #
 # Options :
-#   -t CIBLE    docker | native
-#   -r          docker : aligner le mot de passe du rôle SQL du conteneur sur
-#               celui utilisé par le client (ALTER ROLE + mise à jour du .env)
+#   -t CIBLE    docker | podman | native
+#   -r          conteneur (docker/podman) : aligner le mot de passe du rôle
+#               SQL sur celui utilisé par le client (ALTER ROLE + .env)
 #   -c FICHIER  main.properties (défaut : ~/.config/OpenConcerto/main.properties)
-#   -p PORT     port de la cible (défaut : 5433 pour docker, 5432 pour native)
-#   -d BASE     base de la cible (défaut : OpenConcerto pour docker,
+#   -p PORT     port de la cible (défaut : 5433 pour docker/podman, 5432 natif)
+#   -d BASE     base de la cible (défaut : OpenConcerto pour docker/podman,
 #               OpenConcertoKineticTherm pour native)
 #   -U ROLE     rôle SQL (défaut : openconcerto)
 #   -P MDP      mot de passe (défaut : openconcerto, la valeur par défaut
 #               d'OpenConcerto)
-#   -o DOSSIER  dossier de la stack Docker (défaut : ~/oc-176-docker)
+#   -o DOSSIER  dossier de la stack (défaut : ~/oc-176-docker pour docker,
+#               ~/oc-176-podman pour podman)
 #   -n          dry-run : affiche le résultat, ne touche à rien
 #   -y          pas de confirmation
 #
@@ -45,7 +47,7 @@ PORT=""
 DB=""
 SQL_USER="openconcerto"
 SQL_PASSWORD="openconcerto"
-STACK_DIR="$HOME/oc-176-docker"
+STACK_DIR=""
 ALIGN_ROLE=0
 DRY=0
 ASSUME_YES=0
@@ -77,16 +79,25 @@ die() { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
 
 [ -n "$TARGET" ] || usage 1
 case "$TARGET" in
-    docker|native) ;;
-    *) die "Cible inconnue : '$TARGET' (attendu : docker ou native)" ;;
+    docker|podman|native) ;;
+    *) die "Cible inconnue : '$TARGET' (attendu : docker, podman ou native)" ;;
 esac
 
-if [ "$TARGET" = "docker" ]; then
+if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
     PORT="${PORT:-5433}"
     DB="${DB:-OpenConcerto}"
 else
     PORT="${PORT:-5432}"
     DB="${DB:-OpenConcertoKineticTherm}"
+fi
+
+# Le dossier de la stack dépend du runtime, sauf si -o a été fourni.
+if [ -z "$STACK_DIR" ]; then
+    if [ "$TARGET" = "podman" ]; then
+        STACK_DIR="$HOME/oc-176-podman"
+    else
+        STACK_DIR="$HOME/oc-176-docker"
+    fi
 fi
 
 [ -f "$CONF" ] || die "Fichier de configuration introuvable : $CONF"
@@ -104,7 +115,7 @@ CURRENT_DRIVER=$(get_prop "server.driver")
 # (\:) — c'est le format écrit par OpenConcerto (Properties : "\:" -> ":").
 # 127.0.0.1 et non "localhost" : le conteneur n'écoute que sur 127.0.0.1 et
 # "localhost" peut résoudre en ::1 (IPv6), où rien n'écoute.
-if [ "$TARGET" = "docker" ]; then
+if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
     NEW_IP="127.0.0.1\\:$PORT"
 else
     NEW_IP="localhost\\:$PORT"
@@ -120,7 +131,7 @@ log "Cible $TARGET"
 printf '  server.ip        : %s\n' "$NEW_IP"
 printf '  systemRoot       : %s\n' "$DB"
 printf '  server.driver    : %s\n' "$CURRENT_DRIVER"
-if [ "$TARGET" = "docker" ]; then
+if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
     printf '  server.login     : %s\n' "$SQL_USER"
     printf '  server.password  : %s\n' "<${#SQL_PASSWORD} caractères, masqué>"
     if [ "$ALIGN_ROLE" = "1" ]; then
@@ -136,7 +147,7 @@ fi
 if [ "$DRY" = "1" ]; then
     echo
     echo "Dry-run : rien n'a été modifié. Pour appliquer :"
-    if [ "$TARGET" = "docker" ] && [ "$ALIGN_ROLE" = "1" ]; then
+    if [ "$TARGET" != "native" ] && [ "$ALIGN_ROLE" = "1" ]; then
         printf '  bash %s -t %s -r\n' "$0" "$TARGET"
     else
         printf '  bash %s -t %s\n' "$0" "$TARGET"
@@ -154,11 +165,7 @@ if [ "$ASSUME_YES" -ne 1 ]; then
 fi
 
 # ------------------------------------------------- alignement du rôle conteneur
-if [ "$TARGET" = "docker" ] && [ "$ALIGN_ROLE" = "1" ]; then
-    COMPOSE="$STACK_DIR/docker-compose.yml"
-    [ -f "$COMPOSE" ] || die "Fichier de composition introuvable : $COMPOSE"
-    command -v docker >/dev/null 2>&1 || die "'docker' introuvable dans le PATH."
-
+if [ "$TARGET" != "native" ] && [ "$ALIGN_ROLE" = "1" ]; then
     log "Mot de passe du rôle '$SQL_USER' dans le conteneur"
     # Le socket local du conteneur est en 'trust' : ALTER ROLE ne demande pas
     # de mot de passe. On tente d'abord le socket, puis le port publié.
@@ -166,8 +173,30 @@ if [ "$TARGET" = "docker" ] && [ "$ALIGN_ROLE" = "1" ]; then
     # SQL valide.
     SQL_PASSWORD_SQL="${SQL_PASSWORD//\'/\'\'}"
     ALTER_SQL="ALTER ROLE \"$SQL_USER\" WITH PASSWORD '$SQL_PASSWORD_SQL';"
-    if ! docker compose -f "$COMPOSE" exec -T db \
-            psql -U "$SQL_USER" -d postgres -v ON_ERROR_STOP=1 -c "$ALTER_SQL"; then
+
+    if [ "$TARGET" = "podman" ]; then
+        COMPOSE_FILE="$STACK_DIR/compose.yaml"
+        [ -f "$COMPOSE_FILE" ] || COMPOSE_FILE="$STACK_DIR/compose.yml"
+        [ -f "$COMPOSE_FILE" ] || die "Fichier de composition introuvable : $STACK_DIR/compose.yaml"
+        command -v podman >/dev/null 2>&1 || die "'podman' introuvable dans le PATH."
+        if podman compose version >/dev/null 2>&1; then
+            COMPOSE_CMD=(podman compose)
+        elif command -v podman-compose >/dev/null 2>&1; then
+            COMPOSE_CMD=(podman-compose)
+        else
+            die "Aucun fournisseur compose pour Podman : installe 'podman-compose'."
+        fi
+        DB_CID=$("${COMPOSE_CMD[@]}" -p openconcerto176 -f "$COMPOSE_FILE" ps -q db 2>/dev/null | head -n 1)
+        [ -n "$DB_CID" ] || die "Conteneur PostgreSQL introuvable : la stack est-elle démarrée ?"
+        ALTER_CMD=(podman exec -i "$DB_CID" psql -U "$SQL_USER" -d postgres -v ON_ERROR_STOP=1 -c "$ALTER_SQL")
+    else
+        COMPOSE="$STACK_DIR/docker-compose.yml"
+        [ -f "$COMPOSE" ] || die "Fichier de composition introuvable : $COMPOSE"
+        command -v docker >/dev/null 2>&1 || die "'docker' introuvable dans le PATH."
+        ALTER_CMD=(docker compose -f "$COMPOSE" exec -T db psql -U "$SQL_USER" -d postgres -v ON_ERROR_STOP=1 -c "$ALTER_SQL")
+    fi
+
+    if ! "${ALTER_CMD[@]}"; then
         echo "  (socket direct impossible, nouvel essai via le port publié)"
         PGPASSWORD="$SQL_PASSWORD" psql -h 127.0.0.1 -p "$PORT" -U "$SQL_USER" \
             -d postgres -v ON_ERROR_STOP=1 -c "$ALTER_SQL" \
@@ -224,13 +253,13 @@ awk '
             next
         }
         if (k == "server.login") {
-            if (ENVIRON["TARGET_KIND"] == "docker" && !seen_log) {
+            if (ENVIRON["TARGET_KIND"] != "native" && !seen_log) {
                 print "server.login=" ENVIRON["SERVER_LOGIN"]; seen_log = 1
             }
             next
         }
         if (k == "server.password") {
-            if (ENVIRON["TARGET_KIND"] == "docker" && !seen_pwd) {
+            if (ENVIRON["TARGET_KIND"] != "native" && !seen_pwd) {
                 print "server.password=" ENVIRON["SERVER_PASSWORD"]; seen_pwd = 1
             }
             next
@@ -241,7 +270,7 @@ awk '
         if (!seen_ip)   print "server.ip=" ENVIRON["SERVER_IP"]
         if (!seen_root) print "systemRoot=" ENVIRON["SYSTEM_ROOT"]
         if (!seen_drv)  print "server.driver=" ENVIRON["SERVER_DRIVER"]
-        if (ENVIRON["TARGET_KIND"] == "docker") {
+        if (ENVIRON["TARGET_KIND"] != "native") {
             if (!seen_log) print "server.login=" ENVIRON["SERVER_LOGIN"]
             if (!seen_pwd) print "server.password=" ENVIRON["SERVER_PASSWORD"]
         }
@@ -264,7 +293,11 @@ if command -v psql >/dev/null 2>&1; then
         echo "  OK : connexion réussie -> $OUT"
     else
         printf '  ECHEC : %s\n' "$OUT"
-        echo "  La cible est-elle démarrée (docker compose up -d) ?"
+        if [ "$TARGET" = "podman" ]; then
+            echo "  La cible est-elle démarrée (podman-openconcerto.sh up) ?"
+        else
+            echo "  La cible est-elle démarrée (docker compose up -d) ?"
+        fi
         echo "  Le client OpenConcerto n'arrivera pas à se connecter non plus."
     fi
 else
@@ -272,7 +305,7 @@ else
     echo "  (psql absent : contrôle de connexion non effectué)"
 fi
 
-if [ "$TARGET" = "docker" ]; then
+if [ "$TARGET" = "docker" ] || [ "$TARGET" = "podman" ]; then
     cat <<EOF
 
 Prochaine étape :
@@ -281,7 +314,7 @@ Prochaine étape :
 
        cd /opt/openconcerto && sh OpenConcerto.sh
 
-     Le journal doit indiquer Ip:127.0.0.1:5433 (base OpenConcerto).
+     Le journal doit indiquer Ip:127.0.0.1:$PORT (base $DB).
 
   2. Revenir à la base native :
 
@@ -296,7 +329,7 @@ Prochaine étape :
 
        cd /opt/openconcerto && sh OpenConcerto.sh
 
-  2. Revenir à la copie Docker :
+  2. Revenir à la copie conteneur :
 
        bash $0 -t docker -r
 EOF
