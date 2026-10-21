@@ -135,7 +135,31 @@ Deux points qui ne se devinent pas :
 Vérifier ensuite dans le log de démarrage la ligne `Ip:127.0.0.1:5433` — c'est
 elle qui dit à quelle base le client parle.
 
-## 5. Arrêt et suppression
+## 5. Contrôler les droits d'un utilisateur
+
+Les droits OpenConcerto vivent en base, dans `USER_RIGHT` (un couple
+`CODE` / `OBJECT` par ligne, plus un `HAVE_RIGHT`). La règle de résolution
+d'OC (`UserRightsManager.expand()`) est **la ligne d'ID le plus bas l'emporte**
+pour un couple donné : une autorisation ajoutée plus tard sur un couple déjà
+présent est **ignorée**. C'est ce qui donne l'impression, dans l'interface,
+que le droit a été accordé alors qu'il ne l'est pas.
+
+Le script compare deux comptes et applique, si besoin, un correctif SQL :
+
+```sh
+scripts/test-droits-utilisateur.sh -1 yves -2 gisele          # rapport
+scripts/test-droits-utilisateur.sh -1 yves -2 gisele -f -n    # correctif (plan)
+scripts/test-droits-utilisateur.sh -1 yves -2 gisele -f       # correctif (appliqué)
+```
+
+Il affiche les droits bruts, les droits effectifs, le différentiel, les droits
+sur les tables du transfert, l'accès aux sociétés, puis génère le SQL
+(`UPDATE` de la ligne effective + suppression des lignes masquées) avec un
+script de restauration. **Aucun rechargement de la base n'est nécessaire** :
+c'est un `UPDATE`/`DELETE` sur `USER_RIGHT`. En revanche l'utilisateur doit
+**se reconnecter**, les droits étant mis en cache côté client.
+
+## 6. Arrêt et suppression
 
 ```sh
 docker compose stop      # réversible, données conservées
