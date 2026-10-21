@@ -138,6 +138,20 @@ if [ -n "$DUMP" ]; then
         || die "la restauration a échoué"
 fi
 
+# ------------------------------------------------------------------ controle
+log "Contrôle : la VM ne contient que le strict nécessaire"
+nb_paquets=$(vssh "dpkg -l 2>/dev/null | awk '/^ii/{print \$2}' | grep -c -E '^(libreoffice|task-.*-desktop|gnome-desktop|xfce|lxde|lxqt)'" 2>/dev/null || echo "?")
+if [ "$nb_paquets" = "0" ]; then
+    info "OK : aucun paquet de bureau ni LibreOffice dans la VM"
+else
+    info "ATTENTION : $nb_paquets paquet(s) de bureau/LibreOffice encore presents."
+    info "  purge : bash deploy-oc176-in-vm.sh --purge-desktop"
+fi
+info "paquets installes (hors base) :"
+vssh "dpkg -l 2>/dev/null | awk '/^ii/{print \$2}' | tr '\n' ' '" | fold -s -w 78 | sed 's/^/  /' || true
+info "images docker :"
+vssh "docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}'" 2>/dev/null | sed 's/^/  /' || true
+
 log "Récapitulatif"
 info "PostgreSQL : 127.0.0.1:5433 dans la VM (base OpenConcerto, role openconcerto)"
 info "Adminer    : http://127.0.0.1:8082 dans la VM"
