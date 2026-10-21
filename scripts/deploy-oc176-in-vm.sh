@@ -169,10 +169,13 @@ fi
 
 # ------------------------------------------------------------------ docker
 log "Installation de Docker dans la VM (sans recommends)"
-vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io || exit 1; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; systemctl enable --now docker; /usr/sbin/usermod -aG docker '"$VM_USER"' 2>/dev/null || true'
+vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io docker-cli || DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io || exit 1; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; systemctl enable --now docker; /usr/sbin/usermod -aG docker '"$VM_USER"' 2>/dev/null || true'
 
 info "docker  : $(vssh 'docker --version' 2>/dev/null || echo '?')"
-vssh 'command -v docker' >/dev/null 2>&1 || die "l'installation de Docker a echoue dans la VM"
+if ! vssh 'command -v docker' >/dev/null 2>&1; then
+    info "diagnostic : $(vssh 'echo PATH=$PATH; ls -l /usr/bin/docker 2>&1; dpkg -l docker.io docker-cli 2>&1 | tail -3' 2>&1 | tr '\n' ' ')"
+    die "l'installation de Docker a echoue dans la VM"
+fi
 info "compose : $(vssh 'docker compose version' 2>/dev/null || vssh 'docker-compose --version' 2>/dev/null || echo 'aucun')"
 
 # ------------------------------------------------------------------ stack
