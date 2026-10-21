@@ -215,6 +215,32 @@ docker compose down      # supprime les conteneurs, conserve le volume pgdata
 docker compose down -v   # supprime AUSSI les données
 ```
 
+## 7. Déployer dans une VM Debian (sans interface graphique)
+
+Quand la machine hôte n'a pas les droits pour faire tourner Podman
+rootless (pas de plage d'UID secondaires), on peut faire tourner la stack
+dans une VM Debian, où l'on est root : Docker n'y pose aucun problème.
+
+- `scripts/create-debian-vm.sh` crée la VM (QEMU, netboot, preseed minimal :
+  **aucun bureau**, locale `fr_FR.UTF-8`, compte `oc` avec `sudo` sans
+  mot de passe, SSH sur le port 2222) ;
+- `scripts/install-qemu-noroot.sh` installe QEMU sans droits administrateur,
+  en résolvant les bibliothèques manquantes ;
+- `scripts/deploy-oc176-in-vm.sh` installe Docker dans la VM et y déploie
+  la stack PostgreSQL + Adminer (rien d'autre : ni bureau, ni LibreOffice).
+
+```sh
+bash deploy-oc176-in-vm.sh                       # Docker + PostgreSQL + Adminer
+bash deploy-oc176-in-vm.sh --dump base.dumpsql   # et restauration du dump
+bash deploy-oc176-in-vm.sh --purge-desktop       # nettoie un bureau installé par erreur
+```
+
+Depuis l'hôte, les services de la VM s'atteignent par tunnel SSH :
+
+```sh
+ssh -p 2222 -L 8082:127.0.0.1:8082 -L 5433:127.0.0.1:5433 oc@127.0.0.1
+```
+
 ## Pièges connus
 
 - **`docker compose exec` s'exécute en root** : `psql`/`pg_restore` lancés sans
