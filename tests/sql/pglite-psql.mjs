@@ -26,9 +26,11 @@ let fromFile = null
 // Les options qui prennent une valeur consomment le reste du groupe, sinon
 // l'argument suivant.
 const WITH_VALUE = new Set(['c', 'f', 'h', 'p', 'U', 'd', 'v'])
+let csvMode = false
 for (let i = 0; i < args.length; i++) {
   const a = args[i]
   if (a === '--') continue
+  if (a === '--csv') { csvMode = true; continue }
   if (a.length > 1 && a[0] === '-') {
     for (let j = 1; j < a.length; j++) {
       const c = a[j]
@@ -110,7 +112,21 @@ try {
   if (new Set(fields).size !== fields.length) {
     process.stderr.write('AVERTISSEMENT : nom de colonne en double dans le resultat\n')
   }
-  if (tuplesOnly) {
+  if (csvMode) {
+    // Mode CSV de psql : l'entete porte les noms de colonnes, une cellule
+    // vide non quotee vaut NULL, une cellule vide quotee vaut la chaine vide.
+    const csvCell = (value) => {
+      if (value === null || value === undefined) return ''
+      const text = toText(value)
+      if (text === '') return '""'
+      if (/[",\n\r]/.test(text)) return '"' + text.replace(/"/g, '""') + '"'
+      return text
+    }
+    process.stdout.write(fields.map(csvCell).join(',') + '\n')
+    for (const r of rows) {
+      process.stdout.write(fields.map(f => csvCell(r[f])).join(',') + '\n')
+    }
+  } else if (tuplesOnly) {
     for (const r of rows) {
       process.stdout.write(fields.map(f => toText(r[f])).join('|') + '\n')
     }

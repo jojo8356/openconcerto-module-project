@@ -1,0 +1,150 @@
+# Tests des panneaux du module `org.openconcerto.modules.project` (v1.1)
+
+Suite de tests Java qui verifie, **sur tous les panneaux** du module, que les
+donnees affichees par l'application sont bien **TOUTES** les donnees de la
+base, et qu'**aucune ligne n'est cachee**.
+
+Les tests sont **en lecture seule** : aucune ecriture n'est faite dans la
+base.
+
+## 1. Ce qui est verifie
+
+Quatre controles, tous joues sur les schemas qui contiennent une table
+`AFFAIRE` (en general `Default` et `OpenConcerto42`) :
+
+| Controle | Question posee | Code en cas de probleme |
+|---|---|---|
+| `StructureSuite` | Les tables et les colonnes lues par chaque panneau existent-elles ? | `ECHEC` |
+| `VisibilitySuite` | Toutes les lignes de la table sont-elles affichees par le panneau ? Aucune ligne n'est-elle invisible (affaire inexistante, mere disparue, filtre) ? | `ECHEC` / `ALERTE` |
+| `AggregateSuite` | Les totaux affiches (bilan) sont-ils egaux aux totaux reels des tables ? Le recensement des lignes est-il complet ? | `ALERTE` / `ECHEC` |
+| `RightsSuite` | Un utilisateur a-t-il un refus explicite de lecture sur une table affichee par un panneau ? | `ECHEC` |
+
+### Exemples de problemes detectes
+
+* `FACTURE_FOURNISSEUR_ELEMENT.ID_COMMANDE_ELEMENT` absente (colonne, cle
+  etrangere ou index) : c'est le bug de production rencontre sur le transfert
+  « commande fournisseur -> facture fournisseur » ;
+* une ligne rattachee a une `AFFAIRE` qui n'existe plus : elle n'apparait dans
+  aucun panneau ;
+* une ligne dont la table mere a disparu (`COMMANDE_ELEMENT` sans
+  `COMMANDE`, `BON_RECEPTION_ELEMENT` sans `BON_RECEPTION`) ;
+* une ligne sans `ID_AFFAIRE` : invisible dans l'historique et dans le bilan ;
+* un ecart entre un total affiche et le total reel de la table ;
+* un droit `SELECT_ROW` refuse explicitement sur une table de panneau.
+
+## 2. Modele de donnees utilise
+
+* une ligne porte `ID_AFFAIRE` (directement, ou via sa table mere) ;
+* l'affaire `ID = 1` est la ligne technique « Indefini » : elle n'est jamais
+  affichee dans l'historique ;
+* l'historique (`ProjectHistory`) affiche les lignes rattachees a l'affaire
+  selectionnee, dossier clos (`ID_ETAT_AFFAIRE = 6`) masque par defaut ;
+* l'onglet « Commandes en cours » filtre sur `ID_ETAT_AFFAIRE = 3`, l'onglet
+  « Devis en attente » sur `ID_ETAT_DEVIS = 2` ;
+* les totaux du bilan sont recalcules depuis la base et compares aux formules
+  de `HistoriqueAffaireBilanPanel`.
+
+## 3. Panneaux couverts
+
+* **Listes** : affaires, devis, commandes clients, demandes de prix, demandes
+  d'achat, factures clients, avoirs clients, bons de livraison, commandes
+  fournisseurs, achats, avoirs fournisseurs ;
+* **Historique** (20 onglets) : affaires, devis, commandes clients,
+  chiffrage, factures, avoirs, demandes d'achat, demandes de prix, bons de
+  livraison, commandes fournisseurs, articles commandes, bons de reception,
+  articles receptionnes, achats, factures fournisseurs, elements de facture
+  fournisseur, avoirs fournisseurs, temps, stock, note de frais, pointage ;
+* **Onglets du module** : « Affaires », « Commandes en cours », « Devis en
+  attente » ;
+* **Bilan** : marche, budget chiffre, montant facture, avoirs clients, achats,
+  factures fournisseurs, articles de facture fournisseur, avoirs
+  fournisseurs, commandes fournisseurs, articles commandes ;
+* **Export** : `ProjectImportExport` ;
+* **Contrat de structure** : colonnes `ID_AFFAIRE` ajoutees par le module,
+  colonne `ID_COMMANDE_ELEMENT` des factures fournisseurs et des bons de
+  reception.
+
+## 4. Comment lancer les tests
+
+### 4.1 Dans la VM (là où PostgreSQL et `psql` sont installes)
+
+```bash
+bash scripts/run-panel-tests-in-vm.sh
+```
+
+Le script installe un JDK headless dans la VM si besoin, y telecharge les
+sources depuis GitHub, compile et execute la suite contre
+`127.0.0.1:5433`, base `OpenConcerto` (le mot de passe est lu dans le `.env`
+de la stack). Lecture seule.
+
+### 4.2 Sur le poste, a travers le tunnel SSH
+
+```bash
+git clone https://github.com/jojo8356/openconcerto-module-project.git
+cd openconcerto-module-project
+sh scripts/run-panel-tests.sh --host 127.0.0.1 --port 5434 --db OpenConcerto --user openconcerto
+```
+
+Il faut un JDK 8+ (`javac`) sur le poste, et `psql` (ou un pilote JDBC
+`postgresql-*.jar` dans le classpath) :
+
+```bash
+# avec le pilote JDBC :
+sh scripts/run-panel-tests.sh --jdbc /usr/share/java/postgresql.jar --host 127.0.0.1 --port 5434 --db OpenConcerto --user openconcerto
+```
+
+Le mot de passe peut venir de l'environnement (evite de le laisser dans
+l'historique du shell) :
+
+```bash
+PGPASSWORD='...' sh scripts/run-panel-tests.sh --host 127.0.0.1 --port 5434 --db OpenConcerto --user openconcerto
+```
+
+### 4.3 Sans PostgreSQL : test de bout en bout avec pglite
+
+```bash
+npm install
+sh tests/sql/e2e-panneaux.sh
+```
+
+Le scenario joue une base contenant des anomalies volontaires (la suite doit
+les detecter) puis la meme base « propre » (la suite doit passer).
+
+## 5. Lire les resultats
+
+```
+OK     [schema / panneau] controle
+ALERTE [schema / panneau] donnee non attachee a une affaire (invisible dans l'historique)
+ECHEC  [schema / panneau] donnee cachee, colonne manquante, droit refuse, ...
+```
+
+Compte en fin de rapport :
+
+```
+Controles : 112 au total | 82 OK | 13 info | 11 alertes | 6 echecs
+RESULTAT : ECHEC (6 controle(s) en echec)
+```
+
+* code de sortie **0** : aucun probleme ;
+* code de sortie **1** : au moins un controle en echec ;
+* code de sortie **2** : erreur d'execution (connexion impossible, base
+  introuvable...).
+
+## 6. Fichiers
+
+| Fichier | Role |
+|---|---|
+| `tests/org/openconcerto/modules/project/panels/TestRunner.java` | point d'entree, options, code de sortie |
+| `tests/org/openconcerto/modules/project/panels/Catalogue.java` | description de tous les panneaux du module |
+| `tests/org/openconcerto/modules/project/panels/PanelSql.java` | construction du SQL des panneaux (jointures, filtres) |
+| `tests/org/openconcerto/modules/project/panels/StructureSuite.java` | controle 1 : tables et colonnes |
+| `tests/org/openconcerto/modules/project/panels/VisibilitySuite.java` | controle 2 : aucune donnee cachee |
+| `tests/org/openconcerto/modules/project/panels/AggregateSuite.java` | controle 3 : totaux et recensement |
+| `tests/org/openconcerto/modules/project/panels/RightsSuite.java` | controle 4 : droits utilisateurs |
+| `tests/org/openconcerto/modules/project/panels/JdbcSqlClient.java` | transport JDBC (si le pilote est present) |
+| `tests/org/openconcerto/modules/project/panels/PsqlSqlClient.java` | transport `psql` (mode CSV) |
+| `scripts/run-panel-tests.sh` | compilation + execution |
+| `scripts/run-panel-tests-in-vm.sh` | execution dans la VM |
+| `tests/sql/fixture-panneaux.sql` | base de test avec anomalies volontaires |
+| `tests/sql/fixture-panneaux-nettoye.sql` | la meme base, sans anomalie |
+| `tests/sql/e2e-panneaux.sh` | test de bout en bout (pglite) |
