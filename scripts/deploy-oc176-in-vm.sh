@@ -185,6 +185,8 @@ log "Installation de Docker dans la VM (sans recommends)"
 vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io docker-cli || DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io || exit 1; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; systemctl enable --now docker; /usr/sbin/usermod -aG docker '"$VM_USER"' 2>/dev/null || true'
 
 info "docker  : $(vssh 'docker --version' 2>/dev/null || echo '?')"
+info "installation du client PostgreSQL dans la VM"
+vsudo 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-client' || true"
 if ! vssh 'command -v docker' >/dev/null 2>&1; then
     info "diagnostic : $(vssh 'echo PATH=$PATH; ls -l /usr/bin/docker 2>&1; dpkg -l docker.io docker-cli 2>&1 | tail -3' 2>&1 | tr '\n' ' ')"
     die "l'installation de Docker a echoue dans la VM"
@@ -250,12 +252,15 @@ if [ "$NO_START" = "0" ]; then
     # .env a change depuis, le mot de passe reel de la base est l'ancien.
     # On resynchronise le role avec le .env (operation idempotente).
     log "Synchronisation du mot de passe du role openconcerto"
-    compose "exec -T db psql -U openconcerto -d postgres -c \"ALTER ROLE openconcerto WITH PASSWORD '$PG_PASSWORD';\"" >/dev/null 2>&1 || true
+    alter_out=$(compose "exec -T db psql -U openconcerto -d postgres -c \"ALTER ROLE openconcerto WITH PASSWORD '$PG_PASSWORD';\"" 2>&1) || true
+    if [ -n "$alter_out" ]; then
+        info "ALTER ROLE : $alter_out"
+    fi
 
     # Test reel de connexion : en TCP ET avec le mot de passe (la socket
     # locale du conteneur est en « trust », elle ne prouve rien).
     log "Test de connexion a la base"
-    db_ok=$(compose "exec -T db bash -c \"PGPASSWORD='$PG_PASSWORD' psql -h 127.0.0.1 -U openconcerto -d OpenConcerto -tAc 'select 1'\"" 2>/dev/null | tr -d '\r\n ')
+    db_ok=$(vssh "PGPASSWORD='$PG_PASSWORD' psql -X -h 127.0.0.1 -p 5433 -U openconcerto -d postgres -tAc 'select 1'" 2>/dev/null | tr -d '\r\n ')
     if [ "$db_ok" = "1" ]; then
         info "connexion OK : base OpenConcerto accessible avec le mot de passe ci-dessus"
     else
@@ -271,8 +276,6 @@ if [ -n "$DUMP" ]; then
     vscp "$DUMP" "${VM_USER}@${VM_HOST}:$VM_DIR/dumps/"
     remote_dump="$VM_DIR/dumps/$(basename "$DUMP")"
     info "restauration de $remote_dump"
-    info "installation du client PostgreSQL dans la VM"
-    vsudo 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-client' || true
     vssh "cd '$VM_DIR' && PGPASSWORD='$PG_PASSWORD' bash scripts/restore-openconcerto-dump.sh -f '$remote_dump' -d OpenConcerto -U openconcerto -h 127.0.0.1 -p 5433 -y" \
         || die "la restauration a échoué"
 
