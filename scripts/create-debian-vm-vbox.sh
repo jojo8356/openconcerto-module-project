@@ -53,8 +53,11 @@ TIMEOUT_MIN=45
 WAIT_SSH=1
 USE_DEFAULT_PRESEED=0
 
-log()  { printf '\n==> %s\n' "$*"; }
-info() { printf '  %s\n' "$*"; }
+# Les messages goes sur stderr : stdout est reserve aux donnees, ce qui
+# permet de capturer le retour d'une fonction sans y melanger les logs
+# (le chemin de l'ISO, par exemple).
+log()  { printf '\n==> %s\n' "$*" >&2; }
+info() { printf '  %s\n' "$*" >&2; }
 die()  { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
 warn() { printf '  ATTENTION : %s\n' "$*" >&2; }
 
