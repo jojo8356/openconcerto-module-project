@@ -152,6 +152,28 @@ else
     fi
 fi
 
+# ------------------------------------------------------------- modules requis
+# Le client 1.7 ne scanne QUE le dossier "Modules" relatif au dossier de
+# lancement (Gestion.MODULES_DIR = new File("Modules")). La base exige deux
+# modules : le "project" maison (v1.1, release GitHub) et l'importateur de
+# factures fournisseur de la supply chain (v1.1, officiel).
+if [ -n "${OC_DIR:-}" ]; then
+    log "Modules requis par la base"
+    mkdir -p "$OC_DIR/Modules"
+    for url in \
+        "https://www.openconcerto.org/fr/telechargement/1.7/org.openconcerto.modules.supplychain.invoice.importer-1.1.jar" \
+        "https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.4/org.openconcerto.modules.project-1.1.jar"; do
+        name=$(basename "$url")
+        if [ "$DRY" = "1" ]; then
+            info "telechargerait : $name"
+        elif curl -fL --retry 3 -o "$OC_DIR/Modules/$name" "$url"; then
+            info "module : $name"
+        else
+            info "module NON TELECHARGE : $name (a telecharger manuellement)"
+        fi
+    done
+fi
+
 # ------------------------------------------------------- configuration du client
 log "Configuration du client ($CONF)"
 mkdir -p "$(dirname "$CONF")"
