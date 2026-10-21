@@ -63,6 +63,7 @@ TIMEOUT_MIN=30
 WAIT_SSH=1
 FRESH=0
 GUI=0
+TASKS="light"
 
 log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -93,6 +94,7 @@ while [ $# -gt 0 ]; do
         --no-wait)   WAIT_SSH=0; shift ;;
         --fresh)     FRESH=1; shift ;;
         --gui)       GUI=1; shift ;;
+        --tasks)     TASKS="$2"; shift 2 ;;
         -h|--help)  usage 0 ;;
         *)
             if [ -z "$COMMAND" ]; then
@@ -180,7 +182,14 @@ netboot_urls() {
 
 # ------------------------------------------------------------------ preseed
 write_preseed() {
-    local file="$1"
+    local file="$1" TASK_NAME TASK_LIST
+    case "$TASKS" in
+        light)    TASK_NAME="ssh-server"; TASK_LIST="ssh-server" ;;
+        standard) TASK_NAME="standard";   TASK_LIST="standard, ssh-server" ;;
+        desktop)  TASK_NAME="desktop";    TASK_LIST="desktop" ;;
+        *) die "taches inconnues : $TASKS (light | standard | desktop)" ;;
+    esac
+    info "installation des taches : $TASK_LIST"
     cat > "$file" <<PRESEED
 # Installation Debian minimale et non interactive (OpenConcerto 1.7.6).
 d-i debian-installer/locale string en_US
@@ -188,6 +197,8 @@ d-i keyboard-configuration/xkb-keymap select us
 d-i netcfg/choose_interface select auto
 d-i netcfg/get_hostname string debian-vm
 d-i netcfg/get_domain string local
+d-i apt-setup/use_mirror boolean true
+d-i mirror/country string manual
 d-i mirror/http/hostname string deb.debian.org
 d-i mirror/http/directory string /debian
 d-i mirror/http/proxy string
@@ -214,8 +225,8 @@ d-i apt-setup/contrib boolean false
 d-i apt-setup/non-free-firmware boolean false
 d-i apt-setup/services-select multiselect security,updates
 d-i apt-setup/security_host string security.debian.org
-d-i tasksel/task string standard
-d-i tasksel/tasksel multiselect standard, ssh-server
+d-i tasksel/task string ${TASK_NAME}
+d-i tasksel/tasksel multiselect ${TASK_LIST}
 d-i pkgsel/include string openssh-server sudo
 d-i pkgsel/upgrade select none
 popularity-contest popularity-contest/participate boolean false
