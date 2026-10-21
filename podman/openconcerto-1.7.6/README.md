@@ -147,6 +147,42 @@ simule.
 Le fichier `compose.yaml` est volontairement compatible avec les deux
 outils : il ne contient ni `name:`, ni `container_name`, ni `version:`.
 
+## Mode « sans root » (ni sudo, ni plage d'UID/GID secondaires)
+
+Quand l'utilisateur n'a **ni** les droits administrateur **ni** de plage
+d'UID/GID secondaires (`/etc/subuid`), deux verrous se lèvent sans root :
+
+```zsh
+bash ~/oc-176-podman/podman-openconcerto.sh up --no-root
+```
+
+Ce mode :
+
+1. active `ignore_chown_errors = "true"` dans
+   `~/.config/containers/storage.conf` (pour ton seul utilisateur) : les
+   fichiers `root:shadow` des images ne sont plus un obstacle à
+   l'extraction ;
+2. démarre PostgreSQL **sans compose**, en `podman run` direct, avec
+   `--userns=keep-id` : le processus PostgreSQL s'exécute avec l'UID de
+   l'utilisateur — le seul identifiant mappable en l'absence de plage
+   secondaire — et le répertoire de données est le dossier `./pgdata` de
+   l'hôte, déjà possédé par l'utilisateur.
+
+Conséquences à connaître :
+
+- le conteneur s'appelle `openconcerto176-db` (pas de projet compose) ;
+- **Adminer n'est pas démarré** dans ce mode (le port 8082 reste libre) ;
+- la socket Unix de PostgreSQL est dans `/tmp` à l'intérieur du conteneur
+  (`-c unix_socket_directories=/tmp`) : sans effet pour le client, qui passe
+  par TCP ;
+- les données vivent dans `~/oc-176-podman/pgdata` (dossier de l'hôte) ;
+- `copy`, `client`, `diagnose`, `sql` et `dump` fonctionnent comme d'habitude :
+  ils retrouvent le conteneur par son nom.
+
+Le mode normal (`up`, sans `--no-root`) reste préférable : il donne un
+conteneneur `postgres` classique, avec Adminer et une gestion standard des
+permissions.
+
 ## Dépannage : « potentially insufficient UIDs or GIDs available in user namespace »
 
 Symptôme (Podman **rootless**) :

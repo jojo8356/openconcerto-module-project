@@ -28,6 +28,8 @@
 #   --source BASE   base native source pour « copy » (défaut : OpenConcertoKineticTherm)
 #   --fr            utilise l'image compilée avec la locale fr_FR.UTF-8
 #   --no-role       ne pas aligner le mot de passe du rôle SQL sur celui du client
+#   --no-root       fonctionne SANS droits administrateur : ni plage d'UID/GID
+#                   secondaires (/etc/subuid) ni sudo ne sont nécessaires
 #   --volumes       (down) supprime aussi les volumes de la stack
 #   --dry-run       affiche les commandes, n'en exécute aucune
 #   --yes           pas de confirmation
@@ -54,6 +56,7 @@ DB_PASSWORD=""
 SOURCE_DB="OpenConcertoKineticTherm"
 USE_FR=0
 ALIGN_ROLE=1
+NO_ROOT=0
 VOLUMES=0
 DRY=0
 ASSUME_YES=0
@@ -61,6 +64,7 @@ FOLLOW=0
 COMMAND=""
 COMPOSE=()
 COMPOSE_FILES=()
+NOROOT_CONTAINER="openconcerto176-db"
 # Fichiers de plages d'UID/GID secondaires (surchargeables pour les tests)
 SUBUID_FILE="${SUBUID_FILE:-/etc/subuid}"
 SUBGID_FILE="${SUBGID_FILE:-/etc/subgid}"
@@ -108,6 +112,7 @@ while [ $# -gt 0 ]; do
         --password) DB_PASSWORD="$2"; shift 2 ;;
         --source)   SOURCE_DB="$2"; shift 2 ;;
         --fr)       USE_FR=1; shift ;;
+        --no-root)  NO_ROOT=1; shift ;;
         --volumes)  VOLUMES=1; shift ;;
         --no-role)  ALIGN_ROLE=0; shift ;;
         --dry-run)  DRY=1; shift ;;
@@ -165,6 +170,10 @@ load_env() {
 db_container() {
     local cid
     cid=$("${COMPOSE[@]}" -p "$PROJECT" "${COMPOSE_FILES[@]}" ps -q db 2>/dev/null | head -n 1)
+    if [ -z "$cid" ]; then
+        # Mode sans root : le conteneur n'est pas géré par compose.
+        cid=$(podman ps -q --filter "name=^${NOROOT_CONTAINER}$" 2>/dev/null | head -n 1)
+    fi
     [ -n "$cid" ] || die "Conteneur PostgreSQL introuvable. La stack est-elle démarrée ? (podman-openconcerto.sh up)"
     printf '%s' "$cid"
 }
@@ -223,6 +232,85 @@ check_rootless_ids() {
     return 0
 }
 
+# ------------------------------------------------------------------ sans root
+# Sur une machine où l'utilisateur n'a pas de plage d'UID/GID secondaires
+# (/etc/subuid), l'extraction des images échoue sur les fichiers root:shadow.
+# containers-storage sait ignorer ces erreurs : il suffit de l'activer pour
+# son propre utilisateur, dans ~/.config/containers/storage.conf.
+prepare_storage_conf() {
+    local conf="$HOME/.config/containers/storage.conf"
+    mkdir -p "$HOME/.config/containers" || return 1
+    if [ -f "$conf" ] && grep -q "ignore_chown_errors" "$conf"; then
+        info "storage.conf : ignore_chown_errors déjà activé"
+        return 0
+    fi
+    if [ -f "$conf" ] && grep -q "^\[storage\.options\]" "$conf"; then
+        awk '/^\[storage\.options\]/{print; if(!d){print "ignore_chown_errors = \"true\""; d=1} next} {print}' \
+            "$conf" > "$conf.tmp" && mv "$conf.tmp" "$conf"
+    else
+        {
+            echo
+            echo "[storage.options]"
+            echo "ignore_chown_errors = \"true\""
+        } >> "$conf"
+    fi
+    info "storage.conf : ignore_chown_errors activé ($conf)"
+}
+
+# Démarrage sans compose et sans root : le conteneur tourne avec
+# --userns=keep-id, donc le processus PostgreSQL s'exécute avec l'UID de
+# l'utilisateur (le seul mappable faute de plage secondaire) et le répertoire
+# de données est un dossier de l'hôte, déjà possédé par l'utilisateur.
+cmd_up_noroot() {
+    log "Démarrage de PostgreSQL (mode sans root)"
+    if [ "$DRY" = "1" ]; then
+        echo "  [dry-run] activation de ignore_chown_errors dans $HOME/.config/containers/storage.conf"
+    else
+        prepare_storage_conf
+    fi
+    mkdir -p "$STACK_DIR/pgdata"
+    if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$NOROOT_CONTAINER"; then
+        info "suppression du conteneur précédent (les données sont dans $STACK_DIR/pgdata)"
+        run podman rm -f "$NOROOT_CONTAINER"
+    fi
+    local image="docker.io/library/postgres:17-bookworm"
+    if [ "$USE_FR" = "1" ]; then
+        if [ "$DRY" != "1" ]; then
+            podman build -t openconcerto176-db-fr -f "$STACK_DIR/Containerfile" "$STACK_DIR" >/dev/null
+        else
+            printf '  [dry-run] podman build -t openconcerto176-db-fr -f %s %s\n' "$STACK_DIR/Containerfile" "$STACK_DIR"
+        fi
+        image="openconcerto176-db-fr"
+    fi
+    run podman run -d --name "$NOROOT_CONTAINER" \
+        --userns=keep-id --user "$(id -u):$(id -g)" \
+        -e POSTGRES_USER="$DB_USER" \
+        -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+        -e POSTGRES_DB="$DB_NAME" \
+        -e POSTGRES_INITDB_ARGS="--encoding=UTF8" \
+        -p "127.0.0.1:$DB_PORT:5432" \
+        -v "$STACK_DIR/pgdata:/var/lib/postgresql/data" \
+        "$image" postgres -c unix_socket_directories=/tmp
+    if [ "$DRY" = "1" ]; then
+        return 0
+    fi
+    log "Attente de PostgreSQL"
+    local cid i=0
+    cid=$(db_container)
+    while [ "$i" -lt 120 ]; do
+        if podman exec "$cid" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
+            info "base '$DB_NAME' prête."
+            break
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    [ "$i" -lt 120 ] || die "PostgreSQL ne répond pas après 120 s. Voir : podman logs $NOROOT_CONTAINER"
+    echo
+    info "PostgreSQL : 127.0.0.1:$DB_PORT (base $DB_NAME, rôle $DB_USER)"
+    info "données     : $STACK_DIR/pgdata"
+}
+
 # ------------------------------------------------------------------ commandes
 
 cmd_up() {
@@ -233,8 +321,12 @@ cmd_up() {
         info "image avec locale fr_FR.UTF-8 : compilation du Containerfile"
         run podman build -t openconcerto176-db-fr -f "$STACK_DIR/Containerfile" "$STACK_DIR"
     fi
+    if [ "$NO_ROOT" = "1" ]; then
+        cmd_up_noroot
+        return $?
+    fi
     if [ "$DRY" != "1" ]; then
-        check_rootless_ids || die "Plage d'UID/GID secondaires manquante : corrige-la puis relance."
+        check_rootless_ids || die "Plage d'UID/GID secondaires manquante : corrige-la puis relance, ou utilise « up --no-root »."
     fi
     if [ "$DRY" = "1" ]; then
         run "${COMPOSE[@]}" -p "$PROJECT" "${COMPOSE_FILES[@]}" up -d
@@ -287,6 +379,9 @@ cmd_down() {
     else
         run "${COMPOSE[@]}" -p "$PROJECT" "${COMPOSE_FILES[@]}" down
     fi
+    if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$NOROOT_CONTAINER"; then
+        run podman rm -f "$NOROOT_CONTAINER"
+    fi
 }
 
 cmd_status() {
@@ -297,6 +392,9 @@ cmd_status() {
     echo
     info "port publié PostgreSQL : 127.0.0.1:$DB_PORT"
     info "port publié Adminer    : 127.0.0.1:$ADMINER_PORT"
+    if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$NOROOT_CONTAINER"; then
+        info "conteneur (mode sans root) : $NOROOT_CONTAINER"
+    fi
 }
 
 cmd_logs() {
