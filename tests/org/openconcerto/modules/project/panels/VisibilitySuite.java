@@ -65,9 +65,11 @@ public class VisibilitySuite implements Suite {
         final List chain = panel.getChain();
         final String deepest = chain.isEmpty() ? null : "p" + chain.size();
         final String deepestTable = chain.isEmpty() ? null : ((Panel.Link) chain.get(chain.size() - 1)).table;
-        // la cle de la mere est lue dans le catalogue : toutes les tables
-        // n'ont pas une colonne « ID »
-        final String deepestKey = deepestTable == null ? key : db.primaryKey(schema, deepestTable);
+        // la cle de la mere est celle que pointe reellement la cle etrangere
+        // (ou, a defaut, sa cle primaire) : toutes les tables n'ont pas une
+        // colonne « ID »
+        final List chainKeys = PanelSql.chainKeys(db, panel, schema);
+        final String deepestKey = deepestTable == null ? key : (String) chainKeys.get(chainKeys.size() - 1);
         // le controle « la mere n'est pas rattachee a une affaire » n'a de sens
         // que si la mere porte bien une colonne d'affaire
         final boolean deepestHasAffaire = deepestTable != null && db.columns(schema, deepestTable).contains("ID_AFFAIRE");

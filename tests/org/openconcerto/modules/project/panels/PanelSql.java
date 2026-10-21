@@ -1,5 +1,6 @@
 package org.openconcerto.modules.project.panels;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -17,6 +18,23 @@ public final class PanelSql {
     }
 
     /**
+     * Colonnes des tables meres vers lesquelles pointent les liens de la
+     * chaine (cle etrangere reelle si elle existe, sinon cle primaire de la
+     * mere).
+     */
+    public static List<String> chainKeys(final Db db, final Panel panel, final String schema) throws Exception {
+        final List<String> keys = new ArrayList<String>();
+        String child = panel.getTable();
+        final List<Panel.Link> chain = panel.getChain();
+        for (int i = 0; i < chain.size(); i++) {
+            final Panel.Link link = (Panel.Link) chain.get(i);
+            keys.add(db.referencedKey(schema, child, link.field, link.table));
+            child = link.table;
+        }
+        return keys;
+    }
+
+    /**
      * La table du panneau, qualifiee et aliasee, avec la chaine de
      * rattachement a l'affaire et la table AFFAIRE (alias <code>a</code>).
      */
@@ -29,18 +47,20 @@ public final class PanelSql {
      * ce schema.
      *
      * <p>
-     * Les jointures se font sur la vraie cle primaire de la table mere :
-     * toutes les tables n'ont pas une colonne « ID ».
+     * Les jointures se font sur la vraie colonne de la table mere (cle
+     * etrangere reelle, sinon cle primaire) : toutes les tables n'ont pas une
+     * colonne « ID ».
      * </p>
      */
     public static String fromClause(Db db, Panel panel, String schema, boolean withAffaire) throws Exception {
         final StringBuilder sb = new StringBuilder();
         sb.append(Db.qualified(schema, panel.getTable())).append(" t");
         final List<Panel.Link> chain = panel.getChain();
+        final List<String> keys = chainKeys(db, panel, schema);
         String previous = "t";
         for (int i = 0; i < chain.size(); i++) {
             final Panel.Link link = (Panel.Link) chain.get(i);
-            final String key = db.primaryKey(schema, link.table);
+            final String key = (String) keys.get(i);
             sb.append(" left join ").append(Db.qualified(schema, link.table)).append(" p").append(i + 1).append(" on p").append(i + 1).append(".\"").append(key).append("\" = ")
                     .append(previous).append(".\"").append(link.field).append("\"");
             previous = "p" + (i + 1);

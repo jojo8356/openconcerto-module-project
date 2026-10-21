@@ -130,6 +130,39 @@ public class Db {
         return value;
     }
 
+    /**
+     * Colonne de la table mere vers laquelle pointe reellement la colonne du
+     * fils (cle etrangere declaree dans PostgreSQL). Si aucune cle etrangere
+     * n'est declaree, on retombe sur la cle primaire de la mere.
+     */
+    public String referencedKey(final String schema, final String childTable, final String childColumn, final String parentTable) throws Exception {
+        final String cacheKey = "fk:" + schema + "." + childTable + "." + childColumn + "->" + parentTable;
+        if (this.cache.containsKey(cacheKey)) {
+            return (String) this.cache.get(cacheKey);
+        }
+        final String sql = "select pa.attname from pg_constraint con"
+                + " join pg_class child on child.oid = con.conrelid"
+                + " join pg_namespace ns on ns.oid = child.relnamespace"
+                + " join pg_attribute ca on ca.attrelid = child.oid and ca.attname = " + literal(childColumn) + " and ca.attnum = con.conkey[1]"
+                + " join pg_class parent on parent.oid = con.confrelid"
+                + " join pg_namespace nsp on nsp.oid = parent.relnamespace"
+                + " join pg_attribute pa on pa.attrelid = parent.oid and pa.attnum = con.confkey[1]"
+                + " where con.contype = 'f' and ns.nspname = " + literal(schema) + " and nsp.nspname = " + literal(schema)
+                + " and child.relname = " + literal(childTable) + " and parent.relname = " + literal(parentTable)
+                + " limit 1";
+        String value = null;
+        try {
+            value = scalar(sql);
+        } catch (Exception e) {
+            value = null;
+        }
+        if (value == null || value.trim().length() == 0) {
+            value = primaryKey(schema, parentTable);
+        }
+        this.cache.put(cacheKey, value);
+        return value;
+    }
+
     /** Tous les schemas (hors systeme) contenant une table donnee. */
     public List<String> schemasWithTable(String table) throws Exception {
         final String sql = "select distinct table_schema from information_schema.tables where table_name = " + literal(table)
