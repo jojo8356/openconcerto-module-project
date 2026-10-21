@@ -20,22 +20,28 @@ public final class PanelSql {
      * La table du panneau, qualifiee et aliasee, avec la chaine de
      * rattachement a l'affaire et la table AFFAIRE (alias <code>a</code>).
      */
-    public static String fromClause(Panel panel, String schema) {
-        return fromClause(panel, schema, true);
+    public static String fromClause(Db db, Panel panel, String schema) throws Exception {
+        return fromClause(db, panel, schema, true);
     }
 
     /**
      * Idem, mais sans la jointure sur AFFAIRE si la table n'existe pas dans
      * ce schema.
+     *
+     * <p>
+     * Les jointures se font sur la vraie cle primaire de la table mere :
+     * toutes les tables n'ont pas une colonne « ID ».
+     * </p>
      */
-    public static String fromClause(Panel panel, String schema, boolean withAffaire) {
+    public static String fromClause(Db db, Panel panel, String schema, boolean withAffaire) throws Exception {
         final StringBuilder sb = new StringBuilder();
         sb.append(Db.qualified(schema, panel.getTable())).append(" t");
         final List<Panel.Link> chain = panel.getChain();
         String previous = "t";
         for (int i = 0; i < chain.size(); i++) {
             final Panel.Link link = (Panel.Link) chain.get(i);
-            sb.append(" left join ").append(Db.qualified(schema, link.table)).append(" p").append(i + 1).append(" on p").append(i + 1).append(".\"ID\" = ")
+            final String key = db.primaryKey(schema, link.table);
+            sb.append(" left join ").append(Db.qualified(schema, link.table)).append(" p").append(i + 1).append(" on p").append(i + 1).append(".\"").append(key).append("\" = ")
                     .append(previous).append(".\"").append(link.field).append("\"");
             previous = "p" + (i + 1);
         }
@@ -43,7 +49,8 @@ public final class PanelSql {
         if (withAffaire && expr != null) {
             // l'affaire elle-meme est jointe : les filtres propres aux
             // panneaux peuvent l'interroger (ex. ID_ETAT_AFFAIRE)
-            sb.append(" left join ").append(Db.qualified(schema, "AFFAIRE")).append(" a on a.\"ID\" = ").append(expr);
+            final String affaireKey = db.primaryKey(schema, "AFFAIRE");
+            sb.append(" left join ").append(Db.qualified(schema, "AFFAIRE")).append(" a on a.\"").append(affaireKey).append("\" = ").append(expr);
         }
         return sb.toString();
     }

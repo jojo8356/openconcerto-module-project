@@ -55,15 +55,17 @@ public class VisibilitySuite implements Suite {
             return;
         }
         final boolean hasAffaire = db.tableExists(schema, "AFFAIRE");
-        final String from = PanelSql.fromClause(panel, schema, hasAffaire);
+        final String from = PanelSql.fromClause(db, panel, schema, hasAffaire);
+        final String key = db.primaryKey(schema, panel.getTable());
         final String expr = PanelSql.affaireExpr(panel);
         final String visibleWhere = PanelSql.visibleWhere(panel, schema);
         final String linkedWhere = PanelSql.linkedWhere(panel, schema);
         final List chain = panel.getChain();
         final String deepest = chain.isEmpty() ? null : "p" + chain.size();
+        final String deepestKey = chain.isEmpty() ? key : db.primaryKey(schema, ((Panel.Link) chain.get(chain.size() - 1)).table);
 
         final StringBuilder sql = new StringBuilder("select count(*) as total");
-        sql.append(", count(distinct t.\"ID\") as distinct_ids");
+        sql.append(", count(distinct t.\"").append(key).append("\") as distinct_ids");
         sql.append(", count(*) filter (where ").append(visibleWhere).append(") as visible");
         sql.append(", count(*) filter (where ").append(linkedWhere).append(") as linked");
         if (expr != null) {
@@ -73,8 +75,8 @@ public class VisibilitySuite implements Suite {
             sql.append(", count(*) filter (where ").append(expr).append(" is null) as no_link");
         }
         if (deepest != null) {
-            sql.append(", count(*) filter (where ").append(deepest).append(".\"ID\" is null) as parent_missing");
-            sql.append(", count(*) filter (where ").append(deepest).append(".\"ID\" is not null and ").append(deepest)
+            sql.append(", count(*) filter (where ").append(deepest).append(".\"").append(deepestKey).append("\" is null) as parent_missing");
+            sql.append(", count(*) filter (where ").append(deepest).append(".\"").append(deepestKey).append("\" is not null and ").append(deepest)
                     .append(".\"ID_AFFAIRE\" is null) as parent_without_affaire");
         }
         sql.append(" from ").append(from);
@@ -112,7 +114,7 @@ public class VisibilitySuite implements Suite {
         }
         if (parentMissing > 0) {
             report.fail(scope, parentMissing + " ligne(s) dont la table mere a disparu : donnees cachees. Exemples : "
-                    + samples(db, from, deepest + ".\"ID\" is null"));
+                    + samples(db, from, deepest + ".\"" + deepestKey + "\" is null"));
         }
         if (parentWithoutAffaire > 0) {
             report.warn(scope, parentWithoutAffaire + " ligne(s) dont la mere n'est rattachee a aucune affaire : invisibles dans l'historique. Exemples : "
@@ -149,7 +151,7 @@ public class VisibilitySuite implements Suite {
     }
 
     private String samples(final Db db, final String from, final String condition) throws Exception {
-        final List rows = db.query("select t.\"ID\" as id from " + from + " where " + condition + " limit 10");
+        final List rows = db.query("select t.* from " + from + " where " + condition + " limit 10");
         return Db.firstColumn(rows).toString();
     }
 }

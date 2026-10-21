@@ -148,7 +148,7 @@ public class AggregateSuite implements Suite {
                 continue;
             }
             final boolean hasAffaire = db.tableExists(schema, "AFFAIRE");
-            final String from = PanelSql.fromClause(panel, schema, hasAffaire);
+            final String from = PanelSql.fromClause(db, panel, schema, hasAffaire);
             final String census = "select count(*) as total"
                     + ", count(*) filter (where " + PanelSql.linkedWhere(panel, schema) + ") as linked"
                     + ", count(*) filter (where " + expr + " is not null and " + expr + " <> 1 and not exists (select 1 from "

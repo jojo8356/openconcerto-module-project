@@ -108,7 +108,7 @@ public final class Catalogue {
                 .affaireColumn("ID_AFFAIRE"));
 
         panels.add(list("liste.saisie_achat", "Liste des achats", "Listes", "SAISIE_ACHAT")
-                .requiresReason("SAISIE_ACHAT", "colonne « Affaire » + total achats du bilan", "NUMERO", "MONTANT_HT", "ID_AFFAIRE")
+                .requiresReason("SAISIE_ACHAT", "colonne « Affaire » ajoutee par le module + total achats du bilan", "MONTANT_HT", "ID_AFFAIRE")
                 .affaireColumn("ID_AFFAIRE"));
 
         panels.add(list("liste.avoirs_fournisseurs", "Liste des avoirs fournisseurs", "Listes", "AVOIR_FOURNISSEUR")

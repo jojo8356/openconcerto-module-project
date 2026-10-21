@@ -101,6 +101,35 @@ public class Db {
         return result;
     }
 
+    /**
+     * Nom de la colonne cle primaire d'une table. Les tables d'OpenConcerto
+     * n'utilisent pas toujours « ID » : la cle est lue dans le catalogue
+     * PostgreSQL plutot que supposee.
+     */
+    public String primaryKey(String schema, String table) throws Exception {
+        final String cacheKey = "pk:" + schema + "." + table;
+        if (this.cache.containsKey(cacheKey)) {
+            return (String) this.cache.get(cacheKey);
+        }
+        final String sql = "select a.attname from pg_index i"
+                + " join pg_class c on c.oid = i.indrelid"
+                + " join pg_namespace n on n.oid = c.relnamespace"
+                + " join pg_attribute a on a.attrelid = c.oid and a.attnum = any(i.indkey)"
+                + " where i.indisprimary and n.nspname = " + literal(schema) + " and c.relname = " + literal(table)
+                + " order by a.attnum limit 1";
+        String value = null;
+        try {
+            value = scalar(sql);
+        } catch (Exception e) {
+            value = null;
+        }
+        if (value == null || value.trim().length() == 0) {
+            value = "ID";
+        }
+        this.cache.put(cacheKey, value);
+        return value;
+    }
+
     /** Tous les schemas (hors systeme) contenant une table donnee. */
     public List<String> schemasWithTable(String table) throws Exception {
         final String sql = "select distinct table_schema from information_schema.tables where table_name = " + literal(table)
