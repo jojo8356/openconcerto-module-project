@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 #
-# Suite de tests des panneaux du module project contre la base DOCKER/PODMAN
-# du poste (la stack ~/oc-176-podman), et non contre la VM.
+# Suite de tests des panneaux du module project contre la base DOCKER (ou
+# Podman) du poste, et non contre la VM.
 #
 # La base est publiee sur 127.0.0.1:5433 par la stack : le poste y accede
 # directement, aucun tunnel SSH n'est necessaire.
+#
+# Le runtime est detecte : podman s'il est present, sinon docker. Les deux ne
+# sont jamais melanges (podman n'appelle jamais le binaire docker).
 #
 # Si le poste n'a pas de JDK, la compilation ET l'execution se font dans un
 # conteneur JDK (image docker.io/library/eclipse-temurin:17-jdk) qui partage
@@ -19,9 +22,10 @@
 # Options :
 #   --stack DIR     dossier de la stack  (defaut : ~/oc-176-podman)
 #   --host HOTE     hote PostgreSQL      (defaut : 127.0.0.1)
-#   --port PORT     port publie          (defaut : PG_HOST_PORT du .env, sinon 5433)
-#   --db BASE       base                 (defaut : POSTGRES_DB du .env, sinon OpenConcerto)
-#   --user ROLE     role SQL             (defaut : POSTGRES_USER du .env, sinon openconcerto)
+#   --port PORT     port publie          (defaut : PG_HOST_PORT du .env ou du conteneur, sinon 5433)
+#   --db BASE       base                 (defaut : POSTGRES_DB du .env ou du conteneur, sinon OpenConcerto)
+#   --user ROLE     role SQL             (defaut : POSTGRES_USER du .env ou du conteneur, sinon openconcerto)
+#   --password MDP  mot de passe         (defaut : PGPASSWORD, sinon le .env, sinon l'environnement du conteneur)
 #   --schemas LIST  schemas a controler, separes par des virgules
 #   --mode MODE     auto | local | container   (defaut : auto)
 #   --jdk IMAGE     image JDK du mode conteneur
@@ -48,6 +52,7 @@ DB_PORT=""
 DB_NAME=""
 DB_USER=""
 DB_PASSWORD=""
+PASSWORD_SOURCE=""
 SCHEMAS=""
 MODE=auto
 JDK_IMAGE=docker.io/library/eclipse-temurin:17-jdk
@@ -71,6 +76,7 @@ while [ $# -gt 0 ]; do
         --port) DB_PORT="$2"; shift 2 ;;
         --db) DB_NAME="$2"; shift 2 ;;
         --user) DB_USER="$2"; shift 2 ;;
+        --password) DB_PASSWORD="$2"; shift 2 ;;
         --schemas) SCHEMAS="$2"; shift 2 ;;
         --mode) MODE="$2"; shift 2 ;;
         --jdk) JDK_IMAGE="$2"; shift 2 ;;
@@ -86,37 +92,57 @@ case "$MODE" in
     *) die "mode invalide : $MODE (auto, local ou container)" ;;
 esac
 
-# ------------------------------------------------- configuration de la stack
-ENV_FILE="$STACK_DIR/.env"
-if [ -f "$ENV_FILE" ]; then
-    [ -n "$DB_PORT" ] || DB_PORT=$(sed -n 's/^PG_HOST_PORT=//p' "$ENV_FILE" | head -1 | tr -d '\r')
-    [ -n "$DB_NAME" ] || DB_NAME=$(sed -n 's/^POSTGRES_DB=//p' "$ENV_FILE" | head -1 | tr -d '\r')
-    [ -n "$DB_USER" ] || DB_USER=$(sed -n 's/^POSTGRES_USER=//p' "$ENV_FILE" | head -1 | tr -d '\r')
-    [ -n "$DB_PASSWORD" ] || DB_PASSWORD=$(sed -n 's/^POSTGRES_PASSWORD=//p' "$ENV_FILE" | head -1 | tr -d '\r')
-else
-    warn "pas de .env dans $STACK_DIR : les valeurs par defaut sont utilisees"
-fi
-DB_PORT=${DB_PORT:-5433}
-DB_NAME=${DB_NAME:-OpenConcerto}
-DB_USER=${DB_USER:-openconcerto}
-
-info "stack      : $STACK_DIR"
-info "base       : $DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
-
 # ------------------------------------------------------------------ runtime
-command -v podman >/dev/null 2>&1 \
-    || die "podman est introuvable. Cette cible est la stack Podman du poste (~/oc-176-podman)."
-PODMAN=podman
+# Podman si present, sinon docker. On n'utilise jamais les deux en meme temps.
+if command -v podman >/dev/null 2>&1; then
+    RUNTIME=podman
+elif command -v docker >/dev/null 2>&1; then
+    RUNTIME=docker
+else
+    die "ni podman ni docker n'est disponible sur ce poste."
+fi
+
+# Fichier de composition de la stack (s'il existe).
+COMPOSE_FILE=""
+for candidate in \
+    "$STACK_DIR/compose.yaml" \
+    "$STACK_DIR/compose.yml" \
+    "$STACK_DIR/docker-compose.yml" \
+    "$STACK_DIR/docker-compose.yaml" \
+    "$STACK_DIR"/docker/openconcerto-1.7.6/docker-compose.yml \
+    "$STACK_DIR"/docker/openconcerto-1.7.6/docker-compose.yaml; do
+    if [ -f "$candidate" ]; then
+        COMPOSE_FILE="$candidate"
+        break
+    fi
+done
+
+compose_cmd() {
+    if $RUNTIME compose version >/dev/null 2>&1; then
+        printf '%s' "$RUNTIME compose"
+    elif [ "$RUNTIME" = podman ] && command -v podman-compose >/dev/null 2>&1; then
+        printf '%s' podman-compose
+    elif [ "$RUNTIME" = docker ] && command -v docker-compose >/dev/null 2>&1; then
+        printf '%s' docker-compose
+    else
+        printf '%s' ""
+    fi
+}
 
 # --------------------------------------------------- conteneur PostgreSQL
 db_container_id() {
     local cid
-    cid=$($PODMAN ps -q --filter "name=^openconcerto176-db\$" 2>/dev/null | head -n 1)
-    if [ -z "$cid" ]; then
-        cid=$($PODMAN ps -q --filter "name=openconcerto176-db" 2>/dev/null | head -n 1)
+    cid=$($RUNTIME ps -q --filter "name=openconcerto176-db" 2>/dev/null | head -n 1)
+    if [ -z "$cid" ] && [ -n "$COMPOSE_FILE" ]; then
+        local cc
+        cc=$(compose_cmd)
+        if [ -n "$cc" ]; then
+            cid=$(cd "$(dirname "$COMPOSE_FILE")" && $cc -p openconcerto176 -f "$COMPOSE_FILE" ps -q db 2>/dev/null | head -n 1)
+        fi
     fi
-    if [ -z "$cid" ] && [ -f "$STACK_DIR/compose.yaml" ]; then
-        cid=$(cd "$STACK_DIR" && $PODMAN compose -p openconcerto176 -f compose.yaml ps -q db 2>/dev/null | head -n 1)
+    if [ -z "$cid" ]; then
+        # dernier recours : n'importe quel conteneur postgres qui tourne
+        cid=$($RUNTIME ps -q --filter "ancestor=postgres" 2>/dev/null | head -n 1)
     fi
     printf '%s' "$cid"
 }
@@ -127,29 +153,77 @@ if [ -z "$CID" ]; then
         die "le conteneur PostgreSQL n'est pas demarre (stack $STACK_DIR)."
     fi
     log "Stack arretee : demarrage"
-    if [ -f "$SCRIPT_DIR/podman-openconcerto.sh" ]; then
-        bash "$SCRIPT_DIR/podman-openconcerto.sh" --dir "$STACK_DIR" up || die "demarrage de la stack impossible"
-    else
-        (cd "$STACK_DIR" && $PODMAN compose -p openconcerto176 -f compose.yaml up -d) || die "demarrage de la stack impossible"
+    started=0
+    if [ -n "$COMPOSE_FILE" ]; then
+        cc=$(compose_cmd)
+        if [ -n "$cc" ]; then
+            (cd "$(dirname "$COMPOSE_FILE")" && $cc -p openconcerto176 -f "$COMPOSE_FILE" up -d) && started=1
+        fi
     fi
+    if [ "$started" -eq 0 ] && [ "$RUNTIME" = podman ] && [ -f "$SCRIPT_DIR/podman-openconcerto.sh" ]; then
+        bash "$SCRIPT_DIR/podman-openconcerto.sh" --dir "$STACK_DIR" up && started=1
+    fi
+    [ "$started" -eq 1 ] || die "demarrage de la stack impossible (stack $STACK_DIR)"
     CID=$(db_container_id)
     [ -n "$CID" ] || die "conteneur PostgreSQL introuvable apres demarrage"
 fi
-info "conteneur  : $($PODMAN inspect -f '{{.Name}}' "$CID" 2>/dev/null | sed 's|^/||')"
 
-log "Attente de PostgreSQL"
-ready=0
-i=0
-while [ "$i" -lt 60 ]; do
-    if $PODMAN exec -i "$CID" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
-        ready=1
+container_env() {
+    $RUNTIME inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$CID" 2>/dev/null
+}
+
+info "runtime    : $RUNTIME"
+info "stack      : $STACK_DIR"
+info "conteneur  : $($RUNTIME inspect -f '{{.Name}}' "$CID" 2>/dev/null | sed 's|^/||')"
+
+# --------------------------------------------- configuration de la base
+# Ordre : option --password, variable PGPASSWORD, .env de la stack,
+# environnement du conteneur (POSTGRES_*).
+ENV_FILE=""
+for candidate in \
+    "$STACK_DIR/.env" \
+    "$STACK_DIR"/docker/openconcerto-1.7.6/.env \
+    "$STACK_DIR"/*/.env; do
+    if [ -f "$candidate" ]; then
+        ENV_FILE="$candidate"
         break
     fi
-    i=$((i + 1))
-    sleep 1
 done
-[ "$ready" -eq 1 ] || die "PostgreSQL ne repond pas (voir : $PODMAN logs openconcerto176-db)"
-info "PostgreSQL pret"
+
+env_value() {
+    [ -n "$ENV_FILE" ] || return 1
+    sed -n "s/^$1=//p" "$ENV_FILE" | head -1 | tr -d '\r'
+}
+
+container_value() {
+    container_env | sed -n "s/^$1=//p" | head -1 | tr -d '\r'
+}
+
+[ -n "$DB_PORT" ] || DB_PORT=$(env_value PG_HOST_PORT 2>/dev/null || true)
+[ -n "$DB_PORT" ] || DB_PORT=$(container_value PG_HOST_PORT 2>/dev/null || true)
+[ -n "$DB_NAME" ] || DB_NAME=$(env_value POSTGRES_DB 2>/dev/null || true)
+[ -n "$DB_NAME" ] || DB_NAME=$(container_value POSTGRES_DB 2>/dev/null || true)
+[ -n "$DB_USER" ] || DB_USER=$(env_value POSTGRES_USER 2>/dev/null || true)
+[ -n "$DB_USER" ] || DB_USER=$(container_value POSTGRES_USER 2>/dev/null || true)
+if [ -z "$DB_PASSWORD" ] && [ -n "${PGPASSWORD:-}" ]; then
+    DB_PASSWORD=$PGPASSWORD
+    PASSWORD_SOURCE="variable PGPASSWORD"
+elif [ -z "$DB_PASSWORD" ]; then
+    DB_PASSWORD=$(env_value POSTGRES_PASSWORD 2>/dev/null || true)
+    [ -n "$DB_PASSWORD" ] && PASSWORD_SOURCE="fichier $ENV_FILE"
+fi
+if [ -z "$DB_PASSWORD" ]; then
+    DB_PASSWORD=$(container_value POSTGRES_PASSWORD 2>/dev/null || true)
+    [ -n "$DB_PASSWORD" ] && PASSWORD_SOURCE="environnement du conteneur"
+fi
+[ -n "$PASSWORD_SOURCE" ] || PASSWORD_SOURCE="aucun (base sans mot de passe ?)"
+
+DB_PORT=${DB_PORT:-5433}
+DB_NAME=${DB_NAME:-OpenConcerto}
+DB_USER=${DB_USER:-openconcerto}
+
+info "base       : $DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
+info "mot de passe: $PASSWORD_SOURCE"
 
 # ---------------------------------------------------------- outils locaux
 find_javac() {
@@ -276,7 +350,7 @@ if [ -f /driver/driver.jar ]; then
 else
   java -cp "$CP" org.openconcerto.modules.project.panels.TestRunner --host 127.0.0.1 --port 5432 --db "$DB_NAME" --user "$DB_USER" --password "$PGPASSWORD" ${SCHEMAS:+--schemas $SCHEMAS}
 fi'
-    $PODMAN run --rm \
+    $RUNTIME run --rm \
         --network "container:$CID" \
         --volume "$REPO_DIR:/src" \
         "${mount_driver[@]}" \

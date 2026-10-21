@@ -109,9 +109,12 @@ publie `127.0.0.1:5433`) :
 bash scripts/panel-tests-docker.sh
 ```
 
-Le script lit la configuration de la stack (`.env` : role, mot de passe, base,
-port), demarre la stack si elle est arretee, attend PostgreSQL, puis
-compile et execute la suite :
+Le runtime est detecte automatiquement (podman s'il est present, sinon
+docker ; les deux ne sont jamais melanges). Le script lit la configuration de
+la stack dans son `.env` (role, mot de passe, base, port) et, a defaut,
+deduit le mot de passe et les noms de l'environnement du conteneur
+PostgreSQL lui-meme ; il demarre la stack si elle est arretee, attend
+PostgreSQL, puis compile et execute la suite :
 
 * si le poste a un JDK (`javac`), tout tourne en local, avec le pilote JDBC
   trouve automatiquement (y compris un JAR du client OpenConcerto qui
@@ -120,8 +123,9 @@ compile et execute la suite :
   `docker.io/library/eclipse-temurin:17-jdk` qui partage l'espace de reseau du
   conteneur PostgreSQL (connexion sur `127.0.0.1:5432` de l'interieur).
 
-Options utiles : `--stack`, `--port`, `--db`, `--user`, `--schemas`,
-`--mode local|container`, `--jdk IMAGE`, `--jdbc JAR`, `--no-start`.
+Options utiles : `--stack`, `--port`, `--db`, `--user`, `--password`,
+`--schemas`, `--mode local|container`, `--jdk IMAGE`, `--jdbc JAR`,
+`--no-start`.
 
 ### 4.4 Sans PostgreSQL : test de bout en bout avec pglite
 
