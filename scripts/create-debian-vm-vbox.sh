@@ -53,6 +53,7 @@ WAIT_SSH=1
 log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
 die()  { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
+warn() { printf '  ATTENTION : %s\n' "$*" >&2; }
 
 usage() {
     sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'
@@ -201,14 +202,6 @@ detect_ostype() {
     printf '%s' "$id"
 }
 
-# Version majeure de VirtualBox : certaines options ont changé de nom
-# (par exemple --clipboard, remplacé par --clipboard-mode en 7.x).
-vbox_major() {
-    local v
-    v=$(vbox --version 2>/dev/null | head -n 1)
-    printf '%s' "$v" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1 | cut -d. -f1
-}
-
 vm_exists() {
     vbox list vms 2>/dev/null | grep -q "\"$VM_NAME\""
 }
@@ -232,6 +225,27 @@ cmd_check() {
     return 0
 }
 
+# Applique un groupe d'options a « modifyvm ». Plusieurs candidats sont
+# essayes dans l'ordre : le nom de certaines options a change selon la
+# version de VirtualBox (--natpf1 / --nat-pf1, --draganddrop /
+# --drag-and-drop, --audio / --audio-driver). Un candidat qui n'est pas
+# reconnu ("Unknown option") est passe sous silence ; une vraie erreur est
+# affichee.
+modifyvm_group() {
+    local vm="$1"; shift
+    local cand out
+    for cand in "$@"; do
+        if out=$(vbox modifyvm "$vm" $cand 2>&1); then
+            return 0
+        fi
+        if ! printf '%s' "$out" | grep -q "Unknown option"; then
+            printf '%s\n' "$out" >&2
+        fi
+    done
+    printf 'options non acceptees : %s\n' "$*" >&2
+    return 1
+}
+
 cmd_install() {
     need_vbox
     local iso_path
@@ -250,35 +264,34 @@ cmd_install() {
     local ostype out
     ostype=$(detect_ostype) || die "aucun type d'OS Debian propose par cette version de VirtualBox."
     info "type d'OS : $ostype"
-    # options dont le nom a changé selon la version de VirtualBox
-    local audio_opt clipboard_opt
-    if [ "$(vbox_major)" -ge 7 ] 2>/dev/null; then
-        audio_opt="--audio-driver none"
-        clipboard_opt="--clipboard-mode disabled"
-    else
-        audio_opt="--audio none"
-        clipboard_opt="--clipboard off"
-    fi
     if ! out=$(vbox createvm --name "$VM_NAME" --ostype "$ostype" --register 2>&1); then
         printf '%s\n' "$out" >&2
         die "creation de la VM impossible (ostype : $ostype)"
     fi
 
+    # Options principales : la VM doit etre correctement configuree.
     if ! out=$(vbox modifyvm "$VM_NAME" \
-        --memory "$RAM" \
-        --cpus "$CPUS" \
-        --vram 16 \
-        --boot1 dvd --boot2 disk \
-        --nic1 nat \
-        --natpf1 "ssh,tcp,,${SSH_PORT},,22" \
-        --natpf1 "web,tcp,,8083,,80" \
-        "$audio_opt" \
-        --usb off \
-        "$clipboard_opt" \
-        --draganddrop off 2>&1); then
+        "--memory=$RAM" \
+        "--cpus=$CPUS" \
+        "--vram=16" \
+        "--boot1=dvd" \
+        "--boot2=disk" \
+        "--nic1=nat" 2>&1); then
         printf '%s\n' "$out" >&2
-        die "la configuration de la VM a echoue."
+        die "la configuration principale de la VM a echoue."
     fi
+
+    # Redirection des ports NAT (SSH et HTTP) : le nom de l'option a change.
+    if ! modifyvm_group "$VM_NAME" \
+        "--nat-pf1=ssh,tcp,,${SSH_PORT},,22 --nat-pf1=web,tcp,,8083,,80" \
+        "--natpf1=ssh,tcp,,${SSH_PORT},,22 --natpf1=web,tcp,,8083,,80"; then
+        die "la redirection des ports NAT a echoue."
+    fi
+
+    # Options secondaires : sans gravite si elles sont refusees.
+    modifyvm_group "$VM_NAME" "--audio-driver=none" "--audio=none" || true
+    modifyvm_group "$VM_NAME" "--clipboard-mode=disabled" "--clipboard=off" || true
+    modifyvm_group "$VM_NAME" "--drag-and-drop=disabled" "--draganddrop=off" || true
 
     local size_mb=$(( ${DISK_SIZE%G} * 1024 ))
     vbox modifymedium disk --filename "$VM_DIR/${VM_NAME}.vdi" --format VDI --resize "$size_mb" >/dev/null \
