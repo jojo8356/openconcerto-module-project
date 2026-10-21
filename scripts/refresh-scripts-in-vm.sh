@@ -57,6 +57,7 @@ STACK_DIR="$VM_DIR/docker/openconcerto-1.7.6"
 DEFAULT_FILES=(
     test-droits-utilisateur.sh
     test-transfert-fournisseur.sh
+    trouver-mdp-utilisateur.sh
     diagnostic-transfert-fournisseur.sh
     fix-facture-fournisseur-all-schemas.sh
     restore-openconcerto-dump.sh
