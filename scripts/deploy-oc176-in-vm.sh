@@ -77,11 +77,16 @@ detect_sudo() {
         info "sudo sans mot de passe indisponible : le mot de passe du compte sera utilise"
     fi
 }
+# UNE seule invocation de sudo pour toute la chaine : sans cela, seul le
+# premier « sudo -n » serait elveve, les suivants tourneraient en simple
+# utilisateur (dpkg lock, systemctl, usermod...).
 vsudo() {
+    local quoted
+    quoted=$(printf '%q' "$1")
     if [ "$SUDO_FLAG" = "-n" ]; then
-        vssh "sudo -n $1"
+        vssh "sudo -n sh -c $quoted"
     else
-        vssh "printf '%s\n' '$VM_PASSWORD' | sudo -S $1"
+        vssh "printf '%s\n' '$VM_PASSWORD' | sudo -S sh -c $quoted"
     fi
 }
 # scp vers la VM
@@ -111,9 +116,10 @@ fi
 
 # ------------------------------------------------------------------ docker
 log "Installation de Docker dans la VM (sans recommends)"
-vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; systemctl enable --now docker; usermod -aG docker '"$VM_USER"
+vsudo 'DEBIAN_FRONTEND=noninteractive apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io || exit 1; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose-v2 || DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-compose || true; systemctl enable --now docker; /usr/sbin/usermod -aG docker '"$VM_USER"' 2>/dev/null || true'
 
 info "docker  : $(vssh 'docker --version' 2>/dev/null || echo '?')"
+vssh 'command -v docker' >/dev/null 2>&1 || die "l'installation de Docker a echoue dans la VM"
 info "compose : $(vssh 'docker compose version' 2>/dev/null || vssh 'docker-compose --version' 2>/dev/null || echo 'aucun')"
 
 # ------------------------------------------------------------------ stack
