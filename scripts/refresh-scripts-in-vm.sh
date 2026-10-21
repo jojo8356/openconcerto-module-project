@@ -6,7 +6,7 @@
 # Les scripts sont telecharges PAR LA VM (elle a Internet) : le poste de
 # l'utilisateur n'a besoin que de ssh.
 #
-#   bash refresh-scripts-in-vm.sh                # les 8 scripts d'audit/dump
+#   bash refresh-scripts-in-vm.sh                # les 9 scripts d'audit/dump
 #   bash refresh-scripts-in-vm.sh --audit        # + audit des droits (lecture seule)
 #   bash refresh-scripts-in-vm.sh --diagnostic   # + diagnostic complet (structure + droits)
 #   bash refresh-scripts-in-vm.sh test-droits-utilisateur.sh   # un seul fichier
@@ -63,6 +63,7 @@ DEFAULT_FILES=(
     restore-openconcerto-dump.sh
     dump-structure-sql.sh
     dump-to-sql.sh
+    audit-structure-oc176.sh
 )
 if [ "${#EXTRA_FILES[@]}" -gt 0 ]; then
     FILES=("${EXTRA_FILES[@]}")
