@@ -116,12 +116,16 @@ if [ "$MODE" = "vm" ]; then
     command -v scp >/dev/null 2>&1 || die "'scp' introuvable."
     VM_DIR="/home/$VM_USER/oc-176"
     SSH_OPTS=(-p "$VM_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10)
+    # ATTENTION : pour scp, l'option de port est -P (majuscule) ; -p veut dire
+    # « preserver les dates ». Sans cela : « scp: stat local "2222" ».
+    SCP_OPTS=(-P "$VM_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10)
     [ -f "$HOME/.ssh/id_ed25519_oc176" ] && SSH_OPTS+=(-i "$HOME/.ssh/id_ed25519_oc176")
+    [ -f "$HOME/.ssh/id_ed25519_oc176" ] && SCP_OPTS+=(-i "$HOME/.ssh/id_ed25519_oc176")
     REMOTE_REPORT="$VM_DIR/rapport-lignes-manquantes.txt"
 
     log "Envoi du script dans la VM ($VM_USER@$VM_HOST:$VM_PORT)"
     ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "mkdir -p '$VM_DIR/scripts'" || die "acces a la VM impossible"
-    scp "${SSH_OPTS[@]}" "$SCRIPT_DIR/rapport-lignes-manquantes.sh" "$VM_USER@$VM_HOST:$VM_DIR/scripts/rapport-lignes-manquantes.sh" \
+    scp "${SCP_OPTS[@]}" "$SCRIPT_DIR/rapport-lignes-manquantes.sh" "$VM_USER@$VM_HOST:$VM_DIR/scripts/rapport-lignes-manquantes.sh" \
         || die "envoi du script impossible"
 
     log "Mot de passe de la base dans la VM"
@@ -152,7 +156,7 @@ $VM_OPTS"
 
     LOCAL_OUT="$OUT"
     [ -n "$LOCAL_OUT" ] || LOCAL_OUT="rapport-lignes-manquantes-$(date +%Y%m%d-%H%M%S).txt"
-    scp "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST:$REMOTE_REPORT" "$LOCAL_OUT" || die "recuperation du rapport impossible"
+    scp "${SCP_OPTS[@]}" "$VM_USER@$VM_HOST:$REMOTE_REPORT" "$LOCAL_OUT" || die "recuperation du rapport impossible"
     echo
     echo "Rapport : $LOCAL_OUT"
     exit 0
