@@ -16,8 +16,9 @@ demande de prix est selectionnee, un bouton « Transfert en commande fournisseur
 apparait dans la barre d'outils.
 
 Le principe est celui que tu decrivais : la commande s'ouvre avec les lignes
-de la demande de prix deja recopiees (designation et quantite), et il ne reste
-qu'a saisir le prix que le fournisseur t'a communique avant d'enregistrer. La
+de la demande de prix deja recopiees (designation et quantite), et le prix
+repris de la demande de prix n'est qu'une base : il suffit de le corriger avec
+le prix que le fournisseur t'a reellement communique avant d'enregistrer. La
 commande est donc une vraie commande, visible dans l'onglet « Commandes
 fournisseurs » et dans le bilan, et elle reste rattachee a la demande de prix
 d'origine.

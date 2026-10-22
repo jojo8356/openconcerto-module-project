@@ -272,6 +272,19 @@ for schema in $SCHEMAS; do
         group by t.relname order by t.relname"
 
     echo
+    echo "---- CONTENU DES TABLES DE TRANSFERT (liens source -> cible) ----"
+    for tr in $(q1 "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+             where n.nspname = '$schema' and c.relname like 'TR!_%' escape '!' order by c.relname"); do
+        nb=$(q1 "select count(*) from \"$schema\".\"$tr\"")
+        printf '  %-28s : %s ligne(s)\n' "$tr" "$nb"
+        if [ "${nb:-0}" != "0" ]; then
+            q1 "select t.\"ID\" || ' | ' || coalesce((select string_agg(j.k || '=' || coalesce(j.v,'(vide)'), ' ; ')
+                  from jsonb_each_text(to_jsonb(t)) as j(k,v) where j.k <> 'ID'), '')
+                from \"$schema\".\"$tr\" t order by t.\"ID\" limit 5" 2>/dev/null | sed 's/^/      /'
+        fi
+    done
+
+    echo
     echo "---- EFFECTIFS ----"
     for t in DEMANDE_PRIX DEMANDE_PRIX_ELEMENT DEMANDE_ACHAT_ELEMENT COMMANDE COMMANDE_ELEMENT; do
         exists=$(q1 "select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = '$schema' and c.relname = '$t'")

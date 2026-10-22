@@ -12,7 +12,7 @@ fournisseur (lignes recopiées, prix restant à saisir).
 | Fichier | Rôle |
 |---|---|
 | `src/org/openconcerto/modules/project/DemandePrixCommandeSQLInjector.java` | En-tête : `DEMANDE_PRIX` → `COMMANDE`, avec `storeTransfer = true` (le lien source/destination est mémorisé). Recopie aussi `ID_AFFAIRE`, `ID_FOURNISSEUR`, `DATE` et `NOM` **si les colonnes existent des deux côtés**. |
-| `src/org/openconcerto/modules/project/DemandePrixElementCommandeElementSQLInjector.java` | Lignes : `DEMANDE_PRIX_ELEMENT` → `COMMANDE_ELEMENT`. Recopie les colonnes de même nom, mappe `DESIGNATION` vers `DESCRIPTIF`/`DESIGNIF` si besoin, et **ne recopie pas les totaux** (`T_HT`, `T_TTC`, `T_PA_HT`, `T_PA_TTC`, `MONTANT_HT`, `MONTANT_TTC`) : le prix reste à saisir. |
+| `src/org/openconcerto/modules/project/DemandePrixElementCommandeElementSQLInjector.java` | Lignes : `DEMANDE_PRIX_ELEMENT` → `COMMANDE_ELEMENT`. Recopie les colonnes de même nom (comme l'injecteur natif d'OC `ArticleCommandeEltSQLInjector`), et mappe `DESIGNATION` vers `DESCRIPTIF`/`DESIGNIF` si la version de la base l'exige. Le prix unitaire et les totaux de la demande de prix servent de **valeurs de départ** : il suffit de corriger le prix avec celui du fournisseur, OpenConcerto recalcule les totaux. |
 
 ### 2. La table de transfert est créée par OpenConcerto, pas à la main
 
@@ -86,7 +86,9 @@ Puis redémarrer le client OpenConcerto.
 4. Vérifier que :
    - l'en-tête de la commande est rempli (fournisseur, affaire, date) ;
    - les lignes sont recopiées (désignation, quantité, unité) ;
-   - les prix unitaires et les totaux sont **vides** (à saisir).
+   - les prix unitaires sont **pré-remplis** avec ceux de la demande de prix :
+     ils sont à corriger avec le prix réellement obtenu du fournisseur (les
+     totaux sont recalculés par OpenConcerto).
 5. Saisir un prix, enregistrer la commande.
 6. Vérifier dans la base que le lien existe :
 

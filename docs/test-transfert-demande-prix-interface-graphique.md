@@ -99,7 +99,7 @@ Une fenêtre de saisie de **commande fournisseur** s'ouvre. Vérifier :
 | Affaire | la même affaire que la demande de prix |
 | Date | repris de la demande de prix |
 | Lignes (désignation, quantité, unité) | **recopiées** de la demande de prix |
-| Prix unitaire, total HT, total TTC | **vides** : c'est à saisir |
+| Prix unitaire, total HT, total TTC | repris de la demande de prix : **à corriger** avec le prix du fournisseur (les totaux sont recalculés par OpenConcerto) |
 
 Si les lignes sont recopiées **avec** des prix ou des totaux, c'est anormal :
 prévenir, c'est un défaut à corriger.
