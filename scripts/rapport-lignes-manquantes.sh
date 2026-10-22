@@ -185,6 +185,15 @@ db_container_id() {
     printf '%s' "$cid"
 }
 
+db_container_id_stopped() {
+    local cid
+    cid=$($RUNTIME ps -a -q --filter "name=openconcerto176-db" 2>/dev/null | head -n 1)
+    if [ -z "$cid" ]; then
+        cid=$($RUNTIME ps -a -q --filter "ancestor=postgres" 2>/dev/null | head -n 1)
+    fi
+    printf '%s' "$cid"
+}
+
 container_env() {
     $RUNTIME inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$CID" 2>/dev/null
 }
@@ -219,7 +228,23 @@ if [ "$MODE" = docker ]; then
         break
     done
     CID=$(db_container_id)
-    [ -n "$CID" ] || die "conteneur PostgreSQL introuvable (stack $STACK_DIR). Lance la stack, ou utilise --mode vm."
+    if [ -z "$CID" ]; then
+        STOPPED_CID=$(db_container_id_stopped)
+        if [ -n "$STOPPED_CID" ]; then
+            STOPPED_NAME=$($RUNTIME inspect -f '{{.Name}}' "$STOPPED_CID" 2>/dev/null | sed 's|^/||')
+            die "le conteneur PostgreSQL '$STOPPED_NAME' existe mais est ARRETE.
+  Demarre la stack :
+      bash scripts/podman-openconcerto.* up
+  (ou, si la base est dans la VM : bash scripts/rapport-lignes-manquantes.* --mode vm)"
+        fi
+        die "aucun conteneur PostgreSQL trouve (stack $STACK_DIR).
+  Etat de la stack :
+      bash scripts/podman-openconcerto.* status
+  Si la stack n'existe pas encore, cree-la puis demarre-la :
+      bash scripts/podman-openconcerto.* up
+  Si la base est dans la VM, utilise :
+      bash scripts/rapport-lignes-manquantes.* --mode vm"
+    fi
     info "runtime   : $RUNTIME"
     info "conteneur : $($RUNTIME inspect -f '{{.Name}}' "$CID" 2>/dev/null | sed 's|^/||')"
 fi
