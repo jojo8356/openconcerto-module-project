@@ -1,13 +1,14 @@
 # Changelog
 
 > **La version qui compte pour OpenConcerto est celle de `module.properties`**
-> (actuellement `1.2`). C'est elle que le client compare à la base pour savoir
-> s'il doit rejouer l'installation SQL du module, et elle ne doit jamais
+> (installée en `1.2` ; prochaine version publiée : `1.5`, les tags `v1.1` à
+> `v1.4` étant déjà pris). C'est elle que le client compare à la base pour
+> savoir s'il doit rejouer l'installation SQL du module, et elle ne doit jamais
 > redescendre. Les sections ci-dessous sont datées ; la version publiée est
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
-## Module project 1.3 - 2026-10-22 (à publier)
+## Module project 1.5 - 2026-10-22 (à publier)
 
 ### Added
 

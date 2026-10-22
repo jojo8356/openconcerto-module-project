@@ -243,6 +243,26 @@ if [ "$PUBLISH" -eq 0 ]; then
 fi
 
 # ------------------------------------------------------------- publication
+# Derniere version deja publiee (tags locaux + tags distants).
+last_published_version() {
+  {
+    git tag -l 'v*' 2>/dev/null | sed 's/^v//'
+    git ls-remote --tags origin 2>/dev/null | sed 's#.*refs/tags/v##' | sed 's/\^{}//'
+  } | grep -E '^[0-9]+(\.[0-9]+)?$' | sort -t. -k1,1n -k2,2n | tail -1
+}
+
+# Premiere version libre : on incremente le numero mineur de la derniere
+# version publiee (OpenConcerto ne connait que major.minor).
+next_free_version() {
+  local last major minor
+  last=$(last_published_version)
+  [ -n "$last" ] || { echo ""; return 0; }
+  major=${last%%.*}
+  minor=${last#*.}
+  [ "$minor" = "$last" ] && minor=0
+  printf '%s.%s' "$major" "$((minor + 1))"
+}
+
 [ -n "$BRANCH" ] || die "branche introuvable (HEAD detache ?)"
 case "$BRANCH" in
   main|master)
@@ -259,8 +279,12 @@ if [ -n "$(git status --porcelain -- module.properties CHANGELOG.md)" ]; then
   git commit -m "Bump the module to $NEW_VERSION" || die "commit echoue"
 fi
 
-if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
-  die "le tag $TAG existe deja : incrementez la version (un numero de version ne se reutilise jamais)"
+if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+  LAST=$(last_published_version)
+  FREE=$(next_free_version)
+  die "le tag $TAG existe deja : un numero de version ne se reutilise jamais.
+  Derniere version publiee : ${LAST:-inconnue} ; version libre : ${FREE:-inconnue}
+  Relance avec --version ${FREE:-1.0}"
 fi
 
 git tag -a "$TAG" -m "Module project $NEW_VERSION"
