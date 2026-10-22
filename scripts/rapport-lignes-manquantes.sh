@@ -266,6 +266,12 @@ if [ "$MODE" = docker ]; then
     # Le conteneur PostgreSQL accepte les connexions locales (socket unix)
     # sans mot de passe : c'est le moyen le plus sur de lire la base.
     WRAPPER_DIR=$(mktemp -d 2>/dev/null) || die "impossible de creer un repertoire temporaire"
+    # le mot de passe n'est passe au conteneur que s'il est connu
+    if [ -n "$DB_PASSWORD" ]; then
+        PGPASS_ENV="-e PGPASSWORD=$DB_PASSWORD"
+    else
+        PGPASS_ENV=""
+    fi
     cat > "$WRAPPER_DIR/psql" <<EOF
 #!/usr/bin/env bash
 ARGS=()
@@ -276,16 +282,18 @@ while [ \$# -gt 0 ]; do
     *) ARGS+=("\$1"); shift ;;
   esac
 done
-exec $RUNTIME exec -i $CID psql "\${ARGS[@]}"
+exec $RUNTIME exec -i $PGPASS_ENV $CID psql "\${ARGS[@]}"
 EOF
     chmod +x "$WRAPPER_DIR/psql" || die "impossible de creer le wrapper psql"
     export PATH="$WRAPPER_DIR:$PATH"
-    PSQL=(psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME")
+    # -w : jamais de invite interactive (le script ne doit pas se bloquer)
+    PSQL=(psql -X -w -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME")
     info "transport : psql dans le conteneur (socket local)"
 else
     command -v psql >/dev/null 2>&1 || die "psql est introuvable."
     export PGPASSWORD="$DB_PASSWORD"
-    PSQL=(psql -X -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME")
+    # -w : jamais de invite interactive (le script ne doit pas se bloquer)
+    PSQL=(psql -X -w -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME")
     info "transport : psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
 fi
 
