@@ -8,12 +8,46 @@ client après avoir posé le nouveau jar.
 
 ## 0. Pré-requis (une seule fois)
 
-1. Copier le jar du module dans le dossier `Modules` de l'installation cliente
-   (voir `docs/transfert-demande-prix-commande.md`).
-2. **Redémarrer complètement le client OpenConcerto** (le menu du module et le
-   bouton ne sont enregistrés qu'au démarrage).
-3. Au démarrage, le client affiche en bas à droite la version des modules
-   chargés : le module **« Gestion Projet »** doit y figurer.
+### 0.1 Où poser le jar (le piège principal)
+
+OpenConcerto charge ses modules dans le dossier `Modules` **relatif au
+répertoire de lancement du client** (`Gestion.MODULES_DIR = new File("Modules")`).
+Un jar copié dans un dossier `Modules` qui n'est pas lu est **silencieusement
+ignoré** : le bouton n'apparaît jamais et rien ne le signale.
+
+Pour connaître les bons dossiers : dans le client, menu **? / Informations**
+→ ligne **« Dossiers des modules »** (par exemple `/opt/openconcerto/Modules`
+et `~/.local/share/OpenConcerto/Modules`).
+
+La pose se fait avec le script de build, qui installe dans tous les dossiers
+connus :
+
+```sh
+bash scripts/build-module-client.*
+```
+
+Si un dossier système n'est pas modifiable :
+
+```sh
+sudo mkdir -p /opt/openconcerto/Modules
+sudo cp ~/openconcerto-module-project/build/*.jar /opt/openconcerto/Modules/
+```
+
+### 0.2 Version du module
+
+Le client peut déjà embarquer une version du module « Gestion Projet »
+(celle de l'installation d'OpenConcerto). Pour que **notre** jar soit
+retenu, il doit porter une version **supérieure** : la version du module est
+dans `module.properties` (actuellement `1.2`).
+
+Contrôle dans le client : menu **Administration → Gestion des modules** → la
+ligne **« Gestion Projet »** doit indiquer **v1.2** et l'état **Démarré**
+(l'ancienne v1.1 doit être passée « Disponible »).
+
+### 0.3 Redémarrage
+
+**Redémarrer complètement le client** après la copie du jar : le menu du
+module et le bouton ne sont enregistrés qu'au démarrage.
 
 ---
 
@@ -52,6 +86,9 @@ client après avoir posé le nouveau jar.
   la ligne).
 - Cliquer dessus.
 
+> Si le bouton est absent : vérifier le point 0 (dossier `Modules` lu par le
+> client et version 1.2 affichée dans « Gestion des modules »).
+
 ### 1.5 Contrôler la commande créée
 
 Une fenêtre de saisie de **commande fournisseur** s'ouvre. Vérifier :
@@ -74,7 +111,21 @@ prévenir, c'est un défaut à corriger.
 - La commande est créée : elle apparaît dans l'onglet **« Commandes
   fournisseurs »** du même historique, rattachée à l'affaire.
 
-### 1.7 Vérifications complémentaires
+### 1.7 Vérifier le lien entre les deux documents
+
+Le lien demande de prix → commande est mémorisé par le mécanisme standard
+d'OpenConcerto dans la table `TR_DEMANDE_PRIX`.
+
+Dans le client : menu **Administration → Terminal SQL**, puis :
+
+```sql
+SELECT * FROM "TR_DEMANDE_PRIX";
+```
+
+Une ligne doit apparaître avec l'id de la demande de prix et l'id de la
+commande créée.
+
+### 1.8 Vérifications complémentaires
 
 - Onglet **« Commandes fournisseurs »** de l'historique : la nouvelle commande
   est là, avec le bon numéro et le bon fournisseur.
