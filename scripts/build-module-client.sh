@@ -45,6 +45,7 @@ else
     "$HOME"/OpenConcerto*/OpenConcerto.jar \
     "$HOME"/OpenConcerto*/lib/OpenConcerto.jar \
     "$HOME"/OpenConcerto*/OpenConcerto-1.7*.jar \
+    "$HOME"/OpenConcerto*/openconcerto-1.7*.jar \
     "$HOME"/OpenConcerto*/oc/OpenConcerto.jar
   do
     if [ -f "$candidate" ]; then
@@ -53,10 +54,10 @@ else
     fi
   done
   if [ -z "$OC_JAR" ]; then
-    OC_JAR=$(find "$HOME" -maxdepth 5 -name 'OpenConcerto*.jar' -size +2M 2>/dev/null | head -1 || true)
+    OC_JAR=$(find "$HOME" -maxdepth 5 -iname 'openconcerto*.jar' -size +2M 2>/dev/null | head -1 || true)
   fi
   [ -n "$OC_JAR" ] || die "jar OpenConcerto introuvable. Cherche-le avec :
-  find \"\$HOME\" -maxdepth 5 -name 'OpenConcerto*.jar' -size +2M
+  find \"\$HOME\" -maxdepth 5 -iname 'openconcerto*.jar' -size +2M
   puis relance avec : --jar /chemin/du/jar"
 fi
 log "Jar OpenConcerto  : $OC_JAR"
