@@ -133,13 +133,22 @@ if [ "$MODE" = "vm" ]; then
     [ -n "$VM_DB_PASSWORD" ] || die "mot de passe PostgreSQL introuvable dans la VM"
 
     log "Production du rapport dans la VM"
+    VM_OPTS="${SCHEMA:+--schema '$SCHEMA'} ${LIMIT:+--limit $LIMIT} --out '$REMOTE_REPORT'"
     set +e
+    # 1) connexion TCP (avec le mot de passe de la stack)
     ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "cd '$VM_DIR' && bash scripts/rapport-lignes-manquantes.sh --mode local --host 127.0.0.1 --port 5433 \
 --db ${DB_NAME:-OpenConcerto} --user ${DB_USER:-openconcerto} --password '$VM_DB_PASSWORD' \
-${SCHEMA:+--schema '$SCHEMA'} ${LIMIT:+--limit $LIMIT} --out '$REMOTE_REPORT'"
+$VM_OPTS"
     CODE=$?
+    if [ "$CODE" -ne 0 ]; then
+        # 2) repli : lecture directe dans le conteneur PostgreSQL (socket local)
+        warn "la connexion TCP a echoue, nouvelle tentative dans le conteneur PostgreSQL"
+        ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "cd '$VM_DIR' && bash scripts/rapport-lignes-manquantes.sh --mode docker \
+--stack '$VM_DIR/docker/openconcerto-1.7.6' $VM_OPTS"
+        CODE=$?
+    fi
     set -e
-    [ "$CODE" -eq 0 ] || die "la production du rapport dans la VM a echoue (code $CODE)"
+    [ "$CODE" -eq 0 ] || die "la production du rapport dans la VM a echoue (code $CODE). Verifie que la stack PostgreSQL tourne dans la VM (commande indiquee dans docs/tests-panneaux-module-project.md, section 4.1)"
 
     LOCAL_OUT="$OUT"
     [ -n "$LOCAL_OUT" ] || LOCAL_OUT="rapport-lignes-manquantes-$(date +%Y%m%d-%H%M%S).txt"
