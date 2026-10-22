@@ -1,56 +1,65 @@
-# Message court pour le père — transfert « demande de prix » → « commande fournisseur »
+# Réponse à ton père — transfert « demande de prix » → « commande fournisseur »
 
-> Version prose, à envoyer telle quelle. Aucun code, aucune commande.
+> Version prose, à envoyer telle quelle. Aucun code, aucune commande, aucun nom de fichier.
 
 ---
 
 Bonjour,
 
-J'ai ajouté dans le module « project » une nouvelle possibilite, en discussion
-tout a l'heure : transformer une **demande de prix** directement en **commande
-fournisseur**.
+Réponse courte : **non, ce n'est compliqué, et c'est fait.**
 
-Aujourd'hui, dans l'onglet « Demandes de prix » de l'historique des affaires, on
-pouvait consulter les demandes, mais pas les transformer. Maintenant, quand une
-demande de prix est selectionnee, un bouton « Transfert en commande fournisseur »
-apparait dans la barre d'outils.
+Ce que tu décrivais existe déjà dans OpenConcerto pour les demandes d'achat, et
+on vient de le porter tel quel sur les demandes de prix. Le principe est
+identique : tu arrives dans l'onglet « Demandes de prix », tu sélectionnes une
+demande, et un bouton « Transfert en commande fournisseur » apparaît dans la
+barre d'outils. Comme sur l'onglet « Demande d'achat », le bouton reste grisé
+quand il n'y a rien à transférer : il faut d'abord qu'une demande existe et
+qu'elle soit sélectionnée.
 
-Le principe est celui que tu decrivais : la commande s'ouvre avec les lignes
-de la demande de prix deja recopiees (designation et quantite), et le prix
-repris de la demande de prix n'est qu'une base : il suffit de le corriger avec
-le prix que le fournisseur t'a reellement communique avant d'enregistrer. La
-commande est donc une vraie commande, visible dans l'onglet « Commandes
-fournisseurs » et dans le bilan, et elle reste rattachee a la demande de prix
-d'origine.
+**Ce que fait le transfert, concrètement.** La commande fournisseur s'ouvre
+toute seule, pré-remplie : on y retrouve les lignes de la demande de prix, avec
+la désignation et la quantité. Il ne reste donc qu'une chose à faire, exactement
+ce que tu disais : corriger le prix avec celui que le fournisseur t'a
+réellement communiqué. Les totaux sont recalculés par le logiciel à partir des
+lignes, on ne les saisit pas. Une fois enregistrée, c'est une vraie commande :
+elle apparaît dans l'onglet « Commandes fournisseurs », elle compte dans le
+bilan de l'affaire et dans les « à réceptionner », et elle reste rattachée à la
+demande de prix dont elle est issue.
 
-Point technique, puisque tu posais la question : il n'y a **rien à faire à la
-main dans la base**. OpenConcerto possede deja un mecanisme standard de
-transfert qui conserve le lien entre le document d'origine et le document
-cree ; il gere lui-meme la petite table technique associee, et la cree
-automatiquement a l'installation du module. Aucune table a creer, aucune
-requete SQL a passer, aucun risque pour les donnees.
+Petit point utile : le prix qui arrive dans la commande est celui qui était
+renseigné dans la demande de prix. C'est une base de travail, pas un prix
+figé — tu le remplaces par le prix du fournisseur, et c'est tout.
 
-Deux precautions :
+**Sur ta question sur les petites tables techniques « TR_… »** — c'est
+justement le point rassurant : il n'y a **rien à créer**. OpenConcerto possède
+un mécanisme standard de transfert qui conserve le lien entre le document
+d'origine et le document créé ; il gère lui-même sa petite table technique, et
+il l'a **créée automatiquement** à l'installation du module. J'ai vérifié
+après coup dans la base : la table existe, avec son lien vers la demande de prix
+et son lien vers la commande. Aucune requête à passer, aucune table à créer à
+la main, aucun risque pour les données. C'est exactement ce qui se passe
+déjà pour le transfert demande d'achat → commande fournisseur.
 
-- comme pour toute commande fournisseur, il faut que le fournisseur soit connu
-  au moment de la transformation ; si une demande de prix est adressee a
-  plusieurs fournisseurs, il faut faire une commande par fournisseur (le
-  bouton le permet sur une demande a la fois) ;
-- la commande creee est une commande reelle : elle compte des le depart dans le
-  bilan et dans les « a receptionner ». C'est a toi de voir si tu preferes
-  garder la demande de prix ouverte jusqu'a la reception des prix.
+**Deux précautions**, pour que ça ne surprenne pas :
 
-Pour disposer de la possibilite, il suffit d'installer la nouvelle version du
-module « project » dans le client, puis de redemarrer le client. L'installation
-se fait par le menu d'administration du client (mise a jour des modules), comme
-d'habitude.
+- il faut que le fournisseur soit connu sur la demande de prix au moment de la
+  transformation ; si une demande de prix a été adressée à plusieurs
+  fournisseurs, on fait une commande par fournisseur (le bouton travaille sur
+  une demande à la fois) ;
+- la commande créée est une commande réelle : elle compte dès le départ dans le
+  bilan. Si tu préfères que la demande de prix reste ouverte jusqu'à la
+  réception des prix, c'est le comportement actuel — dis-moi si tu préfères
+  qu'elle se cloture automatiquement une fois la commande enregistrée.
 
-Des que tu l'as sous la main, un test simple : ouvrir une affaire, onglet
-« Demandes de prix », selectionner une demande, cliquer sur « Transfert en
-commande fournisseur », verifier que les lignes sont bien recopiees, saisir un
-prix et enregistrer.
+Pour l'installer, c'est la mise à jour habituelle du module « project » dans
+le client (menu d'administration), puis un redémarrage du client.
 
-Je reste a ta disposition pour l'ajuster, notamment si tu Prefieres que la
-demande de prix soit automatiquement close une fois la commande enregistree.
+Un test simple quand tu l'as sous la main : ouvre une affaire, onglet
+« Demandes de prix », sélectionne une demande, clique sur « Transfert en
+commande fournisseur », vérifie que les lignes sont bien recopiées, saisis le
+prix du fournisseur et enregistre.
 
-Merci.
+Je reste à ta disposition pour ajuster le comportement, notamment sur la
+clôture automatique de la demande de prix.
+
+Bonne journée,
