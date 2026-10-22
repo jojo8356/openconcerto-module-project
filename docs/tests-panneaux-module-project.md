@@ -70,16 +70,54 @@ Quatre controles, tous joues sur les schemas qui contiennent une table
 
 ## 4. Comment lancer les tests
 
-### 4.1 Dans la VM (là où PostgreSQL et `psql` sont installes)
+### 4.1 Dans la VM (la ou PostgreSQL et `psql` sont installes)
+
+Tout se lance **depuis le poste**, en SSH : la VM doit simplement etre
+demarree, et sa stack PostgreSQL en route.
 
 ```bash
+# 1. la VM (console dans ce terminal : Ctrl-A puis X pour l'arreter)
+bash scripts/create-debian-vm.sh status
+bash scripts/create-debian-vm.sh start
+
+# 2. la stack PostgreSQL de la VM (seulement apres un redemarrage de la VM)
+ssh -p 2222 oc@127.0.0.1 "cd ~/oc-176/docker/openconcerto-1.7.6 && \
+  sudo docker compose -f docker-compose.yml -f docker-compose.fr_FR.yml up -d"
+
+# 3. la suite de tests
 bash scripts/panel-tests-in-vm.sh
 ```
 
-Le script installe un JDK headless dans la VM si besoin, y telecharge les
-sources depuis GitHub, compile et execute la suite contre
-`127.0.0.1:5433`, base `OpenConcerto` (le mot de passe est lu dans le `.env`
-de la stack). Lecture seule.
+Le script `panel-tests-in-vm.sh` :
+
+* verifie l'acces SSH (port 2222, compte `oc`, cle `~/.ssh/id_ed25519_oc176`
+  si elle existe) ;
+* installe un JDK headless dans la VM si besoin (une seule fois) ;
+* telecharge les 14 fichiers de test et le lanceur depuis GitHub
+  (branche `arena/61954a71-openconcerto-module-project`, donc la derniere
+  version) ;
+* compile et execute la suite contre `127.0.0.1:5433`, base `OpenConcerto`
+  (le mot de passe est lu dans le `.env` de la stack de la VM).
+
+Lecture seule : aucune ecriture n'est faite dans la base.
+
+Options : `--host`, `--port` (port SSH, defaut 2222), `--user` (defaut `oc`),
+`--db`, `--schemas`, `--ref` (branche GitHub).
+
+Pour lancer la suite a la main dans la VM (une fois les sources telechargees
+par le script ci-dessus) :
+
+```bash
+ssh -p 2222 oc@127.0.0.1
+cd ~/oc-176
+sh scripts/run-panel-tests.sh --host 127.0.0.1 --port 5433 --db OpenConcerto \
+   --user openconcerto \
+   --password "$(sed -n 's/^POSTGRES_PASSWORD=//p' docker/openconcerto-1.7.6/.env)"
+```
+
+La base de la VM est la copie verifiee de la production : le verdict doit
+etre identique a celui du poste, avec en plus le schema `Default` (les deux
+schemas ont recu le correctif `ID_COMMANDE_ELEMENT`).
 
 ### 4.2 Sur le poste, a travers le tunnel SSH
 
