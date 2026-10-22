@@ -106,11 +106,18 @@ log "Jar construit      : $JAR_FILE"
 # ------------------------------------------------------ 4. installation
 if [ "$INSTALL" -eq 1 ]; then
   installed=0
+  # Tous les dossiers de modules connus du client (voir la fenetre
+  # « Informations » du client OC) : celui du repertoire de lancement et
+  # celui du dossier de donnees applicatif.
   for target in "$CLIENT_MODULES" \
     /opt/openconcerto/Modules \
+    "$HOME"/.local/share/OpenConcerto/Modules \
     "$HOME"/OpenConcerto*/Modules
   do
     [ -n "$target" ] || continue
+    if [ ! -d "$target" ]; then
+      mkdir -p "$target" 2>/dev/null || true
+    fi
     [ -d "$target" ] || continue
     if cp -f "$JAR_FILE" "$target/" 2>/dev/null; then
       log "Jar installe dans  : $target"
