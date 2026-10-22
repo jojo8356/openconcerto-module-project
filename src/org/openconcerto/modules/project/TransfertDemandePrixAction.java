@@ -10,6 +10,7 @@ import org.openconcerto.erp.core.supplychain.order.component.CommandeSQLComponen
 import org.openconcerto.sql.Configuration;
 import org.openconcerto.sql.element.SQLComponent;
 import org.openconcerto.sql.element.SQLElement;
+import org.openconcerto.sql.element.SQLElementDirectory;
 import org.openconcerto.sql.model.SQLRowValues;
 import org.openconcerto.sql.view.EditFrame;
 import org.openconcerto.sql.view.list.IListe;
@@ -56,7 +57,7 @@ public final class TransfertDemandePrixAction {
      */
     public static void install() {
         try {
-            final SQLElement elt = Configuration.getInstance().getDirectory().getElement("DEMANDE_PRIX");
+            final SQLElement elt = findElement();
             if (elt == null) {
                 return;
             }
@@ -70,6 +71,27 @@ public final class TransfertDemandePrixAction {
             elt.getRowActions().add(create());
         } catch (RuntimeException e) {
             ExceptionHandler.handle("Impossible d'installer le bouton de transfert demande de prix -> commande fournisseur", e);
+        }
+    }
+
+    /**
+     * L'element DEMANDE_PRIX, ou null s'il n'existe pas.
+     * <p>
+     * La recherche par nom peut echouer (element non enregistre sous ce nom) :
+     * on retombe alors sur un parcours de tous les elements connus.
+     */
+    private static SQLElement findElement() {
+        final SQLElementDirectory directory = Configuration.getInstance().getDirectory();
+        try {
+            return directory.getElement("DEMANDE_PRIX");
+        } catch (RuntimeException e) {
+            // element inconnu sous ce nom : on cherche par table
+            for (SQLElement elt : directory.getElements()) {
+                if (elt.getTable() != null && "DEMANDE_PRIX".equalsIgnoreCase(elt.getTable().getName())) {
+                    return elt;
+                }
+            }
+            return null;
         }
     }
 
