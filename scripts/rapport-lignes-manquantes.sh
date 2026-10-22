@@ -374,6 +374,8 @@ COMMANDE_CLIENT_ELEMENT|COMMANDE_CLIENT:ID_COMMANDE_CLIENT|onglet.commandes_en_c
 DEVIS_ELEMENT|DEVIS:ID_DEVIS|onglet.devis_en_attente
 AFFAIRE_TEMPS|COMMANDE_CLIENT_ELEMENT:ID_COMMANDE_CLIENT_ELEMENT,COMMANDE_CLIENT:ID_COMMANDE_CLIENT|historique.temps
 MOUVEMENT_STOCK||historique.stock
+NOTE_DE_FRAIS_ELEMENT|NOTE_DE_FRAIS:ID_NOTE_DE_FRAIS|historique.notes_de_frais
+POINTAGE_ELEMENT|POINTAGE:ID_POINTAGE|historique.pointage
 '
 
 # Tableau des totaux du bilan : libelle | SQL « comme le panneau » | SQL « table »
@@ -417,6 +419,7 @@ printf 'Chaque ligne invisible est listee ci-dessous avec sa cle primaire, son n
 printf 'sa date, son montant, son ID_AFFAIRE et, si elle en a une, sa mere.\n'
 printf 'Motifs : SANS AFFAIRE | MERE SANS AFFAIRE | MERE ABSENTE | AFFAIRE INEXISTANTE\n'
 printf '         | AFFAIRE TECHNIQUE (ligne « Indefini » du module)\n'
+printf '         | SANS LIEN AVEC UNE AFFAIRE (table non rattachee a une affaire)\n'
 } >> "$REPORT"
 
 SUMMARY_ROWS=""
@@ -434,7 +437,7 @@ for schema in $SCHEMAS; do
     CMD_PK=$(pk_of "$schema" "COMMANDE")
 
     {
-    printf '\n--------------------------------------------------------------------------------'
+    printf '%s\n' '--------------------------------------------------------------------------------'
     printf 'SCHEMA %s\n' "$schema"
     printf '%s\n' '--------------------------------------------------------------------------------'
     } >> "$REPORT"
@@ -452,6 +455,11 @@ for schema in $SCHEMAS; do
         deepest_pk=""
         deepest_has_aff=0
         IFS=',' read -r -a levels <<< "$chain"
+        # une table qui porte elle-meme ID_AFFAIRE est traitee directement :
+        # la chaine de la mere n'est alors pas necessaire.
+        if has_col "$schema" "$table" "ID_AFFAIRE"; then
+            levels=()
+        fi
         for level in "${levels[@]}"; do
             [ -n "$level" ] || continue
             parent="${level%%:*}"
@@ -541,6 +549,7 @@ for schema in $SCHEMAS; do
        count(*) filter (where $etat = 'MERE ABSENTE') as c_abs,
        count(*) filter (where $etat = 'AFFAIRE INEXISTANTE') as c_inex,
        count(*) filter (where $etat = 'AFFAIRE TECHNIQUE') as c_tech,
+       count(*) filter (where $etat = 'SANS LIEN AVEC UNE AFFAIRE') as c_lien,
        count(*) filter (where $etat <> 'OK') as c_total,
        $amount_sum as c_montant
  from $(lit "$schema").$(lit "$table") t$joins")
@@ -549,12 +558,14 @@ for schema in $SCHEMAS; do
         c_abs=$(printf '%s' "$agg" | cut -d'|' -f3)
         c_inex=$(printf '%s' "$agg" | cut -d'|' -f4)
         c_tech=$(printf '%s' "$agg" | cut -d'|' -f5)
-        c_all=$(printf '%s' "$agg" | cut -d'|' -f6)
-        c_montant=$(printf '%s' "$agg" | cut -d'|' -f7)
+        c_lien=$(printf '%s' "$agg" | cut -d'|' -f6)
+        c_all=$(printf '%s' "$agg" | cut -d'|' -f7)
+        c_montant=$(printf '%s' "$agg" | cut -d'|' -f8)
         c_sans=${c_sans:-0}; c_mere=${c_mere:-0}; c_abs=${c_abs:-0}
-        c_inex=${c_inex:-0}; c_tech=${c_tech:-0}; c_all=${c_all:-0}; c_montant=${c_montant:-0}
+        c_inex=${c_inex:-0}; c_tech=${c_tech:-0}; c_lien=${c_lien:-0}
+        c_all=${c_all:-0}; c_montant=${c_montant:-0}
 
-        SUMMARY_ROWS="$SUMMARY_ROWS$table|$c_sans|$c_mere|$c_abs|$c_inex|$c_tech|$c_all|$c_montant|$panels
+        SUMMARY_ROWS="$SUMMARY_ROWS$table|$c_sans|$c_mere|$c_abs|$c_inex|$c_tech|$c_lien|$c_all|$c_montant|$panels
 "
 
         if [ "${c_all:-0}" -eq 0 ]; then
@@ -593,14 +604,14 @@ done
 printf '\n================================================================================\n'
 printf 'SYNTHESE\n'
 printf '================================================================================\n'
-printf '%-30s %10s %10s %10s %10s %10s %10s %16s\n' "table" "sans_aff" "mere_sans" "mere_abs" "aff_inex" "aff_tech" "total" "montant_cache"
+printf '%-30s %9s %9s %9s %9s %9s %9s %9s %16s\n' "table" "sans_aff" "mere_sans" "mere_abs" "aff_inex" "aff_tech" "sans_lien" "total" "montant_cache"
 printf '%s\n' '-----------------------------------------------------------------------------------------------'
 } >> "$REPORT"
 
 TOTAL_HIDDEN=0
-while IFS='|' read -r table c_sans c_mere c_abs c_inex c_tech c_all c_montant panels; do
+while IFS='|' read -r table c_sans c_mere c_abs c_inex c_tech c_lien c_all c_montant panels; do
     [ -n "$table" ] || continue
-    printf '%-30s %10s %10s %10s %10s %10s %10s %16s\n' "$table" "$c_sans" "$c_mere" "$c_abs" "$c_inex" "$c_tech" "$c_all" "$c_montant" >> "$REPORT"
+    printf '%-30s %9s %9s %9s %9s %9s %9s %9s %16s\n' "$table" "$c_sans" "$c_mere" "$c_abs" "$c_inex" "$c_tech" "$c_lien" "$c_all" "$c_montant" >> "$REPORT"
     TOTAL_HIDDEN=$((TOTAL_HIDDEN + ${c_all:-0}))
 done <<EOF
 $SUMMARY_ROWS
@@ -610,7 +621,7 @@ EOF
 printf '%s\n' '-----------------------------------------------------------------------------------------------'
 printf 'TOTAL : %s ligne(s) invisible(s)\n' "$TOTAL_HIDDEN"
 printf '\nLignes concernees (panneaux) :\n'
-while IFS='|' read -r table c_sans c_mere c_abs c_inex c_tech c_all c_montant panels; do
+while IFS='|' read -r table c_sans c_mere c_abs c_inex c_tech c_lien c_all c_montant panels; do
     [ -n "$table" ] || continue
     [ "${c_all:-0}" -eq 0 ] && continue
     printf '  %-30s %s ligne(s)  [%s]\n' "$table" "$c_all" "$panels"
@@ -674,6 +685,11 @@ printf '   la cle etrangere est cassee elle aussi.\n'
 printf "4. Les lignes « AFFAIRE TECHNIQUE » sont rattachees a l'affaire 1 (ligne\n"
 printf "   « Indefini » du module) : elles sont exclues de l'historique par choix\n"
 printf "   du module, ce n'est pas une anomalie.\n"
+printf "5. Les lignes « SANS LIEN AVEC UNE AFFAIRE » appartiennent a une table\n"
+printf "   qui n'est pas rattachee a une affaire (ni directement, ni par sa mere) :\n"
+printf "   elles n'apparaissent dans aucun onglet d'historique. Il faut soit\n"
+printf "   rattacher la table a une affaire, soit la retirer du perimetre du\n"
+printf "   module.\n"
 printf '\nRapport genere par scripts/rapport-lignes-manquantes.sh (lecture seule).\n'
 } >> "$REPORT"
 
