@@ -16,6 +16,7 @@
 #   --notes TEXT              release notes (default: the commits since the last tag)
 #   --notes-file FILE         read the release notes from a file
 #   --publish                 commit + tag + push + create the GitHub release
+#   --allow-main              autorise la publication depuis main/master
 #   --no-build                do not compile (useful to test the version bump)
 #   --no-changelog            do not touch CHANGELOG.md
 #   --dry-run                 print what would be done, change nothing
@@ -37,6 +38,7 @@ CURRENT_VERSION=""
 NEW_VERSION=""
 BUMP=""
 PUBLISH=0
+ALLOW_MAIN=0
 DO_BUILD=1
 DO_CHANGELOG=1
 DRY_RUN=0
@@ -58,6 +60,7 @@ while [ "$#" -gt 0 ]; do
     --notes) NOTES=${2:-}; shift 2 ;;
     --notes-file) NOTES_FILE=${2:-}; shift 2 ;;
     --publish) PUBLISH=1; shift ;;
+    --allow-main) ALLOW_MAIN=1; shift ;;
     --no-build) DO_BUILD=0; shift ;;
     --no-changelog) DO_CHANGELOG=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -93,6 +96,11 @@ bump_version() {
 
 if [ -n "$BUMP" ]; then
   [ -z "$NEW_VERSION" ] || die "--bump et --version sont exclusifs"
+  if [ -n "$(git status --porcelain -- module.properties)" ]; then
+    die "module.properties a deja des modifications non commitées (version $CURRENT_VERSION).
+  Relance avec --version $CURRENT_VERSION pour publier cette version, ou
+  commite d'abord le changement de version."
+  fi
   NEW_VERSION=$(bump_version "$CURRENT_VERSION" "$BUMP")
 elif [ -z "$NEW_VERSION" ]; then
   NEW_VERSION="$CURRENT_VERSION"
@@ -237,7 +245,13 @@ fi
 # ------------------------------------------------------------- publication
 [ -n "$BRANCH" ] || die "branche introuvable (HEAD detache ?)"
 case "$BRANCH" in
-  main|master) die "publier directement sur $BRANCH est interdit ; travaille sur une branche de developpement" ;;
+  main|master)
+    if [ "$ALLOW_MAIN" -eq 0 ]; then
+      die "publier directement sur $BRANCH est interdit (utilise --allow-main si c'est voulu).
+  Astuce : git checkout -b release/v$NEW_VERSION puis relance la publication."
+    fi
+    log "ATTENTION : publication depuis $BRANCH"
+    ;;
 esac
 
 if [ -n "$(git status --porcelain -- module.properties CHANGELOG.md)" ]; then
