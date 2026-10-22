@@ -716,18 +716,7 @@ public final class Module extends AbstractModule {
                 SQLInjector.createTransferTables(root);
             }
             // 3. le bouton, une seule fois
-            final SQLElement elt = Configuration.getInstance().getDirectory().getElement("DEMANDE_PRIX");
-            if (elt == null) {
-                return;
-            }
-            for (IListeAction action : elt.getRowActions()) {
-                if (action instanceof RowAction
-                        && ((RowAction) action).getAction() instanceof TransfertDemandePrixAction.DemandePrixTransfertAction) {
-                    // le bouton est deja present
-                    return;
-                }
-            }
-            elt.getRowActions().add(TransfertDemandePrixAction.create());
+            TransfertDemandePrixAction.install();
         } catch (Exception e) {
             ExceptionHandler.handle("Impossible d'installer le transfert demande de prix -> commande fournisseur", e);
         }

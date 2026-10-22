@@ -13,6 +13,7 @@ import org.openconcerto.sql.element.SQLElement;
 import org.openconcerto.sql.model.SQLRowValues;
 import org.openconcerto.sql.view.EditFrame;
 import org.openconcerto.sql.view.list.IListe;
+import org.openconcerto.sql.view.list.IListeAction;
 import org.openconcerto.sql.view.list.IListeAction.IListeEvent;
 import org.openconcerto.sql.view.list.RowAction;
 import org.openconcerto.sql.view.list.RowAction.PredicateRowAction;
@@ -43,6 +44,33 @@ public final class TransfertDemandePrixAction {
         final PredicateRowAction action = new PredicateRowAction(new DemandePrixTransfertAction(), true);
         action.setPredicate(IListeEvent.getSingleSelectionPredicate());
         return action;
+    }
+
+    /**
+     * Enregistre le bouton sur l'element DEMANDE_PRIX (si ce n'est pas deja
+     * fait).
+     * <p>
+     * L'operation est idempotente : elle peut etre appelee plusieurs fois
+     * (au demarrage du client et a l'ouverture de l'historique des affaires)
+     * sans jamais creer deux fois le meme bouton.
+     */
+    public static void install() {
+        try {
+            final SQLElement elt = Configuration.getInstance().getDirectory().getElement("DEMANDE_PRIX");
+            if (elt == null) {
+                return;
+            }
+            for (IListeAction action : elt.getRowActions()) {
+                if (action instanceof RowAction
+                        && ((RowAction) action).getAction() instanceof DemandePrixTransfertAction) {
+                    // le bouton est deja present
+                    return;
+                }
+            }
+            elt.getRowActions().add(create());
+        } catch (RuntimeException e) {
+            ExceptionHandler.handle("Impossible d'installer le bouton de transfert demande de prix -> commande fournisseur", e);
+        }
     }
 
     /**

@@ -119,6 +119,11 @@ public class ProjectHistory {
     @SuppressWarnings("deprecation")
     public ProjectHistory() {
 
+        // Bouton "Transfert en commande fournisseur" : il doit etre enregistre
+        // sur l'element DEMANDE_PRIX AVANT la creation des listes, car les
+        // actions de liste sont lues a ce moment-la.
+        TransfertDemandePrixAction.install();
+
         final ComptaPropsConfiguration comptaPropsConfiguration = ((ComptaPropsConfiguration) Configuration.getInstance());
         final SQLBase b = comptaPropsConfiguration.getSQLBaseSociete();
         this.sqlBase = b;
