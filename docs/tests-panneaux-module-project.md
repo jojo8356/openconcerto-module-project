@@ -179,6 +179,42 @@ sh tests/sql/e2e-panneaux.sh
 Le scenario joue une base contenant des anomalies volontaires (la suite doit
 les detecter) puis la meme base « propre » (la suite doit passer).
 
+### 4.5 Le rapport texte : ligne par ligne, ce qui manque
+
+La suite de tests dit *qu'il y a un probleme* ; le script
+`scripts/rapport-lignes-manquantes.sh` dit *exactement quelle ligne et
+pourquoi* :
+
+```bash
+# rapport contre la base Docker/Podman du poste
+bash scripts/rapport-lignes-manquantes.sh
+
+# rapport produit dans la VM (la ou est la base), rapatrie sur le poste
+bash scripts/rapport-lignes-manquantes.sh --mode vm --out rapport.txt
+```
+
+Le rapport est un fichier texte qui contient, pour chaque panneau :
+
+* la **liste de toutes les lignes invisibles** (pas un echantillon), avec la
+  cle primaire, le numero, la date, les montants, `ID_AFFAIRE` et la mere ;
+* le **motif** precis :
+  `SANS AFFAIRE` (pas d'`ID_AFFAIRE`), `MERE SANS AFFAIRE` (mere sans
+  `ID_AFFAIRE`), `MERE ABSENTE` (mere supprimee), `AFFAIRE INEXISTANTE`
+  (affaire supprimee), `AFFAIRE TECHNIQUE` (affaire 1 = « Indefini », exclu
+  par le module) ;
+* une **synthese par table** (combien de lignes de chaque motif, montant
+  cache) ;
+* les **ecarts de bilan** : pour chaque total, ce que le panneau affiche et ce
+  que contient really la table ;
+* la section « ce qu'il faut corriger ».
+
+Options : `--mode docker|local|vm`, `--stack`, `--host`, `--port`, `--db`,
+`--user`, `--password`, `--schema`, `--out`, `--limit N` (0 = toutes les
+lignes), `--vm-host`, `--vm-port`, `--vm-user`, `--vm-password`.
+
+Le script est **en lecture seule** : il ne fait aucun `UPDATE`, aucun
+`DELETE`, aucune migration.
+
 ## 5. Lire les resultats
 
 ```
@@ -215,6 +251,7 @@ RESULTAT : ECHEC (6 controle(s) en echec)
 | `scripts/run-panel-tests.sh` | compilation + execution |
 | `scripts/panel-tests-in-vm.sh` | execution dans la VM |
 | `scripts/panel-tests-docker.sh` | execution contre la base Docker/Podman du poste |
+| `scripts/rapport-lignes-manquantes.sh` | rapport texte : chaque ligne invisible, son motif, la synthese et les ecarts de bilan |
 | `tests/sql/fixture-panneaux.sql` | base de test avec anomalies volontaires |
 | `tests/sql/fixture-panneaux-nettoye.sql` | la meme base, sans anomalie |
 | `tests/sql/e2e-panneaux.sh` | test de bout en bout (pglite) |
