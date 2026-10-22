@@ -658,6 +658,10 @@ public final class Module extends AbstractModule {
 
         DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
         List<String> table2check = Arrays.asList("BON_RECEPTION", "DEMANDE_PRIX", "DEMANDE_ACHAT_ELEMENT", "FACTURE_FOURNISSEUR");
+        // Version reellement declaree par le module : OpenConcerto enregistre
+        // dans FWK_MODULE_METADATA les tables et colonnes creees par le module,
+        // avec le numero de version qui les a creees.
+        final long moduleVersion = getFactory().getVersion() != null ? getFactory().getVersion().getMerged() : 10000L;
         for (String table : table2check) {
             if (root.contains(table)) {
                 SQLTable tableCR = root.getTable(table);
@@ -667,7 +671,7 @@ public final class Module extends AbstractModule {
                         alt.addForeignColumn("ID_AFFAIRE", root.getTable("AFFAIRE"));
                         root.getDBSystemRoot().getDataSource().execute(alt.asString());
                         String s = "INSERT INTO " + root.getTable("FWK_MODULE_METADATA").getSQLName().quote()
-                                + "(\"MODULE_NAME\",\"TABLE\",\"FIELD\",\"KEY\",\"MODULE_VERSION\") VALUES('org.openconcerto.modules.project','" + table + "','ID_AFFAIRE',true,10000)";
+                                + "(\"MODULE_NAME\",\"TABLE\",\"FIELD\",\"KEY\",\"MODULE_VERSION\") VALUES('org.openconcerto.modules.project','" + table + "','ID_AFFAIRE',true," + moduleVersion + ")";
                         root.getDBSystemRoot().getDataSource().execute(s);
                         root.getSchema().updateVersion();
                         root.refetchTable(tableCR.getName());
