@@ -42,6 +42,10 @@ if [ -n "$OC_JAR" ]; then
   [ -f "$OC_JAR" ] || die "jar OpenConcerto introuvable : $OC_JAR"
 else
   for candidate in \
+    /opt/openconcerto/OpenConcerto.jar \
+    /opt/openconcerto/lib/OpenConcerto.jar \
+    /opt/openconcerto/OpenConcerto-1.7*.jar \
+    /usr/share/openconcerto/OpenConcerto.jar \
     "$HOME"/OpenConcerto*/OpenConcerto.jar \
     "$HOME"/OpenConcerto*/lib/OpenConcerto.jar \
     "$HOME"/OpenConcerto*/OpenConcerto-1.7*.jar \
@@ -54,7 +58,7 @@ else
     fi
   done
   if [ -z "$OC_JAR" ]; then
-    OC_JAR=$(find "$HOME" -maxdepth 5 -iname 'openconcerto*.jar' -size +2M 2>/dev/null | head -1 || true)
+    OC_JAR=$(find "$HOME" /opt /usr/share -maxdepth 5 -iname 'openconcerto*.jar' -size +2M 2>/dev/null | head -1 || true)
   fi
   [ -n "$OC_JAR" ] || die "jar OpenConcerto introuvable. Cherche-le avec :
   find \"\$HOME\" -maxdepth 5 -iname 'openconcerto*.jar' -size +2M
@@ -65,6 +69,8 @@ log "Jar OpenConcerto  : $OC_JAR"
 # ------------------------------------------- 2. dossier Modules client
 if [ -z "$CLIENT_MODULES" ]; then
   for candidate in \
+    /opt/openconcerto/Modules \
+    /usr/share/openconcerto/Modules \
     "$HOME"/OpenConcerto*/Modules \
     "$HOME"/OpenConcerto*/modules \
     "$(dirname -- "$OC_JAR")"/Modules
@@ -96,9 +102,14 @@ log "Jar construit      : $JAR_FILE"
 
 # ------------------------------------------------------ 4. installation
 if [ "$INSTALL" -eq 1 ]; then
-  cp -f "$JAR_FILE" "$CLIENT_MODULES/"
-  log "Jar installe dans  : $CLIENT_MODULES"
-  log "Redemarre le client OpenConcerto, puis fais le test graphique."
+  if cp -f "$JAR_FILE" "$CLIENT_MODULES/" 2>/dev/null; then
+    log "Jar installe dans  : $CLIENT_MODULES"
+    log "Redemarre le client OpenConcerto, puis fais le test graphique."
+  else
+    log "Ecriture impossible dans $CLIENT_MODULES (droits insuffisants)."
+    log "Copie manuelle a faire avec les droits administrateur :"
+    log "  sudo cp \"$JAR_FILE\" \"$CLIENT_MODULES/\""
+  fi
 else
   log "Installation dans le client non effectuee."
 fi
