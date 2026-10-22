@@ -35,7 +35,7 @@ else
     javac -J-XX:-UsePerfData -proc:none -encoding UTF-8 -source 8 -target 8 -cp "$OPENCONCERTO_JAR" -d "$CLASSES_DIR" @"$SOURCES_FILE"
 fi
 
-rsync -a "$CLASSES_DIR"/ "$STAGING_DIR"/
+cp -a "$CLASSES_DIR"/. "$STAGING_DIR"/
 find "$ROOT_DIR/src" -type f \( -name '*.xml' -o -name '*.properties' -o -name '*.png' -o -name '*.ods' -o -name '*.odt' \) | while IFS= read -r source_file; do
     relative_path=${source_file#"$ROOT_DIR/src/"}
     destination="$STAGING_DIR/$relative_path"

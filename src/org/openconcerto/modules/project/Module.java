@@ -71,6 +71,7 @@ import org.openconcerto.sql.element.SQLElement;
 import org.openconcerto.sql.element.SQLElementDirectory;
 import org.openconcerto.sql.model.DBRoot;
 import org.openconcerto.sql.model.FieldPath;
+import org.openconcerto.sql.model.SQLInjector;
 import org.openconcerto.sql.model.SQLRow;
 import org.openconcerto.sql.model.SQLRowAccessor;
 import org.openconcerto.sql.model.SQLRowValues;
@@ -202,6 +203,33 @@ public final class Module extends AbstractModule {
             }
         }
 
+        // Table de transfert TR_DEMANDE_PRIX (liaison demande de prix -> commande
+        // fournisseur). OpenConcerto la cree tout seul : rien a faire a la main.
+        createTransfertDemandePrixTable(ctxt.getRoot());
+    }
+
+    /**
+     * Enregistre le transfert « demande de prix » -&gt; « commande fournisseur » et
+     * cree, si besoin, la table de transfert {@code TR_DEMANDE_PRIX}.
+     * <p>
+     * La table est creee par le mecanisme standard d'OpenConcerto
+     * ({@link SQLInjector#createTransferTables(DBRoot)}) : aucune table n'est a
+     * creer a la main, et l'operation est idempotente.
+     */
+    private void createTransfertDemandePrixTable(final DBRoot root) {
+        try {
+            if (root.findTable("DEMANDE_PRIX") == null || root.findTable("COMMANDE") == null) {
+                return;
+            }
+            final DBRoot societe = root.findTable("DEMANDE_PRIX").getDBRoot();
+            if (societe.getTable("TR_DEMANDE_PRIX") != null) {
+                return;
+            }
+            new DemandePrixCommandeSQLInjector(societe);
+            SQLInjector.createTransferTables(societe);
+        } catch (Exception e) {
+            ExceptionHandler.handle("Impossible de creer la table de transfert TR_DEMANDE_PRIX", e);
+        }
     }
 
     @Override
@@ -655,7 +683,54 @@ public final class Module extends AbstractModule {
                 ctxt.putAdditionalField(table, "ID_AFFAIRE");
         }
         installDeliveryNoteInvoiceAction(ctxt);
+        installTransfertDemandePrix();
 
+    }
+
+    /**
+     * Ajoute le bouton « Transfert en commande fournisseur » dans l'onglet
+     * « Demandes de prix » de l'historique des affaires.
+     * <p>
+     * Le transfert suit le mecanisme standard OpenConcerto : un
+     * {@link SQLInjector} recopie les champs, et le lien entre la demande de prix
+     * et la commande creee est memorise dans la table de transfert
+     * {@code TR_DEMANDE_PRIX}.
+     */
+    private void installTransfertDemandePrix() {
+        try {
+            if (Configuration.getInstance().getRoot().findTable("DEMANDE_PRIX") == null) {
+                return;
+            }
+            if (!TransfertDemandePrixAction.isAvailable()) {
+                // pas de table des lignes de demande de prix : rien a transferer
+                return;
+            }
+            final DBRoot root = DemandePrixCommandeSQLInjector.root();
+            // 1. les injecteurs de transfert
+            new DemandePrixCommandeSQLInjector(root);
+            if (root.contains("DEMANDE_PRIX_ELEMENT") && root.contains("COMMANDE_ELEMENT")) {
+                new DemandePrixElementCommandeElementSQLInjector(root);
+            }
+            // 2. la table de transfert, creee automatiquement si elle manque
+            if (root.getTable("TR_DEMANDE_PRIX") == null) {
+                SQLInjector.createTransferTables(root);
+            }
+            // 3. le bouton, une seule fois
+            final SQLElement elt = Configuration.getInstance().getDirectory().getElement("DEMANDE_PRIX");
+            if (elt == null) {
+                return;
+            }
+            for (IListeAction action : elt.getRowActions()) {
+                if (action instanceof RowAction
+                        && ((RowAction) action).getAction() instanceof TransfertDemandePrixAction.DemandePrixTransfertAction) {
+                    // le bouton est deja present
+                    return;
+                }
+            }
+            elt.getRowActions().add(TransfertDemandePrixAction.create());
+        } catch (Exception e) {
+            ExceptionHandler.handle("Impossible d'installer le transfert demande de prix -> commande fournisseur", e);
+        }
     }
 
     private static void installDeliveryNoteInvoiceAction(final ComponentsContext ctxt) {
