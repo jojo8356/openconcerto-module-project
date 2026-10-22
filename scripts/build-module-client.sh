@@ -67,13 +67,16 @@ fi
 log "Jar OpenConcerto  : $OC_JAR"
 
 # ------------------------------------------- 2. dossier Modules client
+# OpenConcerto lit ses modules dans le dossier "Modules" RELATIF au
+# repertoire de lancement du client (Gestion.MODULES_DIR). On installe donc
+# dans tous les dossiers Modules connus : le bon sera celui du client.
 if [ -z "$CLIENT_MODULES" ]; then
   for candidate in \
+    "$(dirname -- "$OC_JAR")"/Modules \
     /opt/openconcerto/Modules \
     /usr/share/openconcerto/Modules \
     "$HOME"/OpenConcerto*/Modules \
-    "$HOME"/OpenConcerto*/modules \
-    "$(dirname -- "$OC_JAR")"/Modules
+    "$HOME"/OpenConcerto*/modules
   do
     if [ -d "$candidate" ]; then
       CLIENT_MODULES="$candidate"
@@ -102,14 +105,26 @@ log "Jar construit      : $JAR_FILE"
 
 # ------------------------------------------------------ 4. installation
 if [ "$INSTALL" -eq 1 ]; then
-  if cp -f "$JAR_FILE" "$CLIENT_MODULES/" 2>/dev/null; then
-    log "Jar installe dans  : $CLIENT_MODULES"
-    log "Redemarre le client OpenConcerto, puis fais le test graphique."
-  else
-    log "Ecriture impossible dans $CLIENT_MODULES (droits insuffisants)."
-    log "Copie manuelle a faire avec les droits administrateur :"
-    log "  sudo cp \"$JAR_FILE\" \"$CLIENT_MODULES/\""
+  installed=0
+  for target in "$CLIENT_MODULES" \
+    /opt/openconcerto/Modules \
+    "$HOME"/OpenConcerto*/Modules
+  do
+    [ -n "$target" ] || continue
+    [ -d "$target" ] || continue
+    if cp -f "$JAR_FILE" "$target/" 2>/dev/null; then
+      log "Jar installe dans  : $target"
+      installed=$((installed + 1))
+    else
+      log "Ecriture impossible dans $target (droits insuffisants)."
+      log "  sudo cp \"$JAR_FILE\" \"$target/\""
+    fi
+  done
+  if [ "$installed" -eq 0 ]; then
+    log "Aucun dossier Modules installable : copie manuelle :"
+    log "  sudo cp \"$JAR_FILE\" \"<dossier Modules du client>/\""
   fi
+  log "Redemarre le client OpenConcerto, puis fais le test graphique."
 else
   log "Installation dans le client non effectuee."
 fi
