@@ -286,7 +286,7 @@ CUR_DB="$DB_NAME"
 
 # merged (major * 10000 + minor) -> "major.minor"
 decode_version() {
-    local m="$1"
+    local m="${1:-}"
     [ -n "$m" ] || { echo "(inconnue)"; return 0; }
     printf '%s.%s' "$((m / 10000))" "$((m % 10000))"
 }
@@ -389,22 +389,32 @@ for schema in $SCHEMAS; do
        case when \"MODULE_VERSION\" is null then null else \"MODULE_VERSION\"/10000 || '.' || \"MODULE_VERSION\"%10000 end as version
        from \"$schema\".\"FWK_MODULE_METADATA\"
        where \"MODULE_NAME\" = '$MODULE_ID' and \"TABLE\" is null and \"FIELD\" is null;"
-    DB_MERGED=$(q1 "select \"MODULE_VERSION\" from \"$schema\".\"FWK_MODULE_METADATA\" where \"MODULE_NAME\" = '$MODULE_ID' and \"TABLE\" is null and \"FIELD\" is null;" | head -1 | tr -d '\r')
+    DB_MERGED=$(q1 "select \"MODULE_VERSION\" from \"$schema\".\"FWK_MODULE_METADATA\" where \"MODULE_NAME\" = '$MODULE_ID' and \"TABLE\" is null and \"FIELD\" is null;" 2>/dev/null | head -1 | tr -d '\r' || true)
     info "version en base : $(decode_version "$DB_MERGED")"
 
     log "2. modules requis (preference SQL 'modules/required')"
-    q "select v.\"NAME\" as module, v.\"VALUE\" as valeur,
+    HAS_PREFS=$(q1 "select count(*) from information_schema.tables where table_schema = '$schema' and table_name in ('PREF_VALUE','PREF_NODE');" 2>/dev/null | head -1 | tr -d '\r' || true)
+    REQ_MERGED=""
+    if [ "${HAS_PREFS:-0}" = "0" ]; then
+        info "ce schema n'a pas de preferences SQL (PREF_VALUE) : rien a epingler de ce cote"
+    else
+        q "select v.\"NAME\" as module, v.\"VALUE\" as valeur,
        case when cast(v.\"VALUE\" as bigint) is null then null else cast(v.\"VALUE\" as bigint)/10000 || '.' || cast(v.\"VALUE\" as bigint)%10000 end as version
        from \"$schema\".\"PREF_VALUE\" v
        join \"$schema\".\"PREF_NODE\" n on n.\"ID\" = v.\"ID_NODE\"
        join \"$schema\".\"PREF_NODE\" p on p.\"ID\" = n.\"ID_PARENT\"
        where n.\"NAME\" = 'required' and p.\"NAME\" = 'modules'
        order by v.\"NAME\";"
-    REQ_MERGED=$(q1 "select v.\"VALUE\" from \"$schema\".\"PREF_VALUE\" v
+        REQ_MERGED=$(q1 "select v.\"VALUE\" from \"$schema\".\"PREF_VALUE\" v
        join \"$schema\".\"PREF_NODE\" n on n.\"ID\" = v.\"ID_NODE\"
        join \"$schema\".\"PREF_NODE\" p on p.\"ID\" = n.\"ID_PARENT\"
-       where n.\"NAME\" = 'required' and p.\"NAME\" = 'modules' and v.\"NAME\" = '$MODULE_ID';" | head -1 | tr -d '\r')
-    info "version requise par l'admin : $(decode_version "$REQ_MERGED")"
+       where n.\"NAME\" = 'required' and p.\"NAME\" = 'modules' and v.\"NAME\" = '$MODULE_ID';" 2>/dev/null | head -1 | tr -d '\r' || true)
+        if [ -n "$REQ_MERGED" ]; then
+            info "version requise par l'admin : $(decode_version "$REQ_MERGED")"
+        else
+            info "ce module n'est pas dans la liste des 'modules requis' : rien a epingler de ce cote"
+        fi
+    fi
     echo
 
     if [ "$DO_FIX" -eq 0 ]; then
@@ -430,16 +440,30 @@ for schema in $SCHEMAS; do
     fi
 
     log "Application de la correction sur $schema"
-    q "begin;
+    OUT1=$(q "begin;
        update \"$schema\".\"FWK_MODULE_METADATA\" set \"MODULE_VERSION\" = $NEW_MERGED
         where \"MODULE_NAME\" = '$MODULE_ID' and \"TABLE\" is null and \"FIELD\" is null;
+       commit;" 2>&1)
+    if printf '%s' "$OUT1" | grep -q "ERROR"; then
+        info "ECHEC sur FWK_MODULE_METADATA : $OUT1"
+    else
+        info "FWK_MODULE_METADATA : version passee a $TARGET_VERSION"
+    fi
+    if [ "${HAS_PREFS:-0}" != "0" ]; then
+        OUT2=$(q "begin;
        update \"$schema\".\"PREF_VALUE\" v set \"VALUE\" = '$NEW_MERGED'
         from \"$schema\".\"PREF_NODE\" n, \"$schema\".\"PREF_NODE\" p
         where v.\"ID_NODE\" = n.\"ID\" and n.\"ID_PARENT\" = p.\"ID\"
           and n.\"NAME\" = 'required' and p.\"NAME\" = 'modules'
           and v.\"NAME\" = '$MODULE_ID';
-       commit;"
-    info "fait : la base est desormais alignee sur $TARGET_VERSION"
+       commit;" 2>&1)
+        if printf '%s' "$OUT2" | grep -q "ERROR"; then
+            info "ECHEC sur PREF_VALUE : $OUT2"
+        else
+            info "PREF_VALUE (modules/required) : version passee a $TARGET_VERSION"
+        fi
+    fi
+    info "base $schema alignee sur $TARGET_VERSION"
 done
 done
 
