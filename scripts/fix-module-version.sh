@@ -155,10 +155,29 @@ if [ "$MODE" = "vm" ]; then
     fi
     [ -n "$VM_DB_PASSWORD" ] || die "mot de passe PostgreSQL introuvable dans la VM"
 
-    log "Diagnostic dans la VM"
-    ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "cd '$VM_DIR' && bash scripts/fix-module-version.sh --mode local --host 127.0.0.1 --port 5433 \
---db ${DB_NAME:-OpenConcerto} --user ${DB_USER:-openconcerto} --password '$VM_DB_PASSWORD' \
---module '$MODULE_ID' ${TARGET_VERSION:+--version '$TARGET_VERSION'} $( [ "$DO_APPLY" -eq 1 ] && echo --apply || echo --fix )"
+    # Dans la VM, on utilise psql s'il est installe, sinon le conteneur Docker
+    # de la stack (le script sait parler aux deux).
+    if ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "command -v psql >/dev/null 2>&1"; then
+        VM_MODE=local
+    else
+        VM_MODE=docker
+        log "psql absent dans la VM : passage par le conteneur Docker de la stack"
+    fi
+
+    EXTRA=""
+    [ "$DB_GIVEN" -eq 1 ] && EXTRA="$EXTRA --db '$DB_NAME'"
+    [ -n "$TARGET_VERSION" ] && EXTRA="$EXTRA --version '$TARGET_VERSION'"
+    [ "$DO_APPLY" -eq 1 ] && EXTRA="$EXTRA --apply" || EXTRA="$EXTRA --fix"
+
+    log "Diagnostic dans la VM (mode $VM_MODE)"
+    if [ "$VM_MODE" = local ]; then
+        ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "cd '$VM_DIR' && bash scripts/fix-module-version.sh --mode local \
+--host 127.0.0.1 --port 5433 --user ${DB_USER:-openconcerto} --password '$VM_DB_PASSWORD' \
+--module '$MODULE_ID'$EXTRA"
+    else
+        ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "cd '$VM_DIR' && bash scripts/fix-module-version.sh --mode docker \
+--stack '$VM_DIR' --user ${DB_USER:-openconcerto} --module '$MODULE_ID'$EXTRA"
+    fi
     exit $?
 fi
 
@@ -243,18 +262,27 @@ exec $RUNTIME exec -i $PGPASS_ENV $CID psql "\${ARGS[@]}"
 EOF
     chmod +x "$WRAPPER_DIR/psql" || die "impossible de creer le wrapper psql"
     export PATH="$WRAPPER_DIR:$PATH"
-    PSQL=(psql -X -w -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME")
     info "transport : psql dans le conteneur (socket local)"
 else
     command -v psql >/dev/null 2>&1 || die "psql est introuvable."
     export PGPASSWORD="$DB_PASSWORD"
-    PSQL=(psql -X -w -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME")
-    info "transport : psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+    info "transport : psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d <base>"
 fi
 
+# psql <base> [args...] : execute sur la base demandee
+psql_db() {
+    local db="$1"; shift
+    if [ "$MODE" = docker ]; then
+        psql -X -w -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$db" "$@"
+    else
+        psql -X -w -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$db" "$@"
+    fi
+}
+
 # ---------------------------------------------------------------- helpers
-q()  { "${PSQL[@]}" -c "$1" 2>&1; }
-q1() { "${PSQL[@]}" -A -t -c "$1" 2>&1; }
+q()  { psql_db "$CUR_DB" -c "$1" 2>&1; }
+q1() { psql_db "$CUR_DB" -A -t -c "$1" 2>&1; }
+CUR_DB="$DB_NAME"
 
 # merged (major * 10000 + minor) -> "major.minor"
 decode_version() {
@@ -324,8 +352,30 @@ if [ -n "$LAST_JAR_VERSION" ]; then
 fi
 echo
 
+# Toutes les bases du serveur (la base de production peut porter un nom
+# different de « OpenConcerto ») ; --db permet de cibler une seule base.
+if [ "$DB_GIVEN" -eq 1 ]; then
+    DATABASES="$DB_NAME"
+else
+    DATABASES=$(psql_db postgres -A -t -c "select datname from pg_database where datallowconn and not datistemplate order by 1" 2>/dev/null | tr -d '\r' | grep -v '^$')
+    [ -n "$DATABASES" ] || DATABASES="$DB_NAME"
+fi
+info "bases inspectees : $(printf '%s' "$DATABASES" | tr '\n' ' ')"
+
+for CUR_DB in $DATABASES; do
+    CUR_DB=$(printf '%s' "$CUR_DB" | tr -d '\r')
+    [ -n "$CUR_DB" ] || continue
+
+    echo
+    echo "################################################################################"
+    echo "# BASE $CUR_DB"
+    echo "################################################################################"
+
 SCHEMAS=$(q1 "select distinct table_schema from information_schema.tables where table_name = 'FWK_MODULE_METADATA' order by 1")
-[ -n "$SCHEMAS" ] || { echo "aucun schema avec une table FWK_MODULE_METADATA"; exit 1; }
+if [ -z "$SCHEMAS" ]; then
+    info "aucun schema avec une table FWK_MODULE_METADATA dans $CUR_DB"
+    continue
+fi
 
 for schema in $SCHEMAS; do
     schema=$(printf '%s' "$schema" | tr -d '\r')
@@ -390,6 +440,7 @@ for schema in $SCHEMAS; do
           and v.\"NAME\" = '$MODULE_ID';
        commit;"
     info "fait : la base est desormais alignee sur $TARGET_VERSION"
+done
 done
 
 echo
