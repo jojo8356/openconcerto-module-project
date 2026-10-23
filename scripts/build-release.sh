@@ -13,6 +13,7 @@
 # options:
 #   --bump patch|minor|major  increment the version in module.properties
 #   --version X.Y             set an explicit version (digits only, e.g. 1.3)
+#   --tag NAME                impose the git tag (default: v<version>)
 #   --notes TEXT              release notes (default: the commits since the last tag)
 #   --notes-file FILE         read the release notes from a file
 #   --publish                 commit + tag + push + create the GitHub release
@@ -45,6 +46,7 @@ DRY_RUN=0
 OC_JAR=${OPENCONCERTO_JAR:-}
 NOTES=""
 NOTES_FILE=""
+TAG_OVERRIDE=""
 DIST_DIR="$ROOT_DIR/dist"
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 
@@ -57,6 +59,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --bump) BUMP=${2:-}; shift 2 ;;
     --version) NEW_VERSION=${2:-}; shift 2 ;;
+    --tag) TAG_OVERRIDE=${2:-}; shift 2 ;;
     --notes) NOTES=${2:-}; shift 2 ;;
     --notes-file) NOTES_FILE=${2:-}; shift 2 ;;
     --publish) PUBLISH=1; shift ;;
@@ -110,6 +113,9 @@ valid_version "$NEW_VERSION" || die "version invalide : '$NEW_VERSION' (chiffres
 [ "$NEW_VERSION" = "$CURRENT_VERSION" ] && log "Version inchangée : $CURRENT_VERSION"
 
 TAG="v$NEW_VERSION"
+# Un tag peut etre impose : utile pour republier une version deja epinglee
+# en base (le tag "v<version>" peut deja exister).
+[ -n "$TAG_OVERRIDE" ] && TAG="$TAG_OVERRIDE"
 JAR_NAME="$MODULE_ID-$NEW_VERSION.jar"
 
 # ------------------------------------------------------- ecriture version
@@ -213,6 +219,13 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
+  # avertissement : une version qui recule n'est acceptee par la base que si
+  # celle-ci exige deja exactement ce numero
+  if [ "$(printf '%s' "$NEW_VERSION" | awk -F. '{print $1*10000+$2}')" -lt "$(printf '%s' "$CURRENT_VERSION" | awk -F. '{print $1*10000+$2}')" ]; then
+    log "ATTENTION : la version recule ($CURRENT_VERSION -> $NEW_VERSION)."
+    log "  OpenConcerto exige une correspondance exacte avec la version notee en base :"
+    log "  cette version n'est utilisable que si la base exige deja $NEW_VERSION."
+  fi
   set_module_version
 fi
 if [ "$DO_CHANGELOG" -eq 1 ]; then
