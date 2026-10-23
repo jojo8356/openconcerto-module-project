@@ -12,6 +12,13 @@
 
 ### Added
 
+- `scripts/fix-module-version.sh` : diagnostic et correction de la version du
+  module épinglée en base. Quand le jar est remplacé, la base garde l'ancienne
+  version (`FWK_MODULE_METADATA` + préférence `modules/required`) et le client
+  refuse de démarrer avec `NO_FACTORY=[Module … v1.1]`. Le script aligne la
+  base sur la version du jar (transaction SQL, idempotente, lecture seule par
+  défaut).
+
 - `scripts/build-release.sh` : préparation d'une release (bump de version,
   compilation Java 8, jar dans `dist/`, tag Git, push) et publication d'une
   **release GitHub avec le jar compilé en pièce jointe**.

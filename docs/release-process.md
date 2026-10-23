@@ -209,10 +209,60 @@ gh release create v1.3 --title "Module project 1.3" --notes-file notes.txt \
    ce dossier **relativement au répertoire de lancement du client**
    (`Gestion.MODULES_DIR`), donc en pratique `/opt/openconcerto/Modules` si
    le client est lancé depuis `/opt/openconcerto` ;
-3. **redémarrer le client** ;
-4. vérifier la version dans « Informations » → « Gestion des modules ».
+3. **aligner la base** (voir ci-dessous) ;
+4. **redémarrer le client** ;
+5. vérifier la version dans « Informations » → « Gestion des modules ».
 
-Au démarrage, OpenConcerto compare la version du jar à celle de la base : la
-nouvelle version étant plus récente, il rejoue l'installation SQL du module
-(création de la table de transfert `TR_DEMANDE_PRIX`, etc.). Cette
-installation est **idempotente** : elle peut être rejouée sans risque.
+### 5.1 Le piège de la version épinglée en base ⚠️
+
+Quand la version du jar change, **la base continue d'épingler l'ancienne
+version**, à deux endroits :
+
+| où | quoi |
+|---|---|
+| `FWK_MODULE_METADATA` (ligne « module », `TABLE` et `FIELD` à `NULL`) | version du module installé dans cette base |
+| `PREF_VALUE`, nœud `modules/required` | version du module « requis » par l'administrateur |
+
+Au démarrage, OpenConcerto exige une correspondance **exacte** entre ces
+versions et un jar présent dans le dossier `Modules` du client
+(`FactoriesByID.getFactories()` : `map.get(version)`, pas de « version
+supérieure ou égale »). Si ça ne correspond pas, le client ne démarre pas et
+affiche :
+
+```
+Impossible de configurer les modules requis
+Impossible de créer les modules, not solved :
+  SetMap {NO_FACTORY=[Module org.openconcerto.modules.project v1.1]}
+```
+
+C'est le « problème de métadonnées de module » qui avait fait rester
+`module.properties` en `1.1` dans les versions précédentes de ce dépôt.
+
+**La parade** : après avoir copié le nouveau jar, aligner la base sur la
+version du jar :
+
+```sh
+# diagnostic (lecture seule)
+bash scripts/fix-module-version.sh --mode docker --stack ~/oc-176-docker
+
+# correction (transaction SQL, idempotente)
+bash scripts/fix-module-version.sh --mode docker --stack ~/oc-176-docker --apply
+```
+
+Le script :
+
+- lit la version installée en base et la version « modules requis » ;
+- détecte la version des jars présents dans les dossiers `Modules` du poste ;
+- propose la correction (`--fix`, sans écriture) ou l'applique (`--apply`) ;
+- ne touche qu'aux lignes de **notre** module et laisse les autres modules
+  intacts.
+
+Une fois la base alignée, le client démarre, OpenConcerto constate que la
+version du jar est plus récente que celle de la base, rejoue l'installation
+SQL du module (idempotente : création de `TR_DEMANDE_PRIX` si besoin, etc.) et
+met à jour les versions enregistrées.
+
+> Si l'on préfère éviter cette manipulation en base, il faut passer par
+> l'écran d'administration « Gestion des modules » du client : c'est lui qui
+> écrit la version « modules requis ». Mais le client refusant de démarrer,
+> cette voie n'est accessible qu'**après** avoir remis la base en état.

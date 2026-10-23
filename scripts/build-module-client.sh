@@ -132,6 +132,10 @@ if [ "$INSTALL" -eq 1 ]; then
     log "  sudo cp \"$JAR_FILE\" \"<dossier Modules du client>/\""
   fi
   log "Redemarre le client OpenConcerto, puis fais le test graphique."
+  log ""
+  log "IMPORTANT : la base garde la version du module installe. Si le client refuse"
+  log "de demarrer (NO_FACTORY), aligne la base sur la nouvelle version :"
+  log "  bash scripts/fix-module-version.* --mode docker --stack ~/oc-176-docker --apply"
 else
   log "Installation dans le client non effectuee."
 fi
