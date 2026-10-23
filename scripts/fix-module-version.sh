@@ -64,6 +64,9 @@ TARGET_VERSION=""
 MODULES_DIR=""
 DO_FIX=0
 DO_APPLY=0
+HOST_GIVEN=0
+PORT_GIVEN=0
+DB_GIVEN=0
 
 log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -78,9 +81,9 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --mode) MODE="$2"; shift 2 ;;
         --stack) STACK_DIR="$2"; shift 2 ;;
-        --host) DB_HOST="$2"; shift 2 ;;
-        --port) DB_PORT="$2"; shift 2 ;;
-        --db) DB_NAME="$2"; shift 2 ;;
+        --host) DB_HOST="$2"; HOST_GIVEN=1; shift 2 ;;
+        --port) DB_PORT="$2"; PORT_GIVEN=1; shift 2 ;;
+        --db) DB_NAME="$2"; DB_GIVEN=1; shift 2 ;;
         --user) DB_USER="$2"; shift 2 ;;
         --password) DB_PASSWORD="$2"; shift 2 ;;
         --module) MODULE_ID="$2"; shift 2 ;;
@@ -102,6 +105,36 @@ case "$MODE" in
     docker|local|vm) ;;
     *) die "mode invalide : $MODE (docker, local ou vm)" ;;
 esac
+
+# En mode local, on peut deduire hote/port/base de la configuration du client
+# OpenConcerto (server.url=jdbc:postgresql://hote:port/base).
+if [ "$MODE" = "local" ] && { [ "$HOST_GIVEN" -eq 0 ] || [ "$PORT_GIVEN" -eq 0 ] || [ "$DB_GIVEN" -eq 0 ]; }; then
+    for conf in "$HOME/.config/OpenConcerto/main.properties" "$HOME/.openconcerto/main.properties"; do
+        [ -f "$conf" ] || continue
+        url=$(sed -n 's/^server\.url=//p' "$conf" | head -1 | tr -d '\r')
+        [ -n "$url" ] || continue
+        case "$url" in
+            *//*) : ;;
+            *) continue ;;
+        esac
+        rest=${url#*//}
+        hostport=${rest%%/*}
+        dbase=${rest#*/}
+        dbase=${dbase%%\?*}
+        if [ "$HOST_GIVEN" -eq 0 ]; then
+            h=${hostport%%:*}
+            [ -n "$h" ] && DB_HOST="$h"
+        fi
+        if [ "$PORT_GIVEN" -eq 0 ]; then
+            p=${hostport##*:}
+            [ "$p" != "$hostport" ] && DB_PORT="$p"
+        fi
+        if [ "$DB_GIVEN" -eq 0 ] && [ -n "$dbase" ]; then
+            DB_NAME="$dbase"
+        fi
+        break
+    done
+fi
 
 # ---------------------------------------------------------------- mode vm
 if [ "$MODE" = "vm" ]; then
