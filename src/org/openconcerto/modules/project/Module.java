@@ -682,6 +682,13 @@ public final class Module extends AbstractModule {
             }
         }
 
+        // Enregistrer l'injecteur après l'ajout éventuel de
+        // FACTURE_FOURNISSEUR.ID_AFFAIRE ci-dessus, afin que la colonne soit
+        // toujours visible lors de la création du mapping.
+        if (root.contains("COMMANDE") && root.contains("FACTURE_FOURNISSEUR")) {
+            new SupplierOrderToInvoiceSQLInjector(root);
+        }
+
         for (String table : this.listTableAffaire) {
             if (!table.equalsIgnoreCase("DEVIS"))
                 ctxt.putAdditionalField(table, "ID_AFFAIRE");
