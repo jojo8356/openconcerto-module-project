@@ -11,15 +11,19 @@ sh scripts/run-tests.sh
 La classe `SupplierOrderToInvoiceSQLInjectorTest` couvre :
 
 - le chemin de transfert `COMMANDE` → `FACTURE_FOURNISSEUR` ;
-- la copie de `ID_AFFAIRE` et la conservation des champs natifs ;
+- la copie de `ID_AFFAIRE` dans l’en-tête et la conservation des champs natifs ;
+- la reprise de l’affaire sur les lignes vides ou indéfinies, sans écraser une
+  affaire de ligne déjà définie ;
 - le remplacement de l’injecteur natif par l’injecteur du module ;
 - l’enregistrement du champ **Affaire** dans l’en-tête de la facture ;
 - le constructeur utilisant la configuration OpenConcerto ;
 - les affaires `NULL` et indéfinies (`ID_AFFAIRE = 1`) ;
 - l’absence de duplication du mapping après plusieurs enregistrements ;
 - l’indépendance de deux transferts successifs ;
-- le regroupement de commandes rattachées à la même affaire ;
-- les schémas où la colonne `ID_AFFAIRE` est absente d’un côté ou des deux ;
+- le regroupement de commandes rattachées à la même affaire et la séparation des
+  affaires sur les lignes d’un transfert groupé ;
+- les schémas où la colonne `ID_AFFAIRE` est absente d’un côté ou des deux, y
+  compris sur les lignes de facture ;
 - la non-modification de la commande source.
 
 Ces tests utilisent des doubles de test en mémoire : ils ne nécessitent ni base
@@ -62,8 +66,10 @@ PostgreSQL ni session graphique.
    client, **Transfert vers saisie achat**).
 3. Dans le formulaire de facture qui s’ouvre, vérifier **avant l’enregistrement** :
    - le champ **Affaire de l’en-tête** est automatiquement renseigné sur
-     `TEST-CMD-FF`, sans le resélectionner ; ce champ est distinct de la colonne
-     `Id_affaire` du tableau des lignes ;
+     `TEST-CMD-FF`, sans le resélectionner ;
+   - la colonne **Id_affaire** des lignes transférées reprend également cette
+     affaire lorsqu’elle était vide ou indéfinie ; une affaire de ligne déjà
+     renseignée différemment doit être conservée ;
    - le fournisseur est celui de la commande ;
    - les lignes, quantités et montants sont toujours repris correctement.
 4. Enregistrer la facture et noter son numéro.

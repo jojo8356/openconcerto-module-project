@@ -1,6 +1,8 @@
 package org.openconcerto.modules.project;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import org.openconcerto.erp.injector.CommandeFactureFournisseurSQLInjector;
 import org.openconcerto.erp.modules.ComponentsContext;
@@ -29,9 +31,14 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
         testRepeatedRegistrationKeepsOneAffairMapping();
         testSuccessiveTransfersAreIndependent();
         testMultipleOrdersFromTheSameAffair();
+        testGroupedOrdersKeepLineAffairsSeparate();
         testMissingAffairColumnsDegradeSafely();
         testSourceOrderIsNeverModified();
         testInvoiceHeaderExposesAffairField();
+        testUndefinedLineAffairsUseOrderAffair();
+        testDefinedLineAffairIsPreserved();
+        testNoOrderAffairLeavesLineAffairsUndefined();
+        testMissingLineAffairColumnDoesNotBlockTransfer();
 
         System.out.println("SupplierOrderToInvoiceSQLInjectorTest OK (" + testCount + " tests)");
     }
@@ -131,6 +138,23 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
         pass();
     }
 
+    private static void testGroupedOrdersKeepLineAffairsSeparate() {
+        final Fixture fixture = new Fixture(true, true);
+        final SupplierOrderToInvoiceSQLInjector injector = new SupplierOrderToInvoiceSQLInjector(fixture.root);
+        final SQLRowValues firstOrder = order(fixture, 25, 810, "Commande groupe A");
+        final SQLRowValues secondOrder = order(fixture, 26, 820, "Commande groupe B");
+        line(fixture, firstOrder, null, "Ligne A");
+        line(fixture, secondOrder, null, "Ligne B");
+
+        final SQLRowValues invoice = injector.createRowValuesFrom(Arrays.asList(firstOrder, secondOrder));
+        final List<SQLRowValues> lines = invoiceLines(fixture, invoice);
+
+        assertEquals("two grouped invoice lines", 2, lines.size());
+        assertEquals("first grouped line keeps first affair", 810, lines.get(0).getObject("ID_AFFAIRE"));
+        assertEquals("second grouped line keeps second affair", 820, lines.get(1).getObject("ID_AFFAIRE"));
+        pass();
+    }
+
     private static void testMissingAffairColumnsDegradeSafely() {
         final boolean[] presence = new boolean[] { false, true };
         for (final boolean sourceHasAffair : presence) {
@@ -176,6 +200,67 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
         pass();
     }
 
+    private static void testUndefinedLineAffairsUseOrderAffair() {
+        final Fixture fixture = new Fixture(true, true);
+        final SupplierOrderToInvoiceSQLInjector injector = new SupplierOrderToInvoiceSQLInjector(fixture.root);
+        final SQLRowValues order = order(fixture, 21, 720, "Lignes sans affaire");
+        final SQLRowValues nullLine = line(fixture, order, null, "Affaire NULL");
+        final SQLRowValues undefinedLine = line(fixture, order, 1, "Affaire indéfinie");
+
+        final SQLRowValues invoice = injector.createRowValuesFrom(order);
+        final List<SQLRowValues> lines = invoiceLines(fixture, invoice);
+
+        assertEquals("two transferred lines", 2, lines.size());
+        assertEquals("NULL line affair uses order affair", 720, lines.get(0).getObject("ID_AFFAIRE"));
+        assertEquals("undefined line affair uses order affair", 720, lines.get(1).getObject("ID_AFFAIRE"));
+        assertEquals("source NULL line unchanged", null, nullLine.getObject("ID_AFFAIRE"));
+        assertEquals("source undefined line unchanged", 1, undefinedLine.getObject("ID_AFFAIRE"));
+        pass();
+    }
+
+    private static void testDefinedLineAffairIsPreserved() {
+        final Fixture fixture = new Fixture(true, true);
+        final SupplierOrderToInvoiceSQLInjector injector = new SupplierOrderToInvoiceSQLInjector(fixture.root);
+        final SQLRowValues order = order(fixture, 22, 730, "Affaire de ligne précise");
+        line(fixture, order, 999, "Affaire différente");
+
+        final SQLRowValues invoice = injector.createRowValuesFrom(order);
+
+        assertEquals("header keeps order affair", 730, invoice.getObject("ID_AFFAIRE"));
+        assertEquals("defined line affair is not overwritten", 999, onlyInvoiceLine(fixture, invoice).getObject("ID_AFFAIRE"));
+        pass();
+    }
+
+    private static void testNoOrderAffairLeavesLineAffairsUndefined() {
+        final Fixture fixture = new Fixture(true, true);
+        final SupplierOrderToInvoiceSQLInjector injector = new SupplierOrderToInvoiceSQLInjector(fixture.root);
+        final SQLRowValues order = order(fixture, 23, null, "Sans affaire ni ligne");
+        line(fixture, order, null, "Ligne NULL");
+        line(fixture, order, 1, "Ligne indéfinie");
+
+        final SQLRowValues invoice = injector.createRowValuesFrom(order);
+        final List<SQLRowValues> lines = invoiceLines(fixture, invoice);
+
+        assertEquals("NULL line affair stays NULL", null, lines.get(0).getObject("ID_AFFAIRE"));
+        assertEquals("undefined line affair stays undefined", 1, lines.get(1).getObject("ID_AFFAIRE"));
+        pass();
+    }
+
+    private static void testMissingLineAffairColumnDoesNotBlockTransfer() {
+        final Fixture fixture = new Fixture(true, true, false);
+        final SupplierOrderToInvoiceSQLInjector injector = new SupplierOrderToInvoiceSQLInjector(fixture.root);
+        final SQLRowValues order = order(fixture, 24, 740, "Lignes sans colonne affaire");
+        line(fixture, order, null, "Article sans colonne affaire");
+
+        final SQLRowValues invoice = injector.createRowValuesFrom(order);
+        final SQLRowValues invoiceLine = onlyInvoiceLine(fixture, invoice);
+
+        assertEquals("header affair still copied", 740, invoice.getObject("ID_AFFAIRE"));
+        assertEquals("native line copy retained", "Article sans colonne affaire", invoiceLine.getObject("DESIGNATION"));
+        assertTrue("no line affair invented without column", !invoiceLine.getFields().contains("ID_AFFAIRE"));
+        pass();
+    }
+
     private static SQLRowValues order(final Fixture fixture, final int id, final Object affairID, final String name) {
         final SQLRowValues order = new SQLRowValues(fixture.orders);
         order.put("ID", id);
@@ -186,6 +271,27 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
             order.put("ID_AFFAIRE", affairID);
         }
         return order;
+    }
+
+    private static SQLRowValues line(final Fixture fixture, final SQLRowValues order, final Object affairID, final String designation) {
+        final SQLRowValues line = new SQLRowValues(fixture.orderLines);
+        line.put("ID", ++fixture.nextLineID);
+        line.put("DESIGNATION", designation);
+        if (fixture.orderLines.contains("ID_AFFAIRE")) {
+            line.put("ID_AFFAIRE", affairID);
+        }
+        line.put("ID_COMMANDE", order);
+        return line;
+    }
+
+    private static List<SQLRowValues> invoiceLines(final Fixture fixture, final SQLRowValues invoice) {
+        return new ArrayList<SQLRowValues>(invoice.getReferentRows(fixture.invoiceLines));
+    }
+
+    private static SQLRowValues onlyInvoiceLine(final Fixture fixture, final SQLRowValues invoice) {
+        final List<SQLRowValues> lines = invoiceLines(fixture, invoice);
+        assertEquals("one transferred invoice line", 1, lines.size());
+        return lines.get(0);
     }
 
     private static int countMappings(final SupplierOrderToInvoiceSQLInjector injector, final String fieldName) {
@@ -225,10 +331,31 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
         private final DBRoot root = new DBRoot();
         private final SQLTable orders;
         private final SQLTable invoices;
+        private final SQLTable orderLines;
+        private final SQLTable invoiceLines;
+        private int nextLineID;
 
         private Fixture(final boolean sourceHasAffair, final boolean destinationHasAffair) {
+            this(sourceHasAffair, destinationHasAffair, true);
+        }
+
+        private Fixture(final boolean sourceHasAffair, final boolean destinationHasAffair, final boolean linesHaveAffair) {
             this.orders = table(this.root, "COMMANDE", sourceHasAffair);
             this.invoices = table(this.root, "FACTURE_FOURNISSEUR", destinationHasAffair);
+            this.orderLines = lineTable(this.root, "COMMANDE_ELEMENT", "ID_COMMANDE", linesHaveAffair);
+            this.invoiceLines = lineTable(this.root, "FACTURE_FOURNISSEUR_ELEMENT", "ID_FACTURE_FOURNISSEUR", linesHaveAffair);
+        }
+
+        private static SQLTable lineTable(final DBRoot root, final String name, final String parentField, final boolean withAffair) {
+            final SQLTable table = new SQLTable(root, name);
+            root.addTable(table);
+            table.addField("ID");
+            table.addField(parentField);
+            table.addField("DESIGNATION");
+            if (withAffair) {
+                table.addField("ID_AFFAIRE");
+            }
+            return table;
         }
 
         private static SQLTable table(final DBRoot root, final String name, final boolean withAffair) {

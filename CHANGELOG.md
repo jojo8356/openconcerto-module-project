@@ -15,14 +15,15 @@
 - Le transfert **Commandes fournisseurs → Factures fournisseurs** recopie
   maintenant `COMMANDE.ID_AFFAIRE` dans `FACTURE_FOURNISSEUR.ID_AFFAIRE` tout en
   conservant l’injecteur natif OpenConcerto pour les autres champs et les lignes.
+  Les lignes de facture dont `ID_AFFAIRE` est vide ou indéfini reprennent aussi
+  l’affaire de leur commande ; une affaire de ligne déjà définie est conservée.
 - L’en-tête de l’écran de facture fournisseur expose maintenant le champ
-  **Affaire**, afin de voir la valeur reprise avant l’enregistrement. La colonne
-  `Id_affaire` du tableau des lignes reste distincte du rattachement de la
-  facture elle-même.
-- `SupplierOrderToInvoiceSQLInjectorTest` : 11 tests de contrat couvrant la
-  copie de l’affaire, l’enregistrement de l’injecteur et du champ d’en-tête, les
-  valeurs vides et indéfinies, les transferts successifs, les commandes groupées
-  sur une même affaire et les schémas sans colonne `ID_AFFAIRE`.
+  **Affaire**, afin de voir la valeur reprise avant l’enregistrement.
+- `SupplierOrderToInvoiceSQLInjectorTest` : 16 tests de contrat couvrant la
+  copie de l’affaire dans l’en-tête et les lignes, la préservation des affaires
+  de ligne définies, l’enregistrement de l’injecteur et du champ d’en-tête, les
+  valeurs vides et indéfinies, les transferts successifs et groupés, ainsi que
+  les schémas sans colonne `ID_AFFAIRE`.
 - Procédure de recette graphique :
   `docs/test-transfert-commande-fournisseur-facture.md`.
 
@@ -36,7 +37,7 @@
 ### Validation
 
 - `AffairListSortSupportTest` : OK.
-- `SupplierOrderToInvoiceSQLInjectorTest` : 11 tests OK.
+- `SupplierOrderToInvoiceSQLInjectorTest` : 16 tests OK.
 
 ## Module project 1.5 - 2026-10-22 (à publier)
 
