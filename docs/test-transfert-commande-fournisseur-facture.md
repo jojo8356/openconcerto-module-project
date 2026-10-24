@@ -35,9 +35,10 @@ PostgreSQL ni session graphique.
    OPENCONCERTO_JAR=/chemin/vers/OpenConcerto.jar sh scripts/build-java8-compatible.sh
    ```
 
-   Le JAR produit est `build/org.openconcerto.modules.project-1.1.jar`. La
-   version `1.1` est conservée volontairement pour rester identique à celle
-   enregistrée dans la base : il ne faut pas l’incrémenter pour ce correctif.
+   Le JAR produit est `build/org.openconcerto.modules.project-1.2.jar`. La
+   version `1.2` correspond à celle déjà enregistrée dans la base : elle ne
+   doit pas être remplacée par une version `1.1`, qui serait refusée comme trop
+   ancienne au démarrage.
 3. Installer le JAR généré dans le dossier `Modules` comme pour une mise à jour
    habituelle du module.
 4. **Fermer puis relancer OpenConcerto.** Ce redémarrage est indispensable :
