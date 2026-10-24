@@ -22,7 +22,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
 
 failed=0
 while IFS= read -r class_file; do
-    major_hex=$(xxd -p -l 8 "$class_file" | cut -c 13-16)
+    major_hex=$(od -An -tx1 -N8 "$class_file" | tr -d ' \n' | cut -c 13-16)
     major_dec=$(printf '%d' "0x$major_hex")
     if [ "$major_dec" -gt 52 ]; then
         echo "Class bytecode is newer than Java 8: $class_file major=$major_dec" >&2

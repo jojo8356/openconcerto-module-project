@@ -1,0 +1,11 @@
+FROM postgres:17-bookworm
+
+# Locale française générée AVANT le premier démarrage du serveur.
+#
+# Générer la locale dans un conteneur déjà démarré ne suffit pas : le
+# postmaster, lancé avant, ne la voit pas et CREATE DATABASE … LC_COLLATE
+# 'fr_FR.UTF-8' échoue avec "invalid LC_COLLATE locale name", alors même que
+# `locale -a` la liste et que `LC_ALL=fr_FR.UTF-8 locale charmap` répond UTF-8
+# dans un processus neuf.
+RUN localedef -i fr_FR -c -f UTF-8 -A /usr/share/locale/locale.alias fr_FR.UTF-8
+ENV LANG fr_FR.utf8

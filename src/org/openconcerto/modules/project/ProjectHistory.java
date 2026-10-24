@@ -119,6 +119,11 @@ public class ProjectHistory {
     @SuppressWarnings("deprecation")
     public ProjectHistory() {
 
+        // Bouton "Transfert en commande fournisseur" : il doit etre enregistre
+        // sur l'element DEMANDE_PRIX AVANT la creation des listes, car les
+        // actions de liste sont lues a ce moment-la.
+        TransfertDemandePrixAction.install();
+
         final ComptaPropsConfiguration comptaPropsConfiguration = ((ComptaPropsConfiguration) Configuration.getInstance());
         final SQLBase b = comptaPropsConfiguration.getSQLBaseSociete();
         this.sqlBase = b;
@@ -199,6 +204,15 @@ public class ProjectHistory {
         // }
 
         this.listPanel = new ListeHistoriquePanel("Affaires", request, mapList, bilanPanel, fieldLink, null, true, null, null, splitter);
+
+        // Bouton de transfert demande de prix -> commande : on l'ajoute aussi
+        // directement sur la liste (menu contextuel), en plus de l'action de
+        // l'element, pour qu'il soit visible meme si l'element n'a pas encore
+        // d'action de liste.
+        final IListPanel listeDemandePrix = listPanel.getIListePanelFromTableName("DEMANDE_PRIX");
+        if (listeDemandePrix != null) {
+            listeDemandePrix.getListe().addRowAction(new TransfertDemandePrixAction.DemandePrixTransfertAction());
+        }
 
         int nbList = mapList.size();
         Map<IListe, SQLField> mapFilterDate = new HashMap<>();

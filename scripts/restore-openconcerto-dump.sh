@@ -53,7 +53,11 @@ if [ -f "$DUMP.sha256" ] && command -v sha256sum >/dev/null 2>&1; then
 fi
 
 log "Contenu du dump (aperçu)"
-pg_restore -l "$DUMP" | head -n 15 || die "Fichier de dump illisible (il doit être au format -Fc)."
+# Pas de pipe vers head ici : head ferme le tuyau après 15 lignes, pg_restore
+# reçoit SIGPIPE et sort en 141, ce qui — avec pipefail — faisait échouer le
+# script sur un dump parfaitement valide.
+TOC=$(pg_restore -l "$DUMP") || die "Fichier de dump illisible (il doit être au format -Fc)."
+head -n 15 <<< "$TOC"
 
 EXISTS=$(psql -d postgres -tAc "SELECT count(*) FROM pg_database WHERE datname='$DB'")
 if [ "$EXISTS" = "1" ]; then
@@ -83,9 +87,19 @@ log "Restauration du dump"
 pg_restore --no-owner --no-privileges -d "$DB" "$DUMP" || die "La restauration a signalé des erreurs. Vérifie la sortie ci-dessus."
 
 log "Vérification"
-psql -d "$DB" -tAc "SELECT data_type || '|' || column_default FROM information_schema.columns WHERE table_schema='OpenConcerto42' AND table_name='FACTURE_FOURNISSEUR_ELEMENT' AND column_name='ID_COMMANDE_ELEMENT'" \
-    | grep -qx 'integer|1' && echo "OK : FACTURE_FOURNISSEUR_ELEMENT.ID_COMMANDE_ELEMENT est présent." \
-    || die "La colonne ID_COMMANDE_ELEMENT n'a pas été trouvée après restauration."
+# Le nom du schema varie d'un serveur a l'autre (OpenConcerto42, Default,
+# ...) : on cherche la colonne dans TOUS les schemas.
+COLS=$(psql -d "$DB" -tAc "SELECT table_schema || '|' || data_type || '|' || column_default FROM information_schema.columns WHERE table_name='FACTURE_FOURNISSEUR_ELEMENT' AND column_name='ID_COMMANDE_ELEMENT' ORDER BY table_schema" 2>/dev/null || true)
+if [ -z "$COLS" ]; then
+    echo "ATTENTION : ID_COMMANDE_ELEMENT est absente de FACTURE_FOURNISSEUR_ELEMENT."
+    echo "La base a bien ete restauree ; appliquer le correctif multi-schemas :"
+    echo "  bash scripts/fix-facture-fournisseur-all-schemas.sh -d $DB -y"
+else
+    echo "Colonne ID_COMMANDE_ELEMENT (schema|type|defaut) :"
+    printf '%s\n' "$COLS" | sed 's/^/  /'
+fi
+echo "Schemas contenant la table FACTURE_FOURNISSEUR_ELEMENT :"
+psql -d "$DB" -tAc "SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_name='FACTURE_FOURNISSEUR_ELEMENT' ORDER BY 1" 2>/dev/null | sed 's/^/  /' || true
 
 echo
 echo "Terminé. Lance OpenConcerto 1.7.6 avec la base '$DB'."

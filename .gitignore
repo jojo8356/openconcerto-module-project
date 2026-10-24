@@ -6,6 +6,10 @@ out/
 *.class
 *.jar
 
+# Node (test pglite)
+node_modules/
+package-lock.json
+
 # Temporary files
 *.tmp
 *.log
@@ -21,4 +25,7 @@ Thumbs.db
 .agents/
 _bmad/
 _bmad-output/
+node_modules
 
+# Release artifacts
+dist/

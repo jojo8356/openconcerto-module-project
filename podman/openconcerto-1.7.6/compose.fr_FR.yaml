@@ -1,0 +1,19 @@
+# Fichier d'override : base créée avec la collation française (fr_FR.UTF-8).
+#
+# Usage :
+#   podman-openconcerto.sh up --fr
+#
+# Nécessaire dès que la base source est en fr_FR.UTF-8 : sans cela, createdb
+# refuse "fr_FR.UTF-8" (invalid LC_COLLATE locale name) même si la locale est
+# listée par `locale -a` dans le conteneur — voir le commentaire du
+# Containerfile.
+# Le volume doit être vierge au moment du changement : la collation par
+# défaut du cluster est figée à l'initdb (« podman-openconcerto.sh down
+# --volumes » puis « up --fr »).
+
+services:
+  db:
+    build: .
+    image: openconcerto176-db-fr
+    environment:
+      POSTGRES_INITDB_ARGS: --locale=fr_FR.UTF-8 --encoding=UTF8

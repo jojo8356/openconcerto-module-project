@@ -1,0 +1,54 @@
+# Stack PostgreSQL + Adminer pour OpenConcerto 1.7.6, avec Podman.
+#
+# Ce fichier est lu par « podman compose » (ou podman-compose). Aucune
+# commande Docker n'est nécessaire : le binaire « docker » n'est jamais appelé.
+#
+# Différences assumées avec la version Docker (docker/openconcerto-1.7.6) :
+#   - pas de clé « name : » : Podman reçoit le nom du projet par -p
+#     (openconcerto176), ce qui fonctionne avec toutes les versions de
+#     podman-compose, y compris celles qui ignorent « name » ;
+#   - pas de « container_name » : le nommage est laissé à Podman, et le
+#     script podman-openconcerto.sh retrouve le conteneur par
+#     « podman compose ps -q db » ;
+#   - le montage de ./dumps porte l'option « z » (relabelisation SELinux) :
+#     sans elle, le conteneur ne peut pas lire le dossier sur Fedora/RHEL.
+#     L'option est acceptée et ignorée sur les systèmes sans SELinux ;
+#   - ports publiés sur 127.0.0.1 : 5433 et 8082. Le cluster PostgreSQL
+#     natif occupe déjà 5432, publier sur 5432 ferait échouer le démarrage.
+#     (En rootless, les ports < 1024 demandseraient « podman unshare » ou
+#     systemd.socket : on les a donc évités.)
+
+services:
+  db:
+    image: docker.io/library/postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-openconcerto}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD doit être défini dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-OpenConcerto}
+      # Encodage UTF8 obligatoire pour OpenConcerto. La collation n'est PAS
+      # forcée ici : aligne-la sur la base source (voir README, section 3).
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+    ports:
+      - "127.0.0.1:${PG_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./dumps:/dumps:ro,z
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openconcerto} -d ${POSTGRES_DB:-OpenConcerto}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  adminer:
+    image: docker.io/library/adminer:5
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ADMINER_PORT:-8082}:8080"
+
+volumes:
+  pgdata:
