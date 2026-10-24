@@ -22,6 +22,13 @@
 - Procédure de recette graphique :
   `docs/test-transfert-commande-fournisseur-facture.md`.
 
+### Compatibility
+
+- `module.properties` reste volontairement en `version=1.1` pour correspondre à
+  la version du module enregistrée dans la base installée. Ce correctif ne
+  demande aucune migration de version de la DB et produit
+  `org.openconcerto.modules.project-1.1.jar`.
+
 ### Validation
 
 - `AffairListSortSupportTest` : OK.
