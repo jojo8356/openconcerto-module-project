@@ -682,6 +682,17 @@ public final class Module extends AbstractModule {
             }
         }
 
+        // Enregistrer l'injecteur après l'ajout éventuel de
+        // FACTURE_FOURNISSEUR.ID_AFFAIRE ci-dessus, afin que la colonne soit
+        // toujours visible lors de la création du mapping.
+        if (root.contains("COMMANDE") && root.contains("FACTURE_FOURNISSEUR")) {
+            new SupplierOrderToInvoiceSQLInjector(root);
+        }
+
+        // Rendre visible dans l'en-tete de facture l'affaire reprise par
+        // l'injecteur. La colonne ID_AFFAIRE des lignes est un autre champ.
+        SupplierInvoiceAffairComponentSupport.register(ctxt);
+
         for (String table : this.listTableAffaire) {
             if (!table.equalsIgnoreCase("DEVIS"))
                 ctxt.putAdditionalField(table, "ID_AFFAIRE");

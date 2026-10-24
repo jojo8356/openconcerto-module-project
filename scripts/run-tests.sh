@@ -12,7 +12,20 @@ cd "$ROOT_DIR"
 
 {
     printf '%s\n' src/org/openconcerto/modules/project/AffairListSortSupport.java
+    printf '%s\n' src/org/openconcerto/modules/project/SupplierInvoiceAffairComponentSupport.java
+    printf '%s\n' src/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjector.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairListSortSupportTest.java
+    printf '%s\n' tests/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjectorTest.java
+    printf '%s\n' tests/org/openconcerto/erp/injector/CommandeFactureFournisseurSQLInjector.java
+    printf '%s\n' tests/org/openconcerto/erp/modules/ComponentsContext.java
+    printf '%s\n' tests/org/openconcerto/sql/Configuration.java
+    printf '%s\n' tests/org/openconcerto/sql/model/DBRoot.java
+    printf '%s\n' tests/org/openconcerto/sql/model/SQLField.java
+    printf '%s\n' tests/org/openconcerto/sql/model/SQLInjector.java
+    printf '%s\n' tests/org/openconcerto/sql/model/SQLRowAccessor.java
+    printf '%s\n' tests/org/openconcerto/sql/model/SQLRowValues.java
+    printf '%s\n' tests/org/openconcerto/sql/model/SQLTable.java
 } > "$SOURCES_FILE"
 javac -J-XX:-UsePerfData -proc:none -encoding UTF-8 -cp src -d "$TEST_CLASSES_DIR" @"$SOURCES_FILE"
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.AffairListSortSupportTest
+java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.SupplierOrderToInvoiceSQLInjectorTest

@@ -8,6 +8,37 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-24 — Affaire reprise lors du transfert commande fournisseur → facture
+
+### Added
+
+- Le transfert **Commandes fournisseurs → Factures fournisseurs** recopie
+  maintenant `COMMANDE.ID_AFFAIRE` dans `FACTURE_FOURNISSEUR.ID_AFFAIRE` tout en
+  conservant l’injecteur natif OpenConcerto pour les autres champs et les lignes.
+  Les lignes de facture dont `ID_AFFAIRE` est vide ou indéfini reprennent aussi
+  l’affaire de leur commande ; une affaire de ligne déjà définie est conservée.
+- L’en-tête de l’écran de facture fournisseur expose maintenant le champ
+  **Affaire**, afin de voir la valeur reprise avant l’enregistrement.
+- `SupplierOrderToInvoiceSQLInjectorTest` : 16 tests de contrat couvrant la
+  copie de l’affaire dans l’en-tête et les lignes, la préservation des affaires
+  de ligne définies, l’enregistrement de l’injecteur et du champ d’en-tête, les
+  valeurs vides et indéfinies, les transferts successifs et groupés, ainsi que
+  les schémas sans colonne `ID_AFFAIRE`.
+- Procédure de recette graphique :
+  `docs/test-transfert-commande-fournisseur-facture.md`.
+
+### Compatibility
+
+- `module.properties` reste volontairement en `version=1.1` pour correspondre à
+  la version du module enregistrée dans la base installée. Ce correctif ne
+  demande aucune migration de version de la DB et produit
+  `org.openconcerto.modules.project-1.1.jar`.
+
+### Validation
+
+- `AffairListSortSupportTest` : OK.
+- `SupplierOrderToInvoiceSQLInjectorTest` : 16 tests OK.
+
 ## Module project 1.5 - 2026-10-22 (à publier)
 
 ### Added
