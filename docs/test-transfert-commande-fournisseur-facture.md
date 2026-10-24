@@ -13,6 +13,7 @@ La classe `SupplierOrderToInvoiceSQLInjectorTest` couvre :
 - le chemin de transfert `COMMANDE` → `FACTURE_FOURNISSEUR` ;
 - la copie de `ID_AFFAIRE` et la conservation des champs natifs ;
 - le remplacement de l’injecteur natif par l’injecteur du module ;
+- l’enregistrement du champ **Affaire** dans l’en-tête de la facture ;
 - le constructeur utilisant la configuration OpenConcerto ;
 - les affaires `NULL` et indéfinies (`ID_AFFAIRE = 1`) ;
 - l’absence de duplication du mapping après plusieurs enregistrements ;
@@ -60,7 +61,9 @@ PostgreSQL ni session graphique.
    (le libellé peut être **Transfert vers facture fournisseur** ou, selon le
    client, **Transfert vers saisie achat**).
 3. Dans le formulaire de facture qui s’ouvre, vérifier **avant l’enregistrement** :
-   - **Affaire = `TEST-CMD-FF`**, automatiquement, sans le resélectionner ;
+   - le champ **Affaire de l’en-tête** est automatiquement renseigné sur
+     `TEST-CMD-FF`, sans le resélectionner ; ce champ est distinct de la colonne
+     `Id_affaire` du tableau des lignes ;
    - le fournisseur est celui de la commande ;
    - les lignes, quantités et montants sont toujours repris correctement.
 4. Enregistrer la facture et noter son numéro.

@@ -12,10 +12,12 @@ cd "$ROOT_DIR"
 
 {
     printf '%s\n' src/org/openconcerto/modules/project/AffairListSortSupport.java
+    printf '%s\n' src/org/openconcerto/modules/project/SupplierInvoiceAffairComponentSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjector.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairListSortSupportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjectorTest.java
     printf '%s\n' tests/org/openconcerto/erp/injector/CommandeFactureFournisseurSQLInjector.java
+    printf '%s\n' tests/org/openconcerto/erp/modules/ComponentsContext.java
     printf '%s\n' tests/org/openconcerto/sql/Configuration.java
     printf '%s\n' tests/org/openconcerto/sql/model/DBRoot.java
     printf '%s\n' tests/org/openconcerto/sql/model/SQLField.java

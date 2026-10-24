@@ -35,6 +35,9 @@
 	<TABLE name="COMMANDE">
 		<FIELD name="ID_AFFAIRE" label="Affaire" />
 	</TABLE>
+	<TABLE name="FACTURE_FOURNISSEUR">
+		<FIELD name="ID_AFFAIRE" label="Affaire" />
+	</TABLE>
 	<TABLE name="COMMANDE_CLIENT">
 		<FIELD name="ID_AFFAIRE" label="Affaire" />
 	</TABLE>

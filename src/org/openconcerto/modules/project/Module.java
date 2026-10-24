@@ -689,6 +689,10 @@ public final class Module extends AbstractModule {
             new SupplierOrderToInvoiceSQLInjector(root);
         }
 
+        // Rendre visible dans l'en-tete de facture l'affaire reprise par
+        // l'injecteur. La colonne ID_AFFAIRE des lignes est un autre champ.
+        SupplierInvoiceAffairComponentSupport.register(ctxt);
+
         for (String table : this.listTableAffaire) {
             if (!table.equalsIgnoreCase("DEVIS"))
                 ctxt.putAdditionalField(table, "ID_AFFAIRE");

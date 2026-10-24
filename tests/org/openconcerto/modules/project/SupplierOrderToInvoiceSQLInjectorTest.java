@@ -3,6 +3,7 @@ package org.openconcerto.modules.project;
 import java.util.Arrays;
 
 import org.openconcerto.erp.injector.CommandeFactureFournisseurSQLInjector;
+import org.openconcerto.erp.modules.ComponentsContext;
 import org.openconcerto.sql.Configuration;
 import org.openconcerto.sql.model.DBRoot;
 import org.openconcerto.sql.model.SQLField;
@@ -30,6 +31,7 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
         testMultipleOrdersFromTheSameAffair();
         testMissingAffairColumnsDegradeSafely();
         testSourceOrderIsNeverModified();
+        testInvoiceHeaderExposesAffairField();
 
         System.out.println("SupplierOrderToInvoiceSQLInjectorTest OK (" + testCount + " tests)");
     }
@@ -160,6 +162,17 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
         assertEquals("source field count unchanged", initialFieldCount, order.getFields().size());
         assertEquals("source affair unchanged after invoice edit", 710, order.getObject("ID_AFFAIRE"));
         assertEquals("source name unchanged", "Commande source", order.getObject("NOM"));
+        pass();
+    }
+
+    private static void testInvoiceHeaderExposesAffairField() {
+        final ComponentsContext ctxt = new ComponentsContext();
+
+        SupplierInvoiceAffairComponentSupport.register(ctxt);
+
+        assertEquals("affair field registered on supplier invoice header", "FACTURE_FOURNISSEUR", ctxt.getTableName());
+        assertEquals("registered header field", "ID_AFFAIRE", ctxt.getFieldName());
+        assertEquals("single component registration", 1, ctxt.getRegistrationCount());
         pass();
     }
 
