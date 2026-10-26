@@ -15,8 +15,10 @@
 #   5. l'affaire technique « Indefini » (ID 1) est acceptee comme une affaire
 #   6. la migration ajoute une colonne sur une table de lignes
 #   7. la contrainte SQL de migration est validee d'emblee (plus de NOT VALID)
+#   8. le scenario de creation tourne sans la migration (base d'avant correctif)
+#   9. base client ET migration sans colonne sur FACTURE_FOURNISSEUR
 #
-# Prerequis : un JDK (javac/java) et, pour la mutation 7, node + pglite.
+# Prerequis : un JDK (javac/java) et, pour les mutations 7 a 9, node + pglite.
 #
 # Usage : sh scripts/test-mutations-affaire.sh
 #
@@ -146,6 +148,46 @@ if command -v node >/dev/null 2>&1; then
     fi
 else
     echo "(node absent : mutation 7 ignoree)"
+fi
+
+echo "== 8. scenario de creation sans la migration (symptome d'origine) =="
+if command -v node >/dev/null 2>&1; then
+    prepare
+    if (cd "$WORK_DIR/copie" && SANS_MIGRATION=1 sh tests/sql/scenario-creation-fournisseur.sh > "$WORK_DIR/scenario.log" 2>&1); then
+        ko "commande fournisseur sans colonne d'affaire : symptome non detecte"
+        sed -n '1,10p' "$WORK_DIR/scenario.log" | sed 's/^/       /'
+    else
+        ok "commande fournisseur sans colonne d'affaire : detecte"
+    fi
+else
+    echo "(node absent : mutation 8 ignoree)"
+fi
+
+echo "== 9. base client ET migration sans colonne sur FACTURE_FOURNISSEUR =="
+# Reproduction exacte du defaut D1 de l'audit : la facture fournisseur n'a pas
+# de colonne d'affaire (ni dans la base du client, ni dans la migration). Une
+# facture fournisseur rattachee a une affaire doit alors etre IMPOSSIBLE : le
+# scenario doit echouer, sinon il ne prouve rien sur ce chemin.
+if command -v node >/dev/null 2>&1; then
+    prepare
+    replace tests/sql/fixture-affaire-fournisseur.sql \
+        '    "INFOS" varchar(1024),
+    "ID_AFFAIRE" integer
+);' \
+        '    "INFOS" varchar(1024)
+);'
+    replace tests/sql/migration-affaire-fournisseur.sql \
+        '-- table: FACTURE_FOURNISSEUR
+alter table "__SCHEMA__"."FACTURE_FOURNISSEUR" add column if not exists "ID_AFFAIRE" integer;' \
+        '-- (mutation : facture fournisseur volontairement oubliee)'
+    if (cd "$WORK_DIR/copie" && sh tests/sql/scenario-creation-fournisseur.sh > "$WORK_DIR/scenario.log" 2>&1); then
+        ko "facture fournisseur sans colonne d'affaire : non detecte par le scenario"
+        sed -n '1,10p' "$WORK_DIR/scenario.log" | sed 's/^/       /'
+    else
+        ok "facture fournisseur sans colonne d'affaire : detecte par le scenario"
+    fi
+else
+    echo "(node absent : mutation 9 ignoree)"
 fi
 
 echo

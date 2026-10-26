@@ -50,11 +50,17 @@ par un test exécutable.
    supposer — notamment pour l'ordre du cycle de vie des modules.
 3. **Reproduction SQL** sur un vrai moteur PostgreSQL (pglite) :
    `tests/sql/e2e-affaire-fournisseur.sh` (26 contrôles).
-4. **Tests unitaires** des règles de décision : `AffairLinkSupportTest`
+4. **Scénario utilisateur complet** sur le même moteur :
+   `tests/sql/scenario-creation-fournisseur.sh` (71 contrôles) — créer une
+   affaire, une commande fournisseur puis sa facture, modifier leur affaire,
+   puis interroger chaque onglet de l'historique.
+5. **Tests unitaires** des règles de décision : `AffairLinkSupportTest`
    (35 tests) + les 16 tests existants du transfert commande → facture.
-5. **Tests de mutation** : `scripts/test-mutations-affaire.sh` réintroduit
+6. **Tests de mutation** : `scripts/test-mutations-affaire.sh` réintroduit
    volontairement chaque régression et vérifie que la suite la détecte
-   (8 contrôles).
+   (10 contrôles, scénario inclus).
+
+Tout est rejouable d'une seule commande : `sh scripts/test-affaire-fournisseur.sh`.
 
 ### Ce que fait le cœur OpenConcerto (extraits vérifiés)
 
@@ -293,7 +299,57 @@ OK   filtre via le document parent : les 4 lignes de la commande 100 remontent
 Controles : 26 | echecs : 0
 ```
 
-### 5.3 Tests de mutation
+### 5.3 Scénario « créer une commande et une facture fournisseur sur une affaire »
+
+```sh
+sh tests/sql/scenario-creation-fournisseur.sh
+```
+
+Ce scénario part de la base « installation existante » (celle du client),
+applique la migration du module, puis **rejoue le parcours utilisateur en SQL**,
+avec les mêmes requêtes que les écrans et l'historique :
+
+1. création de l'affaire 1000 ;
+2. saisie d'une **commande fournisseur** rattachée (en-tête avec l'affaire,
+   lignes sans affaire de ligne, comme l'écran de saisie) ;
+3. **transfert en facture fournisseur** rattachée à la même affaire, avec des
+   lignes qui pointent vers les lignes de la commande
+   (`SupplierOrderToInvoiceSQLInjector`) ;
+4. **modification** de l'affaire d'une facture puis d'une commande déjà
+   enregistrées : rattachement, changement d'affaire, retrait ;
+5. rattachement d'un document **créé avant le correctif** (commande 100, dont la
+   colonne n'existait pas) ;
+6. garde-fous : affaire « Indéfinie » (1) jamais affichée, affaire inexistante
+   refusée à l'écriture, facture ancienne pointant vers une affaire supprimée
+   toujours tolérée et sans casser la requête ;
+7. **une requête par onglet de l'historique**, dans l'ordre de `ProjectHistory` :
+   c'est la reproduction de la boucle de `ListeHistoriquePanel` — celle qui
+   levait une exception et laissait les onglets suivants vides.
+
+```
+OK   la commande fournisseur enregistre bien l'affaire 1000
+OK   onglet « Commandes fournisseurs » : la commande apparait sous l'affaire 1000
+OK   colonne « Affaire » de la liste des commandes fournisseurs : AFF-1000
+OK   onglet « Articles commandes » : les 3 lignes apparaissent via la commande
+OK   filtre direct sur la ligne : les 3 lignes seraient invisibles
+OK   la facture fournisseur herite de l'affaire de la commande
+OK   onglet « Factures fournisseurs » : la facture apparait sous l'affaire 1000
+OK   les lignes de la facture pointent vers les lignes de la commande
+OK   l'action « Modifier » touche bien la facture 2101
+OK   apres modification, la facture apparait sous l'affaire 1000
+OK   retirer l'affaire fait disparaitre la facture de l'historique
+OK   une nouvelle ecriture vers une affaire inexistante est refusee
+OK   onglet « Factures fournisseurs » : filtre par affaire operationnel (2 ligne(s))
+Controles : 71 | echecs : 0
+```
+
+`SANS_MIGRATION=1` rejoue le même scénario sans la migration (base d'avant
+correctif) : la saisie de la commande échoue alors sur
+`column "ID_AFFAIRE" of relation "COMMANDE" does not exist`. C'est la preuve que
+le scénario détecte bien le défaut d'origine — vérifiée automatiquement par les
+mutations 8 et 9.
+
+### 5.4 Tests de mutation
 
 ```sh
 sh scripts/test-mutations-affaire.sh
@@ -307,10 +363,12 @@ OK  derive entre le Java et le SQL de migration : detectee
 OK  affaire « Indefini » acceptee : detecte
 OK  colonne d affaire ajoutee sur une table de lignes : detecte
 OK  migration bloquee par les affaires inexistantes : detectee
-Controles : 8 | echecs : 0
+OK  commande fournisseur sans colonne d'affaire : detecte
+OK  facture fournisseur sans colonne d'affaire : detecte par le scenario
+Controles : 10 | echecs : 0
 ```
 
-### 5.4 Diagnostic sur la base du client (lecture seule)
+### 5.5 Diagnostic sur la base du client (lecture seule)
 
 ```sh
 sh scripts/diagnostic-affaire-fournisseur.sh --host 127.0.0.1 --port 5433 \
@@ -344,8 +402,10 @@ COMMANDE_ELEMENT | 4                        | 0                        | 3
 | `tests/sql/fixture-affaire-fournisseur.sql` | **nouveau** — base « installation existante » |
 | `tests/sql/migration-affaire-fournisseur.sql` | **nouveau** — DDL de référence (idempotent, `NOT VALID`, index) |
 | `tests/sql/e2e-affaire-fournisseur.sh` | **nouveau** — 26 contrôles de bout en bout |
+| `tests/sql/scenario-creation-fournisseur.sh` | **nouveau** — 71 contrôles : création d'une commande et d'une facture fournisseur sur une affaire, modification, onglets |
 | `scripts/diagnostic-affaire-fournisseur.sh` | **nouveau** — diagnostic lecture seule + mode démonstration pglite |
-| `scripts/test-mutations-affaire.sh` | **nouveau** — 8 tests de mutation |
+| `scripts/test-mutations-affaire.sh` | 10 tests de mutation (scénario inclus) |
+| `scripts/test-affaire-fournisseur.sh` | **nouveau** — suite complète en une commande |
 | `scripts/run-tests.sh` | exécute le nouveau test |
 
 ## 7. Procédure de recette sur une base client

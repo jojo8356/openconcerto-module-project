@@ -52,15 +52,29 @@
 - `scripts/diagnostic-affaire-fournisseur.sh` : diagnostic **lecture seule** de
   la base du client (colonnes manquantes, lignes sans affaire, lignes cachées,
   affaires inexistantes, mode démonstration `--pglite`).
-- `scripts/test-mutations-affaire.sh` : 8 tests de mutation qui vérifient que la
-  suite détecte bien chaque régression.
+- `tests/sql/scenario-creation-fournisseur.sh` : **scénario complet de 71
+  contrôles** — création d'une affaire, saisie d'une commande fournisseur
+  rattachée (en-tête + lignes), transfert en facture fournisseur rattachée,
+  modification de l'affaire d'un document déjà enregistré (changement d'affaire,
+  retrait), garde-fous (affaire « Indéfinie », affaire inexistante, affaire
+  supprimée), puis **une requête par onglet de l'historique**, dans l'ordre de
+  `ProjectHistory` : c'est la reproduction de la boucle de
+  `ListeHistoriquePanel` qui cassait.
+- `scripts/test-affaire-fournisseur.sh` : suite complète en une commande
+  (Java + e2e + scénario + mutations), avec `--sans-java` et
+  `--sans-mutations`.
+- `scripts/test-mutations-affaire.sh` : 10 tests de mutation (ajout de
+  « scénario sans migration » et « base client sans colonne sur les factures
+  fournisseurs »).
 - `docs/audit-affaire-fournisseur.md` : rapport d'audit complet.
 
 ### Validation
 
 - `sh scripts/run-tests.sh` : 35 + 16 tests OK.
 - `sh tests/sql/e2e-affaire-fournisseur.sh` : 26 contrôles, 0 échec.
-- `sh scripts/test-mutations-affaire.sh` : 8 contrôles, 0 échec.
+- `sh tests/sql/scenario-creation-fournisseur.sh` : 71 contrôles, 0 échec.
+- `sh scripts/test-mutations-affaire.sh` : 10 contrôles, 0 échec.
+- `sh scripts/test-affaire-fournisseur.sh` : 4 suites, 0 échec.
 - Compilation de vérification Java 8 (ECJ `-source 1.8 -target 1.8`).
 
 ## 2026-10-24 — Affaire reprise lors du transfert commande fournisseur → facture

@@ -43,14 +43,29 @@ OPENCONCERTO_JAR=/path/to/OpenConcerto.jar ./scripts/build-java8-compatible.sh
 
 ## Affaire sur les commandes et factures fournisseurs
 
-Le rattachement a une affaire des documents fournisseurs est verifie par trois
-suites executables :
+Le rattachement a une affaire des documents fournisseurs est verifie par quatre
+suites executables, lancables d'une seule commande :
 
 ```sh
-sh scripts/run-tests.sh                     # tests Java (regles + transfert)
-sh tests/sql/e2e-affaire-fournisseur.sh     # 26 controles SQL de bout en bout (pglite)
-sh scripts/test-mutations-affaire.sh        # verifie que les tests savent echouer
+sh scripts/test-affaire-fournisseur.sh      # tout : Java + SQL + scenario + mutations
 ```
+
+ou separement :
+
+```sh
+sh scripts/run-tests.sh                                  # tests Java (regles + transfert)
+sh tests/sql/e2e-affaire-fournisseur.sh                  # 26 controles SQL (base existante + migration)
+sh tests/sql/scenario-creation-fournisseur.sh            # 71 controles : creer une affaire, une commande
+                                                         # fournisseur puis sa facture, modifier leur affaire
+sh scripts/test-mutations-affaire.sh                     # verifie que tout cela sait echouer
+```
+
+Le scenario de creation rejoue exactement le parcours utilisateur : affaire,
+commande fournisseur rattachee (en-tete + lignes), transfert en facture
+fournisseur rattachee, puis modification de l'affaire d'un document deja
+enregistre. Il interroge ensuite **chaque onglet** de l'historique des affaires,
+dans l'ordre du module. `SANS_MIGRATION=1` rejoue le scenario sur une base
+d'avant correctif : il doit alors echouer (c'est la mutation 8).
 
 Pour diagnostiquer une base client (lecture seule) :
 
