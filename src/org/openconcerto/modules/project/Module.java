@@ -225,6 +225,26 @@ public final class Module extends AbstractModule {
     }
 
     /**
+     * Base de donnees de l'element {@code AFFAIRE} d'un contexte de composants.
+     * <p>
+     * {@code ComponentsContext} n'expose pas sa base ({@code ElementContext.getRoot()}
+     * est protege) : on passe par l'element, qui est la base de l'historique.
+     *
+     * @return la base, ou {@code null} si elle n'est pas disponible.
+     */
+    static DBRoot affairRoot(final ComponentsContext ctxt) {
+        try {
+            final SQLElement affairElement = ctxt.getElement(AffairLinkSupport.AFFAIR_TABLE);
+            if (affairElement != null && affairElement.getTable() != null) {
+                return affairElement.getTable().getDBRoot();
+            }
+        } catch (Exception e) {
+            log("base de l'affaire introuvable dans le contexte des composants : " + e);
+        }
+        return null;
+    }
+
+    /**
      * Acces au schema pour {@link AffairLinkSupport}.
      */
     static AffairLinkSupport.Schema schemaOf(final DBRoot root) {
@@ -416,10 +436,16 @@ public final class Module extends AbstractModule {
         // modules OpenConcerto). Les listes de l'ERP et l'historique utilisent
         // deja ID_AFFAIRE a ce moment-la : on s'assure donc que les colonnes
         // existent avant de declarer la moindre colonne « Affaire ».
-        final SQLElement projectElement = dir.getElement(PROJECT_TABLENAME);
-        if (projectElement != null && projectElement.getTable() != null) {
-            ensureAffairColumns(projectElement.getTable().getDBRoot());
+        DBRoot elementsRoot = null;
+        try {
+            final SQLElement projectElement = dir.getElement(PROJECT_TABLENAME);
+            if (projectElement != null && projectElement.getTable() != null) {
+                elementsRoot = projectElement.getTable().getDBRoot();
+            }
+        } catch (Exception e) {
+            log("base de l'element " + PROJECT_TABLENAME + " introuvable : " + e);
         }
+        ensureAffairColumns(elementsRoot);
 
         final SQLElement element = dir.getElement("DEVIS");
         DevisSQLElement eltDevis = dir.getElement(DevisSQLElement.class);
@@ -847,15 +873,15 @@ public final class Module extends AbstractModule {
     @Override
     protected void setupComponents(final ComponentsContext ctxt) {
 
-        // Auto-reparation des colonnes ID_AFFAIRE. Le bloc ci-dessus ne cree
-        // les colonnes que lors de la PREMIERE installation du module : sur une
-        // base existante (module deja installe, restauration, nouvelle table),
-        // install() n'est plus rejoue. On verifie donc a chaque demarrage.
-        ensureAffairColumns(ctxt.getRoot());
-
         DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
-        // Meme verification sur la base societe (celle utilisee par les ecrans
-        // et par l'historique des affaires).
+        if (root == null) {
+            // Pas de base societe ouverte (installation, tache de fond) : on prend
+            // la base de l'element AFFAIRE, qui est celle de l'historique.
+            root = affairRoot(ctxt);
+        }
+        // Auto-reparation des colonnes ID_AFFAIRE : install() n'est rejoue que lors
+        // de la PREMIERE installation du module. Sur une base existante (module
+        // deja installe, restauration, nouvelle table), on verifie a chaque demarrage.
         ensureAffairColumns(root);
 
         // Enregistrer l'injecteur après l'ajout éventuel de

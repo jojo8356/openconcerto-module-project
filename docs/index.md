@@ -39,6 +39,8 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Synthese d'architecture publique](./public-architecture-summary.md)
 - [Revision report - Release 1.1](./patch-integration-revision-report.md)
 - [Audit — affaire sur les documents fournisseurs](./audit-affaire-fournisseur.md)
+- [Release 1.1 — notes de version du jar](./release-1.1-affaire-fournisseur.md)
+- [Recette graphique — affaire des documents fournisseurs](./recette-graphique-affaire-fournisseur.md)
 
 ## Documentation existante
 

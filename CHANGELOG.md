@@ -68,6 +68,17 @@
   fournisseurs »).
 - `docs/audit-affaire-fournisseur.md` : rapport d'audit complet.
 
+### Release
+
+- Jar `org.openconcerto.modules.project-1.1.jar` (version déclarée inchangée :
+  `1.1`), compilé et publié par `.github/workflows/release.yml` contre
+  OpenConcerto 1.7.6 officiel, contrôle du bytecode Java 8, empreinte SHA-256
+  publiée avec le jar. Notes : `docs/release-1.1-affaire-fournisseur.md`.
+- Recette graphique clic par clic : `docs/recette-graphique-affaire-fournisseur.md`.
+- Correction de compilation : `ComponentsContext` n'expose pas sa base
+  (`ElementContext.getRoot()` est protégé) → `Module.affairRoot(ComponentsContext)`
+  passe par l'élément `AFFAIRE`.
+
 ### Validation
 
 - `sh scripts/run-tests.sh` : 35 + 16 tests OK.

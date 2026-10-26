@@ -76,6 +76,20 @@ sh scripts/diagnostic-affaire-fournisseur.sh --host 127.0.0.1 --port 5433 \
 
 Analyse complete : `docs/audit-affaire-fournisseur.md`.
 
+## Release du jar (version 1.1)
+
+Le jar du module est compile et publie par le workflow
+`.github/workflows/release.yml` (OpenConcerto 1.7.6 officiel, bytecode Java 8) :
+
+```sh
+# publication automatique : pousser un tag v1.1*
+git tag v1.1-affaire-fournisseur && git push origin v1.1-affaire-fournisseur
+```
+
+La release contient `org.openconcerto.modules.project-1.1.jar`, son empreinte
+SHA-256 et les notes de version (`docs/release-1.1-affaire-fournisseur.md`).
+Recette graphique, clic par clic : `docs/recette-graphique-affaire-fournisseur.md`.
+
 ## Documentation
 
 - Release notes: `CHANGELOG.md`

@@ -1,0 +1,109 @@
+name: Release du module (jar)
+
+# Construit le jar du module et le publie comme piece jointe d'une release.
+#
+# Pourquoi ici et pas sur un poste : la compilation a besoin du vrai
+# OpenConcerto.jar (API du cœur). Le runner le telecharge depuis le site
+# officiel, compile le module en bytecode Java 8, verifie le contenu du jar,
+# puis cree la release GitHub avec le jar en piece jointe.
+#
+# Declencheurs :
+#   * push d'un tag « v1.1* » (ex. v1.1-affaire-fournisseur) ;
+#   * lancement manuel (onglet Actions > « Release du module (jar) »), avec le
+#     tag souhaite en parametre.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de la release (ex. v1.1-affaire-fournisseur)"
+        required: true
+        default: "v1.1-affaire-fournisseur"
+      prerelease:
+        description: "Publier comme pre-release (true/false)"
+        required: false
+        default: "false"
+  push:
+    tags:
+      - "v1.1*"
+
+permissions:
+  contents: write
+
+env:
+  OPENCONCERTO_VERSION: "1.7.6"
+  MODULE_VERSION: "1.1"
+  JAR: build/org.openconcerto.modules.project-1.1.jar
+
+jobs:
+  release:
+    name: Compilation et publication du jar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17 (compilation --release 8)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Verifier la version declaree par le module
+        run: |
+          declared=$(awk -F= '/^version=/ { print $2; exit }' module.properties | tr -d '\r')
+          echo "module.properties : version=$declared"
+          if [ "$declared" != "$MODULE_VERSION" ]; then
+            echo "::error::Version inattendue ($declared) : ce workflow publie le jar $MODULE_VERSION."
+            exit 1
+          fi
+
+      - name: Cache de la distribution OpenConcerto
+        uses: actions/cache@v4
+        with:
+          path: build/openconcerto-dist
+          key: openconcerto-${{ env.OPENCONCERTO_VERSION }}-multiposte
+
+      - name: Compiler le module (jar ${{ env.MODULE_VERSION }})
+        run: |
+          chmod +x scripts/*.sh
+          sh scripts/build-jar-with-curl.sh
+
+      - name: Verifier le jar produit
+        run: |
+          test -f "$JAR" || { echo "::error::jar absent : $JAR"; exit 1; }
+          # Bytecode Java 8 obligatoire (le client tourne sur JRE 8 ou plus).
+          sh scripts/verify-java8-bytecode.sh "$JAR"
+          echo "--- module.properties embarque ---"
+          unzip -p "$JAR" META-INF/openConcertoModule.properties
+          echo "--- classes attendues ---"
+          unzip -l "$JAR" | grep -E "project/(Module|AffairLinkSupport|ProjectHistory|SupplierOrderToInvoiceSQLInjector)\.class" \
+            || { echo "::error::classes du module absentes du jar"; exit 1; }
+          echo "--- empreintes ---"
+          sha256sum "$JAR" | tee "$JAR.sha256"
+          unzip -l "$JAR" | tail -1
+
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+        run: |
+          set -e
+          NOTES=docs/release-1.1-affaire-fournisseur.md
+          FLAGS=""
+          if [ "$PRERELEASE" = "true" ]; then
+            FLAGS="--prerelease"
+          fi
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG deja presente : mise a jour des pieces jointes."
+            gh release upload "$TAG" "$JAR" "$JAR.sha256" --clobber
+          else
+            gh release create "$TAG" "$JAR" "$JAR.sha256" \
+              --title "Module project $MODULE_VERSION — affaire sur les commandes et factures fournisseurs" \
+              --notes-file "$NOTES" $FLAGS
+          fi
+          gh release view "$TAG" --json tagName,name,url,assets \
+            --jq '{tag: .tagName, name: .name, url: .url, assets: [.assets[] | {name, size}]}'
