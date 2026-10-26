@@ -41,6 +41,26 @@ OPENCONCERTO_JAR=/path/to/OpenConcerto.jar ./scripts/build-java8-compatible.sh
 - `DATE` remains available for date sorting and list display.
 - Runtime bytecode/JAR patch classes have been removed.
 
+## Affaire sur les commandes et factures fournisseurs
+
+Le rattachement a une affaire des documents fournisseurs est verifie par trois
+suites executables :
+
+```sh
+sh scripts/run-tests.sh                     # tests Java (regles + transfert)
+sh tests/sql/e2e-affaire-fournisseur.sh     # 26 controles SQL de bout en bout (pglite)
+sh scripts/test-mutations-affaire.sh        # verifie que les tests savent echouer
+```
+
+Pour diagnostiquer une base client (lecture seule) :
+
+```sh
+sh scripts/diagnostic-affaire-fournisseur.sh --host 127.0.0.1 --port 5433 \
+   --db OpenConcerto --user openconcerto --schema OpenConcerto42 --affaire 330
+```
+
+Analyse complete : `docs/audit-affaire-fournisseur.md`.
+
 ## Documentation
 
 - Release notes: `CHANGELOG.md`

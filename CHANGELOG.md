@@ -8,6 +8,61 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-26 — Affaire sur les documents fournisseurs : audit et correctif
+
+### Fixed
+
+- **Facture fournisseur absente de la liste des tables à affaire**
+  (`Module.listTableAffaire`) : elle n'avait donc ni colonne « Affaire » dans la
+  liste de l'ERP, ni action « Historique affaire », et sa colonne n'était jamais
+  créée lors de l'installation. La liste du module vient maintenant de
+  `AffairLinkSupport.DIRECT_AFFAIR_TABLES`, qui la contient.
+- **Colonnes `ID_AFFAIRE` réparées à chaque démarrage**
+  (`Module.ensureAffairColumns`) : jusqu'ici elles n'étaient créées qu'à la
+  première installation du module, puis pour quatre tables seulement
+  (`COMMANDE`, `SAISIE_ACHAT`, `AVOIR_FOURNISSEUR`… pouvaient rester sans
+  colonne, donc sans affaire enregistrable).
+- **Création de colonne non bloquée par les affaires supprimées** : la colonne
+  est ajoutée seule, puis la contrainte `FOREIGN KEY … NOT VALID`. Un document
+  pointant vers une affaire inexistante ne peut plus empêcher la création de la
+  colonne (l'ancien `ADD COLUMN … REFERENCES` échouait entièrement et l'erreur
+  n'était qu'imprimée dans la console).
+- **Historique des affaires : plus de boucle de filtrage cassée**
+  (`ProjectHistory.putAffairTab`). Un onglet dont la table n'a pas `ID_AFFAIRE`
+  et aucun parent rattachable est ignoré avec un message, au lieu de faire lever
+  une exception à `ListeHistoriquePanel` — exception qui laissait **tous les
+  onglets suivants** non filtrés (donc invisibles).
+- **Lignes des commandes/bons de réception rattachées par leur document** : le
+  filtrage passe par le document parent même quand la table de lignes porte sa
+  propre colonne `ID_AFFAIRE`, sinon les lignes dont l'affaire de ligne est vide
+  (le cas normal) disparaissaient de l'historique.
+- Action « Modifier » disponible sur les factures fournisseurs et les achats
+  depuis l'historique des affaires.
+
+### Added
+
+- `AffairLinkSupport` : règles pures et testables du rattachement à une affaire
+  (tables concernées, plan de filtrage d'un onglet, colonnes manquantes, champs
+  à exposer dans les écrans).
+- `AffairLinkSupportTest` : 35 tests.
+- `tests/sql/e2e-affaire-fournisseur.sh` : 26 contrôles de bout en bout sur
+  PostgreSQL (pglite), avec la base « installation existante » et la migration.
+- `tests/sql/migration-affaire-fournisseur.sql` : DDL de référence, idempotent,
+  index inclus, contraintes `NOT VALID`.
+- `scripts/diagnostic-affaire-fournisseur.sh` : diagnostic **lecture seule** de
+  la base du client (colonnes manquantes, lignes sans affaire, lignes cachées,
+  affaires inexistantes, mode démonstration `--pglite`).
+- `scripts/test-mutations-affaire.sh` : 8 tests de mutation qui vérifient que la
+  suite détecte bien chaque régression.
+- `docs/audit-affaire-fournisseur.md` : rapport d'audit complet.
+
+### Validation
+
+- `sh scripts/run-tests.sh` : 35 + 16 tests OK.
+- `sh tests/sql/e2e-affaire-fournisseur.sh` : 26 contrôles, 0 échec.
+- `sh scripts/test-mutations-affaire.sh` : 8 contrôles, 0 échec.
+- Compilation de vérification Java 8 (ECJ `-source 1.8 -target 1.8`).
+
 ## 2026-10-24 — Affaire reprise lors du transfert commande fournisseur → facture
 
 ### Added

@@ -115,8 +115,19 @@ public final class Module extends AbstractModule {
 
     public static final String PROJECT_TABLENAME = "AFFAIRE";
     private static boolean deliveryNoteListActionSyncInstalled = false;
-    private List<String> listTableAffaire = Arrays.asList("DEMANDE_PRIX", "BON_RECEPTION", "DEMANDE_ACHAT_ELEMENT", "SAISIE_VENTE_FACTURE", "AVOIR_CLIENT", "BON_DE_LIVRAISON", "COMMANDE_CLIENT",
-            "DEVIS", "COMMANDE", "SAISIE_ACHAT", "AVOIR_FOURNISSEUR");
+    /**
+     * Tables qui portent directement {@code ID_AFFAIRE}. La liste vient de
+     * {@link AffairLinkSupport#DIRECT_AFFAIR_TABLES}, qui est la source de
+     * verite unique du module : creer la colonne, l'exposer dans les ecrans de
+     * saisie, ajouter la colonne « Affaire » et l'action « Historique affaire »
+     * dans les listes de l'ERP sont quatre consequences de cette liste.
+     * <p>
+     * {@code FACTURE_FOURNISSEUR} en fait partie depuis le correctif de
+     * l'affaire sur les documents fournisseurs : sans elle, l'affaire saisie sur
+     * une facture fournisseur n'apparaissait ni dans la liste, ni dans
+     * l'historique des affaires.
+     */
+    private final List<String> listTableAffaire = AffairLinkSupport.DIRECT_AFFAIR_TABLES;
 
     public Module(ModuleFactory f) throws IOException {
         super(f);
@@ -206,6 +217,167 @@ public final class Module extends AbstractModule {
         // Table de transfert TR_DEMANDE_PRIX (liaison demande de prix -> commande
         // fournisseur). OpenConcerto la cree tout seul : rien a faire a la main.
         createTransfertDemandePrixTable(ctxt.getRoot());
+
+        // Les colonnes ID_AFFAIRE de toutes les tables du module (et non plus
+        // seulement celles creees avec la table AFFAIRE) : une installation
+        // existante doit etre reparee sans attendre le prochain demarrage.
+        ensureAffairColumns(ctxt.getRoot());
+    }
+
+    /**
+     * Acces au schema pour {@link AffairLinkSupport}.
+     */
+    static AffairLinkSupport.Schema schemaOf(final DBRoot root) {
+        return new AffairLinkSupport.Schema() {
+            @Override
+            public boolean hasTable(final String tableName) {
+                return root != null && root.contains(tableName);
+            }
+
+            @Override
+            public boolean hasField(final String tableName, final String fieldName) {
+                return root != null && root.contains(tableName) && root.getTable(tableName).contains(fieldName);
+            }
+        };
+    }
+
+    /**
+     * Cree les colonnes {@code ID_AFFAIRE} manquantes sur les tables de
+     * documents, puis rafraichit le cache de schema.
+     * <p>
+     * Cette methode est idempotente et sans risque : elle ne fait rien quand
+     * toutes les colonnes existent, ce qui permet de l'appeler a chaque
+     * demarrage du client, et pas seulement lors de l'installation du module.
+     * <p>
+     * Elle est volontairement decoupee en trois etapes independantes, parce que
+     * chacune peut echouer pour une raison differente :
+     * <ol>
+     * <li><b>la colonne</b> d'abord, sans contrainte : c'est elle qui rend
+     * l'affaire affichable, enregistrable et filtrable. Un echec ici est
+     * vraiment bloquant et est signale ;</li>
+     * <li><b>la contrainte de cle etrangere</b> ensuite, en {@code NOT VALID}.
+     * Une base de production contient souvent des documents rattaches a une
+     * affaire supprimee : une contrainte validee d'emblee ferait echouer toute
+     * l'instruction {@code ALTER TABLE ... ADD COLUMN ... REFERENCES} — donc la
+     * colonne ne serait jamais creee. C'était le mode d'echec silencieux de la
+     * version precedente ({@code AlterTable.addForeignColumn} en une seule
+     * instruction, dans un {@code try/catch} qui se contentait d'imprimer la
+     * pile d'appels) ;</li>
+     * <li><b>les metadonnees du module</b> et le rafraichissement du schema, qui
+     * rendent la colonne immediatement visible aux ecrans et aux listes de la
+     * session en cours.</li>
+     * </ol>
+     *
+     * @return les tables dont la colonne vient d'etre creee.
+     */
+    List<String> ensureAffairColumns(final DBRoot root) {
+        final List<String> created = new ArrayList<String>();
+        if (root == null || !root.contains(AffairLinkSupport.AFFAIR_TABLE)) {
+            return created;
+        }
+        final List<String> missing;
+        try {
+            missing = AffairLinkSupport.getMissingAffairColumns(schemaOf(root));
+        } catch (Exception e) {
+            log("verification des colonnes ID_AFFAIRE impossible : " + e);
+            return created;
+        }
+        if (missing.isEmpty()) {
+            return created;
+        }
+        final SQLTable affairTable = root.getTable(AffairLinkSupport.AFFAIR_TABLE);
+        final String affairSQLName = affairTable.getSQLName().quote();
+        final String affairKey = "\"" + affairTable.getKey().getName() + "\"";
+        for (final String tableName : missing) {
+            final String sqlTableName;
+            try {
+                sqlTableName = root.getTable(tableName).getSQLName().quote();
+            } catch (Exception e) {
+                log("table " + tableName + " introuvable : colonne " + AffairLinkSupport.AFFAIR_FIELD + " non verifiee");
+                continue;
+            }
+            final String column = "\"" + AffairLinkSupport.AFFAIR_FIELD + "\"";
+            try {
+                root.getDBSystemRoot().getDataSource().execute("ALTER TABLE " + sqlTableName + " ADD COLUMN " + column + " integer");
+            } catch (Exception e) {
+                if (!isAlreadyExists(e)) {
+                    // Colonne non creee : on continue avec les autres tables
+                    // plutot que d'empecher le demarrage du module.
+                    log("colonne " + AffairLinkSupport.AFFAIR_FIELD + " non creee sur " + tableName + " : " + e);
+                    continue;
+                }
+            }
+            created.add(tableName);
+            try {
+                final String constraintName = tableName + "_" + AffairLinkSupport.AFFAIR_FIELD + "_fkey";
+                root.getDBSystemRoot().getDataSource().execute("ALTER TABLE " + sqlTableName + " ADD CONSTRAINT \"" + constraintName + "\" FOREIGN KEY (" + column + ") REFERENCES "
+                        + affairSQLName + " (" + affairKey + ") NOT VALID");
+            } catch (Exception e) {
+                if (!isAlreadyExists(e)) {
+                    log("contrainte " + AffairLinkSupport.AFFAIR_FIELD + " non creee sur " + tableName + " (documents pointant vers une affaire inexistante ?) : " + e);
+                }
+            }
+            registerAffairColumnMetadata(root, tableName);
+            try {
+                root.refetchTable(tableName);
+            } catch (Exception e) {
+                log("rafraichissement de " + tableName + " impossible : " + e + " (redemarrer le client)");
+            }
+        }
+        if (!created.isEmpty()) {
+            try {
+                root.getSchema().updateVersion();
+            } catch (Exception e) {
+                log("mise a jour de la version du schema impossible : " + e);
+            }
+            log("colonnes " + AffairLinkSupport.AFFAIR_FIELD + " creees : " + created);
+        }
+        return created;
+    }
+
+    /**
+     * Enregistre dans {@code FWK_MODULE_METADATA} la colonne ajoutee, avec la
+     * version declaree du module.
+     */
+    private void registerAffairColumnMetadata(final DBRoot root, final String tableName) {
+        if (!root.contains("FWK_MODULE_METADATA")) {
+            return;
+        }
+        try {
+            final long moduleVersion = getFactory() != null && getFactory().getVersion() != null ? getFactory().getVersion().getMerged() : 10000L;
+            final String sql = "INSERT INTO " + root.getTable("FWK_MODULE_METADATA").getSQLName().quote()
+                    + "(\"MODULE_NAME\",\"TABLE\",\"FIELD\",\"KEY\",\"MODULE_VERSION\") VALUES('org.openconcerto.modules.project','" + tableName + "','"
+                    + AffairLinkSupport.AFFAIR_FIELD + "',true," + moduleVersion + ")";
+            root.getDBSystemRoot().getDataSource().execute(sql);
+        } catch (Exception e) {
+            log("metadonnees du module non enregistrees pour " + tableName + " : " + e);
+        }
+    }
+
+    /**
+     * Vrai si l'exception signale un objet deja existant (colonne ou
+     * contrainte). Ces cas ne sont pas des erreurs : l'operation est
+     * idempotente.
+     */
+    static boolean isAlreadyExists(final Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            final String message = current.getMessage();
+            if (message != null) {
+                final String lower = message.toLowerCase();
+                if (lower.indexOf("already exists") >= 0 || lower.indexOf("existe déjà") >= 0 || lower.indexOf("duplicate_column") >= 0
+                        || lower.indexOf("duplicate_object") >= 0) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    /** Trace lisible dans la console du client (les erreurs ne doivent pas bloquer le demarrage). */
+    static void log(final String message) {
+        System.err.println("[module project] " + message);
     }
 
     /**
@@ -239,6 +411,15 @@ public final class Module extends AbstractModule {
         dir.addSQLElement(ProjectSQLElement.class);
         dir.addSQLElement(ProjectStateSQLElement.class);
         dir.addSQLElement(ProjectTypeSQLElement.class);
+
+        // setupElements() est appele AVANT setupComponents() (cycle de vie des
+        // modules OpenConcerto). Les listes de l'ERP et l'historique utilisent
+        // deja ID_AFFAIRE a ce moment-la : on s'assure donc que les colonnes
+        // existent avant de declarer la moindre colonne « Affaire ».
+        final SQLElement projectElement = dir.getElement(PROJECT_TABLENAME);
+        if (projectElement != null && projectElement.getTable() != null) {
+            ensureAffairColumns(projectElement.getTable().getDBRoot());
+        }
 
         final SQLElement element = dir.getElement("DEVIS");
         DevisSQLElement eltDevis = dir.getElement(DevisSQLElement.class);
@@ -347,6 +528,16 @@ public final class Module extends AbstractModule {
                 final SQLElement elt = dir.getElement(tableName);
                 if (elt == null) {
                     JOptionPane.showMessageDialog(null, "Table " + tableName + " manquante");
+                    continue;
+                }
+                if (elt.getTable() == null || !elt.getTable().contains(AffairLinkSupport.AFFAIR_FIELD)) {
+                    // La colonne manque encore (droits insuffisants, colonne
+                    // supprimee, base restauree...) : declarer ici une colonne ou
+                    // une action qui lit ID_AFFAIRE ferait echouer la construction
+                    // de la liste de l'ERP. On saute la table en le signalant ;
+                    // l'auto-reparation du prochain demarrage la remettra en place.
+                    log("colonne " + AffairLinkSupport.AFFAIR_FIELD + " absente de " + tableName
+                            + " : colonne « Affaire » et action « Historique affaire » non ajoutees");
                     continue;
                 }
                 RowAction action = new RowAction(new AbstractAction("Historique affaire") {
@@ -656,31 +847,16 @@ public final class Module extends AbstractModule {
     @Override
     protected void setupComponents(final ComponentsContext ctxt) {
 
+        // Auto-reparation des colonnes ID_AFFAIRE. Le bloc ci-dessus ne cree
+        // les colonnes que lors de la PREMIERE installation du module : sur une
+        // base existante (module deja installe, restauration, nouvelle table),
+        // install() n'est plus rejoue. On verifie donc a chaque demarrage.
+        ensureAffairColumns(ctxt.getRoot());
+
         DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
-        List<String> table2check = Arrays.asList("BON_RECEPTION", "DEMANDE_PRIX", "DEMANDE_ACHAT_ELEMENT", "FACTURE_FOURNISSEUR");
-        // Version reellement declaree par le module : OpenConcerto enregistre
-        // dans FWK_MODULE_METADATA les tables et colonnes creees par le module,
-        // avec le numero de version qui les a creees.
-        final long moduleVersion = getFactory().getVersion() != null ? getFactory().getVersion().getMerged() : 10000L;
-        for (String table : table2check) {
-            if (root.contains(table)) {
-                SQLTable tableCR = root.getTable(table);
-                if (!tableCR.contains("ID_AFFAIRE")) {
-                    try {
-                        AlterTable alt = new AlterTable(tableCR);
-                        alt.addForeignColumn("ID_AFFAIRE", root.getTable("AFFAIRE"));
-                        root.getDBSystemRoot().getDataSource().execute(alt.asString());
-                        String s = "INSERT INTO " + root.getTable("FWK_MODULE_METADATA").getSQLName().quote()
-                                + "(\"MODULE_NAME\",\"TABLE\",\"FIELD\",\"KEY\",\"MODULE_VERSION\") VALUES('org.openconcerto.modules.project','" + table + "','ID_AFFAIRE',true," + moduleVersion + ")";
-                        root.getDBSystemRoot().getDataSource().execute(s);
-                        root.getSchema().updateVersion();
-                        root.refetchTable(tableCR.getName());
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
+        // Meme verification sur la base societe (celle utilisee par les ecrans
+        // et par l'historique des affaires).
+        ensureAffairColumns(root);
 
         // Enregistrer l'injecteur après l'ajout éventuel de
         // FACTURE_FOURNISSEUR.ID_AFFAIRE ci-dessus, afin que la colonne soit
@@ -693,9 +869,12 @@ public final class Module extends AbstractModule {
         // l'injecteur. La colonne ID_AFFAIRE des lignes est un autre champ.
         SupplierInvoiceAffairComponentSupport.register(ctxt);
 
-        for (String table : this.listTableAffaire) {
-            if (!table.equalsIgnoreCase("DEVIS"))
-                ctxt.putAdditionalField(table, "ID_AFFAIRE");
+        // Rendre l'affaire visible et enregistrable dans les ecrans de saisie.
+        // La liste vient d'AffairLinkSupport et ne contient que les tables qui
+        // portent reellement la colonne : declarer le champ sur une table qui
+        // ne l'a pas ferait echouer la construction du composant.
+        for (final String table : AffairLinkSupport.getComponentFieldTables(schemaOf(root))) {
+            ctxt.putAdditionalField(table, AffairLinkSupport.AFFAIR_FIELD);
         }
         installDeliveryNoteInvoiceAction(ctxt);
         installTransfertDemandePrix();

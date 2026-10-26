@@ -38,6 +38,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Modeles de donnees](./data-models.md)
 - [Synthese d'architecture publique](./public-architecture-summary.md)
 - [Revision report - Release 1.1](./patch-integration-revision-report.md)
+- [Audit — affaire sur les documents fournisseurs](./audit-affaire-fournisseur.md)
 
 ## Documentation existante
 

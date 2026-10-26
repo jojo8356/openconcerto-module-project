@@ -128,46 +128,52 @@ public class ProjectHistory {
         final SQLBase b = comptaPropsConfiguration.getSQLBaseSociete();
         this.sqlBase = b;
 
+        // Chaque onglet est enregistre via putAffairTab(), qui verifie qu'il
+        // peut reellement etre filtre par affaire. Une table dont la colonne
+        // ID_AFFAIRE manque (et qui n'a pas de document parent rattachable) est
+        // ignoree : sans ce garde-fou, ListeHistoriquePanel leve une exception
+        // au milieu de sa boucle de selection et TOUS les onglets suivants
+        // restent non filtres — donc invisibles.
         final Map<String, List<String>> mapList = new LinkedHashMap<String, List<String>>();
-        mapList.put("Devis", Arrays.asList("DEVIS"));
-        mapList.put("Bons de commande", Arrays.asList("COMMANDE_CLIENT"));
-        mapList.put("Chiffrage", Arrays.asList("CHIFFRAGE_COMMANDE_CLIENT"));
-        mapList.put("Factures", Arrays.asList("SAISIE_VENTE_FACTURE"));
-        mapList.put("Avoirs", Arrays.asList("AVOIR_CLIENT"));
-        mapList.put("Demandes d'achat", Arrays.asList("DEMANDE_ACHAT_ELEMENT"));
-        mapList.put("Demandes de prix", Arrays.asList("DEMANDE_PRIX"));
-        putIfTableExists(mapList, "Bons de livraison clients", "BON_DE_LIVRAISON");
+        final Map<SQLTable, SQLField> fieldLink = new HashMap<SQLTable, SQLField>();
+        final AffairLinkSupport.Schema affairSchema = schemaOf(b);
 
-        Map<SQLTable, SQLField> fieldLink = new HashMap<SQLTable, SQLField>();
-        fieldLink.put(b.getTable("CHIFFRAGE_COMMANDE_CLIENT"), b.getTable("CHIFFRAGE_COMMANDE_CLIENT").getField("ID_COMMANDE_CLIENT"));
-
-        putIfTableExists(mapList, "Commandes fournisseurs", "COMMANDE");
-        mapList.put("Articles commandés", Arrays.asList("COMMANDE_ELEMENT"));
-        if (!b.getTable("COMMANDE_ELEMENT").contains("ID_AFFAIRE")) {
-            fieldLink.put(b.getTable("COMMANDE_ELEMENT"), b.getTable("COMMANDE_ELEMENT").getField("ID_COMMANDE"));
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Devis", "DEVIS", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Bons de commande", "COMMANDE_CLIENT", null, false);
+        // Le chiffrage se rattache par son bon de commande client : OpenConcerto
+        // ne connait qu'un seul niveau de lien (fieldLink).
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Chiffrage", "CHIFFRAGE_COMMANDE_CLIENT",
+                new AffairLinkSupport.ParentLink("CHIFFRAGE_COMMANDE_CLIENT", "ID_COMMANDE_CLIENT", "COMMANDE_CLIENT"), true);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Factures", "SAISIE_VENTE_FACTURE", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Avoirs", "AVOIR_CLIENT", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Demandes d'achat", "DEMANDE_ACHAT_ELEMENT", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Demandes de prix", "DEMANDE_PRIX", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Bons de livraison clients", "BON_DE_LIVRAISON", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Commandes fournisseurs", "COMMANDE", null, false);
+        // Les lignes sont filtrees par leur document : la colonne ID_AFFAIRE des
+        // lignes est souvent vide, et un filtre direct les rendrait invisibles.
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Articles commandés", "COMMANDE_ELEMENT",
+                new AffairLinkSupport.ParentLink("COMMANDE_ELEMENT", "ID_COMMANDE", "COMMANDE"), true);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Bons de réception fournisseurs", "BON_RECEPTION", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Articles réceptionnés", "BON_RECEPTION_ELEMENT",
+                new AffairLinkSupport.ParentLink("BON_RECEPTION_ELEMENT", "ID_BON_RECEPTION", "BON_RECEPTION"), true);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Achats", "SAISIE_ACHAT", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Factures fournisseurs", "FACTURE_FOURNISSEUR", null, false);
+        putAffairTab(mapList, fieldLink, b, affairSchema, "Avoirs fournisseurs", "AVOIR_FOURNISSEUR", null, false);
+        // Onglets optionnels : ils n'ont de sens que si l'installation les
+        // fournit, et seulement s'ils peuvent etre rattaches a une affaire.
+        if (b.containsTable("AFFAIRE_TEMPS")) {
+            putAffairTab(mapList, fieldLink, b, affairSchema, "Temps", "AFFAIRE_TEMPS",
+                    new AffairLinkSupport.ParentLink("AFFAIRE_TEMPS", "ID_COMMANDE_CLIENT_ELEMENT", "COMMANDE_CLIENT_ELEMENT"), true);
         }
-        putIfTableExists(mapList, "Bons de réception fournisseurs", "BON_RECEPTION");
-
-        mapList.put("Articles réceptionnés", Arrays.asList("BON_RECEPTION_ELEMENT"));
-        if (!b.getTable("BON_RECEPTION_ELEMENT").contains("ID_AFFAIRE")) {
-            fieldLink.put(b.getTable("BON_RECEPTION_ELEMENT"), b.getTable("BON_RECEPTION_ELEMENT").getField("ID_BON_RECEPTION"));
+        if (b.containsTable("AFFAIRE") && b.getTable("AFFAIRE").contains("ID_DEPOT_STOCK")) {
+            putAffairTab(mapList, fieldLink, b, affairSchema, "Stock", "MOUVEMENT_STOCK", null, false);
         }
-        mapList.put("Achats", Arrays.asList("SAISIE_ACHAT"));
-        putIfTableExists(mapList, "Factures fournisseurs", "FACTURE_FOURNISSEUR");
-
-        mapList.put("Avoirs fournisseurs", Arrays.asList("AVOIR_FOURNISSEUR"));
-        if (Configuration.getInstance().getRoot().findTable("AFFAIRE_TEMPS") != null) {
-            mapList.put("Temps", Arrays.asList("AFFAIRE_TEMPS"));
+        if (b.containsTable("NOTE_DE_FRAIS_ELEMENT")) {
+            putAffairTab(mapList, fieldLink, b, affairSchema, "Note de frais", "NOTE_DE_FRAIS_ELEMENT", null, false);
         }
-        if (b.getTable("AFFAIRE").contains("ID_DEPOT_STOCK")) {
-            mapList.put("Stock", Arrays.asList("MOUVEMENT_STOCK"));
-        }
-
-        if (Configuration.getInstance().getRoot().findTable("NOTE_DE_FRAIS") != null) {
-            mapList.put("Note de frais", Arrays.asList("NOTE_DE_FRAIS_ELEMENT"));
-        }
-        if (Configuration.getInstance().getRoot().findTable("POINTAGE") != null) {
-            mapList.put("Pointage", Arrays.asList("POINTAGE_ELEMENT"));
+        if (b.containsTable("POINTAGE_ELEMENT")) {
+            putAffairTab(mapList, fieldLink, b, affairSchema, "Pointage", "POINTAGE_ELEMENT", null, false);
         }
         mapList.putAll(moduleTab);
 
@@ -570,6 +576,10 @@ public class ProjectHistory {
         installModifyAction(this.listPanel, "BON_DE_LIVRAISON");
         installModifyAction(this.listPanel, "COMMANDE");
         installModifyAction(this.listPanel, "BON_RECEPTION");
+        // Permet de verifier / corriger l'affaire d'une facture fournisseur
+        // directement depuis l'historique des affaires.
+        installModifyAction(this.listPanel, "FACTURE_FOURNISSEUR");
+        installModifyAction(this.listPanel, "SAISIE_ACHAT");
         normalizeDisplayAction(this.listPanel, "BON_DE_LIVRAISON");
         normalizeDisplayAction(this.listPanel, "COMMANDE");
         normalizeDisplayAction(this.listPanel, "BON_RECEPTION");
@@ -592,18 +602,72 @@ public class ProjectHistory {
     }
 
     @SuppressWarnings("deprecation")
-    private static void putIfTableExists(final Map<String, List<String>> tabs, final String label, final String tableName) {
-        try {
-            final Configuration configuration = Configuration.getInstance();
-            final SQLBase base = configuration instanceof ComptaPropsConfiguration ? ((ComptaPropsConfiguration) configuration).getSQLBaseSociete() : configuration.getBase();
-            if (base != null && base.containsTable(tableName)) {
-                tabs.put(label, Arrays.asList(tableName));
+    /**
+     * Acces au schema pour {@link AffairLinkSupport}.
+     */
+    static AffairLinkSupport.Schema schemaOf(final SQLBase base) {
+        return new AffairLinkSupport.Schema() {
+            @Override
+            public boolean hasTable(final String tableName) {
+                return base != null && base.containsTable(tableName);
             }
-        } catch (Exception e) {
-            // Keep the module startup tolerant if a customer database misses one of the optional tables.
-        }
+
+            @Override
+            public boolean hasField(final String tableName, final String fieldName) {
+                return base != null && base.containsTable(tableName) && base.getTable(tableName).contains(fieldName);
+            }
+        };
     }
 
+    /**
+     * Ajoute un onglet d'historique <b>seulement si</b> son filtrage par affaire
+     * est possible.
+     * <p>
+     * C'est le coeur du correctif « l'affaire ne s'affiche pas » :
+     * <code>ListeHistoriquePanel</code> applique le filtre de l'affaire selectionnee
+     * a tous ses onglets dans une seule boucle, avec
+     * <code>table.getField("ID_AFFAIRE")</code>. Si une seule table n'a pas la
+     * colonne, l'exception interrompt la boucle et <b>tous les onglets suivants</b>
+     * restent non filtres : les documents rattaches a l'affaire n'apparaissent
+     * plus. En n'enregistrant que des onglets filtrables, on ne peut plus casser
+     * la boucle.
+     *
+     * @param tabs        onglets (libelle -&gt; tables) en construction.
+     * @param fieldLink   liens parents attendus par <code>ListeHistoriquePanel</code>.
+     * @param base        base societe.
+     * @param schema      schema utilise pour decider du lien.
+     * @param label       libelle de l'onglet.
+     * @param tableName   table de l'onglet.
+     * @param parentLink  document parent (tables de lignes), peut etre <code>null</code>.
+     * @param preferParent <code>true</code> pour filtrer via le parent meme si la
+     *                     table porte sa propre colonne.
+     */
+    private static void putAffairTab(final Map<String, List<String>> tabs, final Map<SQLTable, SQLField> fieldLink, final SQLBase base,
+            final AffairLinkSupport.Schema schema, final String label, final String tableName, final AffairLinkSupport.ParentLink parentLink, final boolean preferParent) {
+        final AffairLinkSupport.TabLink tab;
+        try {
+            tab = AffairLinkSupport.planTab(tableName, schema, parentLink, preferParent);
+        } catch (Exception e) {
+            Module.log("onglet « " + label + " » ignore (analyse impossible) : " + e);
+            return;
+        }
+        if (!tab.isAvailable()) {
+            Module.log("onglet « " + label + " » ignore : " + tab.getReason());
+            return;
+        }
+        try {
+            tabs.put(label, Arrays.asList(tableName));
+            if (tab.isViaParent()) {
+                final SQLTable child = base.getTable(tableName);
+                if (child.contains(tab.getParentField())) {
+                    fieldLink.put(child, child.getField(tab.getParentField()));
+                }
+            }
+        } catch (Exception e) {
+            tabs.remove(label);
+            Module.log("onglet « " + label + " » ignore : " + e);
+        }
+    }
     private static void installModifyAction(final ListeHistoriquePanel historyPanel, final String tableName) {
         final List<IListPanel> panels = historyPanel.getAllIListePanelFromTableName(tableName);
         for (final IListPanel listPanel : panels) {
