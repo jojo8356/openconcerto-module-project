@@ -110,7 +110,7 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
 | Colonne | Contenu |
 |---|---|
 | **Table** | table de la colonne ; les règles `*` (toutes les tables) sont **en haut de la liste**, puis les tables par ordre alphabétique |
-| **Colonne** | nom technique (`ID_FOURNISSEUR`) — non modifiable |
+| **Colonne** | nom **technique** (`ID_FOURNISSEUR`) — non modifiable ; c'est lui qui sert de clé, même quand la liste affiche un libellé métier |
 | **Automatique** | ce que donnerait le mode automatique (ex. `FOURNISSEUR`) |
 | **Libellé affiché (double-clic)** | **la valeur réellement affichée**, toujours en **noir** : **en gras** si elle est personnalisée, en texte normal si elle vient du mode automatique |
 
@@ -169,6 +169,26 @@ Deux limites à connaître :
   technique (`Fournisseur` au lieu de `ID_FOURNISSEUR`), aucune règle ne peut le
   reconnaître : le module ne devine pas. Il faut alors passer par la règle `*`
   sur la colonne réellement présente.
+
+### Les colonnes qui affichent déjà un libellé métier
+
+Beaucoup de listes d'OpenConcerto affichent déjà un libellé soigné : la colonne
+`ID_FOURNISSEUR` apparaît par exemple sous le nom **`Fournisseur`**. Le module
+retrouve le nom technique derrière l'en-tête (`SQLTableModelColumn.getIdentifier()`),
+si bien qu'une règle saisie sur `ID_FOURNISSEUR` s'applique **aussi** à ces
+colonnes.
+
+Deux façons de la saisir, au choix :
+
+| Règle | Effet |
+|---|---|
+| `*` / `ID_FOURNISSEUR` → `FOURNISSEUR UNIQUE` | remplace **toutes** les colonnes de ce champ, y compris celles affichées « Fournisseur » |
+| `*` / `FOURNISSEUR` → `FOURN.` | remplace les colonnes qui affichent exactement ce libellé |
+
+Le mode `AUTO` ne touche **pas** aux libellés métier : il ne simplifie que les
+en-têtes techniques (`ID_CLIENT` → `CLIENT`). Une colonne déjà nommée
+`Fournisseur` reste `Fournisseur` tant qu'aucune règle ne la vise — les listes du
+cœur gardent donc leur présentation soignée.
 
 ## 8. Ce qui est couvert à l'écran
 

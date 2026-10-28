@@ -66,6 +66,48 @@ public final class ColumnLabelUi {
         return ColumnLabelRules.resolve(header, table, ColumnLabelStore.getLabels(), ColumnLabelStore.getMode());
     }
 
+    /**
+     * Libelle a afficher en connaissant le champ technique de la colonne.
+     *
+     * @param header     texte affiche par le coeur (souvent un libelle metier).
+     * @param table      table de la colonne, si connue.
+     * @param identifier identifiant OpenConcerto de la colonne, au format
+     *                   {@code TABLE.CHAMP} (voir
+     *                   {@code SQLTableModelColumn.getIdentifier()}).
+     */
+    public static String labelForColumn(final String header, final String table, final String identifier) {
+        final String field = ColumnLabelRules.technicalField(identifier);
+        final String tableName = table != null && table.trim().length() > 0 ? table : ColumnLabelRules.technicalTable(identifier);
+        return ColumnLabelRules.resolveForColumn(header, tableName, field, ColumnLabelStore.getLabels(), ColumnLabelStore.getMode());
+    }
+
+    /**
+     * Identifiant technique ({@code TABLE.CHAMP}) de la colonne de modele
+     * <code>modelIndex</code>, ou <code>null</code> si le modele du tableau n'est
+     * pas une liste de l'ERP.
+     * <p>
+     * C'est ce qui permet d'appliquer une regle {@code *.ID_FOURNISSEUR} a une
+     * colonne dont l'en-tete affiche deja « Fournisseur ».
+     */
+    static String identifierOf(final JTable table, final int modelIndex) {
+        if (table == null || modelIndex < 0) {
+            return null;
+        }
+        try {
+            final Object model = table.getModel();
+            if (!(model instanceof ITableModel)) {
+                return null;
+            }
+            final ITableModel iModel = (ITableModel) model;
+            if (modelIndex >= iModel.getColumnCount()) {
+                return null;
+            }
+            return iModel.getReq().getColumn(modelIndex).getIdentifier();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // ------------------------------------------------------------------
     // Niveau modele (IListe)
     // ------------------------------------------------------------------
@@ -145,7 +187,8 @@ public final class ColumnLabelUi {
                     continue;
                 }
                 final String current = (String) header;
-                final String resolved = labelFor(current, tableNameOf(table, tableName));
+                final int modelIndex = table.convertColumnIndexToModel(i);
+                final String resolved = labelForColumn(current, tableNameOf(table, tableName), identifierOf(table, modelIndex));
                 if (resolved != null && !resolved.equals(current)) {
                     column.setHeaderValue(resolved);
                     changed++;
@@ -268,7 +311,8 @@ public final class ColumnLabelUi {
             Object displayed = value;
             if (value instanceof String) {
                 try {
-                    final String label = labelFor((String) value, tableNameOf(this.table, null));
+                    final int modelIndex = this.table.convertColumnIndexToModel(column);
+                    final String label = labelForColumn((String) value, tableNameOf(this.table, null), identifierOf(this.table, modelIndex));
                     if (label != null && label.length() > 0) {
                         displayed = label;
                     }

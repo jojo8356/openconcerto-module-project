@@ -8,6 +8,33 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés : les règles s'appliquent aussi aux colonnes à libellé métier
+
+### Fixed
+
+- Dans **Historique affaires → Articles commandés** (et toutes les listes du
+  cœur), la colonne s'affiche « Fournisseur » alors que son champ est
+  `ID_FOURNISSEUR` : la règle `*.ID_FOURNISSEUR` ne s'appliquait donc jamais.
+  Le module lit désormais l'identifiant technique de la colonne
+  (`SQLTableModelColumn.getIdentifier()`, ex.
+  `FieldPath "COMMANDE_ELEMENT"."ID_COMMANDE"."ID_FOURNISSEUR"`) et résout la
+  règle sur le **champ** (`ColumnLabelRules.resolveForColumn`,
+  `technicalField`, `technicalTable`).
+- Ordre de priorité : `TABLE.CHAMP` > `*.CHAMP` > `TABLE.EN-TÊTE` > `*.EN-TÊTE`
+  > automatique > en-tête d'origine. On peut donc aussi saisir une règle sur le
+  libellé affiché (`FOURNISSEUR`).
+- Le mode `AUTO` **n'écrase plus les libellés métier** : il ne simplifie que les
+  en-têtes techniques (`ID_CLIENT` → `CLIENT`) ; « Fournisseur » reste
+  « Fournisseur » tant qu'aucune règle ne le vise.
+
+### Tests
+
+- `ColumnLabelRulesTest` : **56 tests** (découpage des identifiants, y compris
+  chemins de jointure, priorité des règles, non-écrasement des libellés métier).
+- `scripts/test-mutations-colonnes.sh` : **16 contrôles** — mutations 14 et 15
+  (règle déconnectée du champ technique, AUTO qui écrase les libellés métier)
+  détectées.
+
 ## 2026-10-28 — Fermeture de l'historique : plus d'« UncaughtException »
 
 ### Fixed

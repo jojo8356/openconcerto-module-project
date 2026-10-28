@@ -346,6 +346,159 @@ public final class ColumnLabelRules {
     }
 
     /**
+     * Identifiant de colonne nettoye : sans le prefixe de classe
+     * ({@code FieldPath}), sans guillemets et sans chemin technique inutile.
+     * <p>
+     * OpenConcerto renvoie par exemple
+     * {@code FieldPath "COMMANDE_ELEMENT"."ID_COMMANDE"."ID_FOURNISSEUR"} pour
+     * une colonne « Fournisseur » de l'onglet « Articles commandés ».
+     */
+    static List<String> identifierParts(final String identifier) {
+        if (identifier == null) {
+            return Collections.emptyList();
+        }
+        String cleaned = stripQuotes(identifier.trim());
+        // Prefixe de classe : « FieldPath » (ou tout autre nom de classe) suivi
+        // d'un espace.
+        final int space = cleaned.indexOf(' ');
+        if (space > 0 && space < 32 && cleaned.substring(0, space).indexOf('.') < 0) {
+            cleaned = cleaned.substring(space + 1).trim();
+        }
+        final List<String> parts = new ArrayList<String>();
+        for (final String part : cleaned.split("\\.")) {
+            final String trimmed = part.trim();
+            if (trimmed.length() > 0) {
+                parts.add(trimmed);
+            }
+        }
+        return parts;
+    }
+
+    /**
+     * Nom de champ technique a partir de l'identifiant d'une colonne de liste :
+     * le <b>dernier</b> segment.
+     * <p>
+     * Exemples : {@code FACTURE_FOURNISSEUR.ID_FOURNISSEUR} et
+     * {@code FieldPath "COMMANDE_ELEMENT"."ID_COMMANDE"."ID_FOURNISSEUR"} donnent
+     * tous deux {@code ID_FOURNISSEUR} : c'est ce champ qui porte la regle, meme
+     * quand la liste l'atteint par une jointure.
+     *
+     * @return le nom du champ, ou <code>null</code> si l'identifiant est vide.
+     */
+    public static String technicalField(final String identifier) {
+        final List<String> parts = identifierParts(identifier);
+        if (parts.isEmpty()) {
+            return null;
+        }
+        return parts.get(parts.size() - 1).toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * Nom de table a partir de l'identifiant d'une colonne de liste : le
+     * <b>premier</b> segment (la table de la liste), en sautant un eventuel
+     * schema ({@code OpenConcerto42}).
+     *
+     * @return le nom de table, ou <code>null</code> si l'identifiant n'en porte
+     *         pas.
+     */
+    public static String technicalTable(final String identifier) {
+        final List<String> parts = identifierParts(identifier);
+        if (parts.size() < 2) {
+            return null;
+        }
+        final String first = parts.get(0);
+        if (parts.size() >= 3 && first.toLowerCase(java.util.Locale.ROOT).startsWith("openconcerto")) {
+            return parts.get(1).toUpperCase(java.util.Locale.ROOT);
+        }
+        return first.toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private static String stripQuotes(final String value) {
+        return value.replace("\"", "").replace("`", "");
+    }
+
+    /**
+     * Resolution d'un en-tete <b>en connaissant le champ technique</b> de la
+     * colonne.
+     * <p>
+     * C'est le cas des listes de l'ERP : l'en-tete affiche est deja un libelle
+     * metier (« Fournisseur ») alors que la regle saisie porte sur le nom
+     * technique ({@code ID_FOURNISSEUR}). Sans cette methode, la regle
+     * {@code *.ID_FOURNISSEUR} ne s'appliquait jamais a ces colonnes.
+     * <p>
+     * Ordre de priorite :
+     * <ol>
+     * <li>{@code TABLE.CHAMP} ;</li>
+     * <li>{@code *.CHAMP} ;</li>
+     * <li>{@code TABLE.EN-TETE} (regle saisie sur le libelle affiche) ;</li>
+     * <li>{@code *.EN-TETE} ;</li>
+     * <li>mode AUTO : suppression du prefixe {@code ID_} du champ technique ;</li>
+     * <li>en-tete d'origine.</li>
+     * </ol>
+     *
+     * @param header  texte affiche par le coeur (peut etre un libelle metier).
+     * @param table   table de la colonne, si connue.
+     * @param field   champ technique, si connu ({@code ID_FOURNISSEUR}).
+     * @param labels  regles saisies.
+     * @param mode    mode courant.
+     */
+    public static String resolveForColumn(final String header, final String table, final String field, final Map<String, String> labels, final String mode) {
+        if (header == null) {
+            return null;
+        }
+        final String normalizedMode = normalizeMode(mode);
+        if (MODE_OFF.equals(normalizedMode) || labels == null) {
+            return header;
+        }
+        final String normalizedField = field == null ? null : normalizeName(field);
+        if (normalizedField != null && normalizedField.length() > 0) {
+            if (table != null && table.trim().length() > 0) {
+                final String exact = labels.get(key(table, normalizedField));
+                if (isUsable(exact)) {
+                    return exact;
+                }
+            }
+            final String wildcard = labels.get(key(ANY_TABLE, normalizedField));
+            if (isUsable(wildcard)) {
+                return wildcard;
+            }
+        }
+        final String byHeader = resolve(header, table, labels, MODE_MAPPING);
+        if (byHeader != null && !byHeader.equals(header)) {
+            return byHeader;
+        }
+        if (MODE_AUTO.equals(normalizedMode)) {
+            // Le mode AUTO ne remplace pas un libelle metier deja lisible
+            // (« Fournisseur », « Designation ») : il ne s'applique qu'aux
+            // en-tetes techniques. Sinon, toutes les listes du coeur perdraient
+            // leurs libelles soignes au profit de majuscules techniques.
+            if (isIdColumn(header)) {
+                return suggestLabel(header);
+            }
+            if (normalizedField != null && normalizedField.length() > 0 && isIdColumn(normalizedField) && looksTechnical(header, normalizedField)) {
+                return suggestLabel(normalizedField);
+            }
+        }
+        return header;
+    }
+
+    /**
+     * Vrai si l'en-tete affiche est en fait le nom technique (ou le contient) :
+     * {@code ID_FOURNISSEUR}, {@code Id fournisseur}, {@code ID_FOURNISSEUR (…)},
+     * etc. Sert a ne pas ecraser un libelle metier en mode AUTO.
+     */
+    public static boolean looksTechnical(final String header, final String field) {
+        if (header == null || field == null) {
+            return false;
+        }
+        // On compare sans espaces, sans apostrophes et sans soulignes : « ID CLIENT »,
+        // « id_client » et « ID_CLIENT » doivent etre reconnus comme le meme en-tete.
+        final String compactHeader = normalizeName(header).replace(" ", "").replace("'", "").replace("_", "");
+        final String compactField = normalizeName(field).replace(" ", "").replace("_", "");
+        return compactField.length() > 0 && (compactHeader.equals(compactField) || compactHeader.startsWith(compactField) || compactHeader.contains(compactField));
+    }
+
+    /**
      * Libelle <b>reellement affiche</b> pour une colonne, tel que l'ecran de
      * parametrage doit le montrer : la regle si elle existe, sinon le libelle
      * automatique du mode courant.

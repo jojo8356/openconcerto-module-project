@@ -25,6 +25,10 @@
 #  12. toute table est consideree comme une sauvegarde (faux positifs metier)
 #  13. la regle generale (*.COLONNE) n'est plus prise en compte a l'ecran (le
 #      bouton « Appliquer a toutes les tables » semble sans effet)
+#  14. la regle n'est plus reliee au champ technique : une colonne dont l'en-tete
+#      est deja un libelle metier (« Fournisseur ») ignore la regle ID_FOURNISSEUR
+#  15. le mode AUTO ecrase les libelles metier du coeur (« Fournisseur » devient
+#      « FOURNISSEUR »)
 #
 # Prerequis : un JDK (javac/java) pour les mutations 1 a 4 et 6 ; node + pglite
 # pour la mutation 5. Les mutations non executables sont sautees proprement.
@@ -197,6 +201,24 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
             return cleanedWildcard;
         }"
     expect_java_failure "regle * sans effet dans le tableau : detectee"
+
+    echo "== 14. regle non reliee au champ technique =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        final String normalizedField = field == null ? null : normalizeName(field);" \
+        "        final String normalizedField = null;"
+    expect_java_failure "regle ID_FOURNISSEUR sans effet sur un en-tete metier : detectee"
+
+    echo "== 15. le mode AUTO ecrase les libelles metier =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "            if (isIdColumn(header)) {
+                return suggestLabel(header);
+            }" \
+        "            if (isIdColumn(header) || (normalizedField != null && normalizedField.length() > 0)) {
+                return suggestLabel(normalizedField == null ? header : normalizedField);
+            }"
+    expect_java_failure "libelle metier ecrase en mode AUTO : detecte"
 
     echo "== 6. enregistrement non transactionnel =="
     prepare

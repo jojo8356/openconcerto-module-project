@@ -86,6 +86,12 @@ public final class ColumnLabelRulesTest {
         testWildcardRuleAppliesEverywhere();
         testFilterChoicesMatchColumns();
 
+        // 5 quater. Colonnes dont l'en-tete est deja un libelle metier.
+        testIdentifierIsSplit();
+        testRuleAppliesThroughTechnicalField();
+        testHeaderRuleStillWorks();
+        testAutoNeverOverwritesBusinessHeader();
+
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
         testSaveIsOneTransaction();
@@ -519,6 +525,73 @@ public final class ColumnLabelRulesTest {
         assertEquals("Automatique = colonne 2", 2, ColumnLabelRules.filterColumnIndex(3));
         assertEquals("Libellé affiché = colonne 3", 3, ColumnLabelRules.filterColumnIndex(4));
         assertEquals("choix hors liste : toutes", -1, ColumnLabelRules.filterColumnIndex(9));
+        pass();
+    }
+
+    /**
+     * Cas reel (capture « Historique affaires ») : la colonne s'appelle
+     * « Fournisseur » a l'ecran, mais son champ est {@code ID_FOURNISSEUR}. Une
+     * regle saisie sur {@code ID_FOURNISSEUR} doit s'appliquer.
+     */
+    private static void testIdentifierIsSplit() {
+        assertEquals("champ technique", "ID_FOURNISSEUR", ColumnLabelRules.technicalField("FACTURE_FOURNISSEUR.ID_FOURNISSEUR"));
+        assertEquals("table technique", "FACTURE_FOURNISSEUR", ColumnLabelRules.technicalTable("FACTURE_FOURNISSEUR.ID_FOURNISSEUR"));
+        assertEquals("schema et guillemets ignores", "ID_COMMANDE", ColumnLabelRules.technicalField("\"OpenConcerto42\".COMMANDE_ELEMENT.ID_COMMANDE"));
+        assertEquals("table malgre le schema", "COMMANDE_ELEMENT", ColumnLabelRules.technicalTable("\"OpenConcerto42\".COMMANDE_ELEMENT.ID_COMMANDE"));
+        assertEquals("identifiant OpenConcerto avec jointure", "ID_FOURNISSEUR",
+                ColumnLabelRules.technicalField("FieldPath \"COMMANDE_ELEMENT\".\"ID_COMMANDE\".\"ID_FOURNISSEUR\""));
+        assertEquals("table de la liste, pas la table jointe", "COMMANDE_ELEMENT",
+                ColumnLabelRules.technicalTable("FieldPath \"COMMANDE_ELEMENT\".\"ID_COMMANDE\".\"ID_FOURNISSEUR\""));
+        assertEquals("identifiant simple", "ID_CLIENT", ColumnLabelRules.technicalField("ID_CLIENT"));
+        assertEquals("identifiant simple : pas de table", null, ColumnLabelRules.technicalTable("ID_CLIENT"));
+        assertEquals("identifiant nul", null, ColumnLabelRules.technicalField(null));
+        pass();
+    }
+
+    private static void testRuleAppliesThroughTechnicalField() {
+        final Map<String, String> labels = new LinkedHashMap<String, String>();
+        labels.put(ColumnLabelRules.key(ColumnLabelRules.ANY_TABLE, "ID_FOURNISSEUR"), "FOURNISSEUR UNIQUE");
+        assertEquals("regle * appliquee malgre un en-tete metier", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.resolveForColumn("Fournisseur", "FACTURE_FOURNISSEUR", "ID_FOURNISSEUR", labels, ColumnLabelRules.MODE_AUTO));
+        assertEquals("regle * appliquee sans table connue", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.resolveForColumn("Fournisseur", null, "ID_FOURNISSEUR", labels, ColumnLabelRules.MODE_AUTO));
+
+        labels.put(ColumnLabelRules.key("COMMANDE", "ID_FOURNISSEUR"), "Notre fournisseur");
+        assertEquals("regle de table prioritaire", "Notre fournisseur",
+                ColumnLabelRules.resolveForColumn("Fournisseur", "COMMANDE", "ID_FOURNISSEUR", labels, ColumnLabelRules.MODE_AUTO));
+
+        assertEquals("sans regle, l'en-tete metier est conserve", "Fournisseur",
+                ColumnLabelRules.resolveForColumn("Fournisseur", "COMMANDE", "ID_FOURNISSEUR", new LinkedHashMap<String, String>(), ColumnLabelRules.MODE_AUTO));
+        assertEquals("mode OFF : rien ne change", "Fournisseur",
+                ColumnLabelRules.resolveForColumn("Fournisseur", "COMMANDE", "ID_FOURNISSEUR", labels, ColumnLabelRules.MODE_OFF));
+        pass();
+    }
+
+    /** On peut aussi saisir une regle sur le libelle affiche (ex. « Fournisseur »). */
+    private static void testHeaderRuleStillWorks() {
+        final Map<String, String> labels = new LinkedHashMap<String, String>();
+        labels.put(ColumnLabelRules.key(ColumnLabelRules.ANY_TABLE, "FOURNISSEUR"), "FOURN.");
+        assertEquals("regle saisie sur le libelle affiche", "FOURN.",
+                ColumnLabelRules.resolveForColumn("Fournisseur", "COMMANDE", "ID_COMMANDE", labels, ColumnLabelRules.MODE_AUTO));
+        pass();
+    }
+
+    /**
+     * Le mode AUTO ne doit pas transformer « Fournisseur » en « FOURNISSEUR » :
+     * il ne touche qu'aux en-tetes techniques.
+     */
+    private static void testAutoNeverOverwritesBusinessHeader() {
+        final Map<String, String> none = new LinkedHashMap<String, String>();
+        assertEquals("libelle metier conserve", "Fournisseur",
+                ColumnLabelRules.resolveForColumn("Fournisseur", "COMMANDE", "ID_COMMANDE", none, ColumnLabelRules.MODE_AUTO));
+        assertEquals("libelle metier conserve (designation)", "Désignation",
+                ColumnLabelRules.resolveForColumn("Désignation", "COMMANDE_ELEMENT", "ID_ARTICLE", none, ColumnLabelRules.MODE_AUTO));
+        assertEquals("en-tete technique simplifie", "FOURNISSEUR",
+                ColumnLabelRules.resolveForColumn("ID_FOURNISSEUR", "COMMANDE", "ID_FOURNISSEUR", none, ColumnLabelRules.MODE_AUTO));
+        assertEquals("en-tete technique en minuscules", "CLIENT",
+                ColumnLabelRules.resolveForColumn("id_client", "COMMANDE", "ID_CLIENT", none, ColumnLabelRules.MODE_AUTO));
+        assertEquals("en-tete technique avec espaces", "CLIENT",
+                ColumnLabelRules.resolveForColumn("ID CLIENT", "COMMANDE", "ID_CLIENT", none, ColumnLabelRules.MODE_AUTO));
         pass();
     }
 
