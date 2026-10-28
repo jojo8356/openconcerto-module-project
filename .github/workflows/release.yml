@@ -8,7 +8,8 @@ name: Release du module (jar)
 # puis cree la release GitHub avec le jar en piece jointe.
 #
 # Declencheurs :
-#   * push d'un tag « v1.1* » (ex. v1.1-affaire-fournisseur) ;
+#   * push d'un tag « v1.1* » (ex. v1.1-affaire-fournisseur,
+#     v1.1-parametres-colonnes) ;
 #   * lancement manuel (onglet Actions > « Release du module (jar) »), avec le
 #     tag souhaite en parametre.
 
@@ -23,6 +24,14 @@ on:
         description: "Publier comme pre-release (true/false)"
         required: false
         default: "false"
+      notes_file:
+        description: "Fichier de notes de version"
+        required: false
+        default: "docs/release-1.1-affaire-fournisseur.md"
+      title:
+        description: "Titre de la release (vide = titre par defaut)"
+        required: false
+        default: ""
   push:
     tags:
       - "v1.1*"
@@ -79,8 +88,10 @@ jobs:
           echo "--- module.properties embarque ---"
           unzip -p "$JAR" META-INF/openConcertoModule.properties
           echo "--- classes attendues ---"
-          unzip -l "$JAR" | grep -E "project/(Module|AffairLinkSupport|ProjectHistory|SupplierOrderToInvoiceSQLInjector)\.class" \
+          unzip -l "$JAR" | grep -E "project/(Module|AffairLinkSupport|ProjectHistory|SupplierOrderToInvoiceSQLInjector|ColumnLabel(Rules|Store|Access|Ui|SettingsAction))\.class" \
             || { echo "::error::classes du module absentes du jar"; exit 1; }
+          unzip -l "$JAR" | grep -q "column-labels.properties" \
+            || { echo "::error::reglages par defaut des libelles absents du jar"; exit 1; }
           echo "--- empreintes ---"
           sha256sum "$JAR" | tee "$JAR.sha256"
           unzip -l "$JAR" | tail -1
@@ -90,9 +101,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
           PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+          NOTES_FILE: ${{ github.event.inputs.notes_file }}
+          TITLE: ${{ github.event.inputs.title }}
         run: |
           set -e
-          NOTES=docs/release-1.1-affaire-fournisseur.md
+          NOTES="${NOTES_FILE:-docs/release-1.1-affaire-fournisseur.md}"
+          test -f "$NOTES" || { echo "::error::notes de version absentes : $NOTES"; exit 1; }
+          if [ -z "$TITLE" ]; then
+            TITLE="Module project $MODULE_VERSION — affaire sur les commandes et factures fournisseurs"
+          fi
           FLAGS=""
           if [ "$PRERELEASE" = "true" ]; then
             FLAGS="--prerelease"
@@ -102,7 +119,7 @@ jobs:
             gh release upload "$TAG" "$JAR" "$JAR.sha256" --clobber
           else
             gh release create "$TAG" "$JAR" "$JAR.sha256" \
-              --title "Module project $MODULE_VERSION — affaire sur les commandes et factures fournisseurs" \
+              --title "$TITLE" \
               --notes-file "$NOTES" $FLAGS
           fi
           gh release view "$TAG" --json tagName,name,url,assets \

@@ -220,6 +220,11 @@ public class ProjectHistory {
             listeDemandePrix.getListe().addRowAction(new TransfertDemandePrixAction.DemandePrixTransfertAction());
         }
 
+        // Libelles de colonnes choisis par l'administrateur pour toute l'equipe :
+        // on les applique ici en connaissant la table de chaque onglet, ce qui
+        // permet aussi les regles propres a une table (TABLE.COLONNE).
+        installColumnLabels(mapList);
+
         int nbList = mapList.size();
         Map<IListe, SQLField> mapFilterDate = new HashMap<>();
         for (int i = 0; i < nbList; i++) {
@@ -551,6 +556,36 @@ public class ProjectHistory {
         for (int i = columns.size() - 1; i >= 0; i--) {
             if (columnName.equalsIgnoreCase(columns.get(i).getName())) {
                 columns.remove(i);
+            }
+        }
+    }
+
+    /**
+     * Applique les libelles de colonnes a chaque onglet de l'historique.
+     * <p>
+     * Les onglets construits par le module sont traites ici ; ceux du cœur
+     * OpenConcerto le sont par l'application globale ({@code ColumnLabelUi}),
+     * qui renomme les en-tetes de tous les tableaux affiches.
+     */
+    private void installColumnLabels(final Map<String, List<String>> mapList) {
+        for (final Map.Entry<String, List<String>> entry : mapList.entrySet()) {
+            final List<String> tableNames = entry.getValue();
+            if (tableNames == null || tableNames.isEmpty()) {
+                continue;
+            }
+            final String tableName = tableNames.get(0);
+            try {
+                final IListPanel listPanel = this.listPanel.getIListePanelFromTableName(tableName);
+                if (listPanel == null || listPanel.getListe() == null) {
+                    continue;
+                }
+                final int changed = ColumnLabelUi.applyToIListe(listPanel.getListe(), tableName);
+                ColumnLabelUi.tagTable(listPanel.getListe().getJTable(), tableName);
+                if (changed > 0) {
+                    Module.log("libelles : " + changed + " colonne(s) renommee(s) dans l'onglet « " + entry.getKey() + " »");
+                }
+            } catch (Exception e) {
+                Module.log("libelles : onglet « " + entry.getKey() + " » non traite (" + e + ")");
             }
         }
     }

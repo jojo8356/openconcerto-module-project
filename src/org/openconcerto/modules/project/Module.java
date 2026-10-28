@@ -232,6 +232,18 @@ public final class Module extends AbstractModule {
      *
      * @return la base, ou {@code null} si elle n'est pas disponible.
      */
+    static DBRoot affairRoot(final MenuContext ctxt) {
+        try {
+            final SQLElement affairElement = ctxt.getElement(AffairLinkSupport.AFFAIR_TABLE);
+            if (affairElement != null && affairElement.getTable() != null) {
+                return affairElement.getTable().getDBRoot();
+            }
+        } catch (Exception e) {
+            log("base de l'affaire introuvable dans le contexte du menu : " + e);
+        }
+        return null;
+    }
+
     static DBRoot affairRoot(final ComponentsContext ctxt) {
         try {
             final SQLElement affairElement = ctxt.getElement(AffairLinkSupport.AFFAIR_TABLE);
@@ -1116,6 +1128,31 @@ public final class Module extends AbstractModule {
         return String.valueOf(rowAction.getID()) + "|" + String.valueOf(name);
     }
 
+    /**
+     * Ajoute le menu <b>Paramètres &gt; Libellés des colonnes</b>.
+     * <p>
+     * Le menu n'est propose qu'a l'utilisateur qui a le plus de droits dans la
+     * base (voir {@link ColumnLabelAccess}) : c'est lui qui choisit, une fois
+     * pour toute l'equipe, le nom des colonnes affichees dans les listes. Le
+     * choix est stocke sur le serveur SQL (table {@code PROJECT_COLUMN_LABEL}),
+     * pas sur le poste.
+     */
+    private void addMenuAffairColumns(final MenuContext ctxt) {
+        final DBRoot root = affairRoot(ctxt);
+        final boolean allowed;
+        try {
+            allowed = ColumnLabelAccess.canEdit(root);
+        } catch (Exception e) {
+            log("menu des libelles de colonnes indisponible : " + e);
+            return;
+        }
+        if (!allowed) {
+            log("menu « Libellés des colonnes » masque : " + ColumnLabelAccess.getLastReason());
+            return;
+        }
+        ctxt.addMenuItem(new ColumnLabelSettingsAction(root), "Paramètres", "Affichage");
+    }
+
     @Override
     protected void setupMenu(final MenuContext ctxt) {
         ctxt.addMenuItem(new CreateFrameAbstractAction("Liste des affaires") {
@@ -1142,6 +1179,8 @@ public final class Module extends AbstractModule {
         }, MainFrame.CREATE_MENU);
 
         addMenuImportExport(ctxt);
+
+        addMenuAffairColumns(ctxt);
 
     }
 
@@ -1286,9 +1325,40 @@ public final class Module extends AbstractModule {
         }, MainFrame.CREATE_MENU);
     }
 
+    /**
+     * Charge les libelles de colonnes (valeurs du jar + valeurs de la base) et
+     * les applique a toutes les listes de l'application.
+     * <p>
+     * L'application est faite apres l'ouverture de la fenetre principale, en
+     * differe : les listes du cœur OpenConcerto sont traitees comme celles du
+     * module, sans modifier une seule ligne du cœur. Une erreur ici ne doit
+     * jamais empecher le client de demarrer : tout est protege et seulement
+     * trace.
+     */
+    private void installColumnLabels() {
+        try {
+            DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+            final java.util.Map<String, String> labels = ColumnLabelStore.reload(root);
+            log("libelles de colonnes : " + labels.size() + " regle(s) chargee(s), mode " + ColumnLabelStore.getMode());
+        } catch (Exception e) {
+            log("libelles de colonnes : chargement impossible (" + e + "), valeurs du jar utilisees");
+        }
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ColumnLabelUi.installGlobal();
+                } catch (Exception e) {
+                    log("libelles de colonnes : application impossible (" + e + ")");
+                }
+            }
+        });
+    }
+
     @Override
     protected void start() {
         installDeliveryNoteListActionSync();
+        installColumnLabels();
 
         final JComponent quoteComponent = createQuotePanel();
         final JComponent orderComponent = createOrderPanel();

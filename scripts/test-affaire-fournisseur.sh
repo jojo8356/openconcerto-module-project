@@ -13,7 +13,9 @@
 #   4. les tests de mutation qui verifient que tout ceci sait echouer
 #      (scripts/test-mutations-affaire.sh) ;
 #   5. les tests du script d'installation du jar dans le client
-#      (tests/installer/test-installer-jar.sh).
+#      (tests/installer/test-installer-jar.sh) ;
+#   6. les libelles de colonnes (menu Paramètres) : SQL de bout en bout et
+#      mutations (tests/sql/e2e-colonnes.sh, scripts/test-mutations-colonnes.sh).
 #
 # Usage :
 #   sh scripts/test-affaire-fournisseur.sh
@@ -78,6 +80,12 @@ if [ "$AVEC_MUTATIONS" -eq 1 ]; then
     lancer "mutations : les tests precedents savent-ils echouer ?" scripts/test-mutations-affaire.sh
 else
     printf '\nmutations ignorees (--sans-mutations)\n'
+fi
+
+lancer "libelles de colonnes : tables, unicite, transaction, role le plus haut" tests/sql/e2e-colonnes.sh
+
+if [ "$AVEC_MUTATIONS" -eq 1 ]; then
+    lancer "mutations des libelles de colonnes" scripts/test-mutations-colonnes.sh
 fi
 
 lancer "installation du jar dans le client (dossier Modules)" tests/installer/test-installer-jar.sh

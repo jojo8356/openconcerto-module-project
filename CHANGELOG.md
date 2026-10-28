@@ -8,6 +8,43 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Paramètres : libellés des colonnes pour toute l'équipe
+
+### Added
+
+- **Menu « Paramètres → Affichage → Libellés des colonnes »**, visible uniquement
+  pour l'utilisateur qui a **le plus de droits dans la base** (super-utilisateurs,
+  sinon administrateurs, sinon le plus grand nombre de droits dans `USER_RIGHT` ;
+  comptes désactivés ignorés). Il y choisit, pour toute l'équipe, le nom affiché
+  des colonnes des listes : plus de `ID_CLIENT`, `ID_AFFAIRE`,
+  `ID_FACTURE_FOURNISSEUR` mais `CLIENT`, `AFFAIRE`, `FACTURE FOURNISSEUR`.
+- **Deux emplacements de stockage** : la table `PROJECT_COLUMN_LABEL` du
+  **serveur SQL** (source de vérité, partagée par tous les postes, avec
+  `TABLE_NAME`, `COLUMN_NAME`, `LABEL`, `DATE`, `ID_USER` et un index unique) et
+  le fichier `column-labels.properties` **embarqué dans le jar** (valeurs par
+  défaut d'une nouvelle installation, exportables depuis l'écran).
+- Trois modes : `AUTO` (défaut : suppression du préfixe `ID_`), `MAPPING`
+  (uniquement les règles saisies), `OFF` (aucun changement, retour arrière
+  immédiat), enregistrés dans `PROJECT_SETTINGS`.
+- Règles par table (`COMMANDE.ID_AFFAIRE`) ou pour toutes les tables
+  (`*.ID_CLIENT`), appliquées sans modifier le cœur OpenConcerto : modèle des
+  listes du module + en-têtes de tous les tableaux de l'application.
+- `ColumnLabelRules` (règles pures, SQL inclus), `ColumnLabelStore` (lecture /
+  écriture, valeurs du jar), `ColumnLabelAccess` (choix du rôle le plus haut),
+  `ColumnLabelUi` (application à l'interface), `ColumnLabelSettingsAction`
+  (écran de paramétrage).
+- `tests/sql/migration-colonnes.sql`, `tests/sql/fixture-colonnes.sql`,
+  `tests/sql/e2e-colonnes.sh` (34 contrôles),
+  `tests/org/.../ColumnLabelRulesTest.java` (39 tests),
+  `scripts/test-mutations-colonnes.sh` (7 mutations),
+  `docs/parametres-colonnes.md`.
+
+### Validation
+
+- `sh scripts/run-tests.sh` : 35 + 39 + 16 tests OK.
+- `sh tests/sql/e2e-colonnes.sh` : 34 contrôles, 0 échec.
+- `sh scripts/test-mutations-colonnes.sh` : 7 contrôles, 0 échec.
+
 ## 2026-10-26 — Affaire sur les documents fournisseurs : audit et correctif
 
 ### Fixed

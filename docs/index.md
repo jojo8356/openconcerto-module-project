@@ -42,6 +42,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Release 1.1 — notes de version du jar](./release-1.1-affaire-fournisseur.md)
 - [Recette graphique — affaire des documents fournisseurs](./recette-graphique-affaire-fournisseur.md)
 - [Installation du jar — où mettre le module](./installation-du-jar.md)
+- [Paramètres — libellés des colonnes](./parametres-colonnes.md)
 
 ## Documentation existante
 

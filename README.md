@@ -106,6 +106,24 @@ Guide complet (Windows, Linux, macOS, cas `NO_FACTORY`, retour arriere) :
 `docs/installation-du-jar.md`. Recette graphique :
 `docs/recette-graphique-affaire-fournisseur.md`.
 
+## Paramètres : libellés des colonnes
+
+Le menu **Paramètres → Affichage → Libellés des colonnes** (visible seulement pour
+l'utilisateur qui a le plus de droits dans la base) permet de choisir, pour toute
+l'équipe, le nom affiché des colonnes des listes : `ID_CLIENT` devient `CLIENT`,
+`ID_FACTURE_FOURNISSEUR` devient `FACTURE FOURNISSEUR`.
+
+Les réglages sont stockés **sur le serveur SQL** (tables `PROJECT_COLUMN_LABEL` et
+`PROJECT_SETTINGS`, donc partagés par tous les postes) et, pour les valeurs par
+défaut, **dans le jar** (`column-labels.properties`).
+
+```sh
+sh tests/sql/e2e-colonnes.sh           # 34 controles SQL (pglite)
+sh scripts/test-mutations-colonnes.sh  # verifie que ces tests savent echouer
+```
+
+Documentation : `docs/parametres-colonnes.md`.
+
 ## Documentation
 
 - Release notes: `CHANGELOG.md`
