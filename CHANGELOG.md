@@ -8,6 +8,29 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Fermeture de l'historique : plus d'« UncaughtException »
+
+### Fixed
+
+- Fermer la fenêtre **Historique des affaires** pouvait afficher
+  `UncaughtException … Cannot invoke "JListSQLTablePanel.removeAllTableListener()" because "this.jListePanel" is null`
+  (`ProjectHistory$8.windowClosing` → `ListeHistoriquePanel.removeAllTableListener`).
+  Le cœur construit ses onglets **avant** la liste de gauche : quand cette
+  construction ne va pas au bout, `jListePanel` reste `null` et notre écouteur de
+  fermeture propageait l'exception dans la boucle d'événements.
+- Le nettoyage des écouteurs passe désormais par `HistoryPanelCleanup` : on
+  vérifie que le panneau est prêt avant d'appeler le cœur, l'appel est protégé
+  (`catch Throwable`), il n'a lieu qu'une fois par fenêtre et la fermeture se
+  poursuit toujours. Décision tracée :
+  `historique : liste de gauche non construite (jListePanel null) : nettoyage ignore`.
+
+### Tests
+
+- `AffairLinkSupportTest` : **38 tests** (3 nouveaux : panneau non construit,
+  panneau construit, version du client sans le champ interne).
+- `scripts/test-mutations-affaire.sh` : **13 contrôles** — la mutation 12 retire
+  la garde et la suite échoue.
+
 ## 2026-10-28 — Libellés appliqués dans toutes les listes + filtre par colonne
 
 ### Fixed

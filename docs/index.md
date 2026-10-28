@@ -44,6 +44,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Installation du jar — où mettre le module](./installation-du-jar.md)
 - [Paramètres — libellés des colonnes](./parametres-colonnes.md)
 - [Correctif — le module ne démarrait plus (Already added ID_AFFAIRE)](./correctif-demarrage-already-added.md)
+- [Correctif — fermeture de l'historique (UncaughtException)](./correctif-fermeture-historique.md)
 - [Cloner et construire le jar](./construire-le-jar.md)
 - [Recette graphique — libellés des colonnes](./recette-graphique-colonnes.md)
 - [Release 1.1 — le menu Paramètres est visible](./release-1.1-menu-parametres.md)

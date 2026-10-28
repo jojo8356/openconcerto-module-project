@@ -104,6 +104,9 @@ public class ProjectHistory {
 
     private PanelFrame panelFrame;
     private ListeHistoriquePanel listPanel;
+
+    /** Vrai des que le nettoyage des ecouteurs a ete tente (une seule fois par fenetre). */
+    private boolean historyListenersRemoved = false;
     private final SQLBase sqlBase;
 
     public ListeHistoriquePanel getHistoriquePanel() {
@@ -384,7 +387,7 @@ public class ProjectHistory {
         this.panelFrame.addWindowListener(new WindowAdapter() {
 
             public void windowClosing(WindowEvent e) {
-                listPanel.removeAllTableListener();
+                removeHistoryListeners();
             };
 
         });
@@ -417,7 +420,7 @@ public class ProjectHistory {
         };
         this.panelFrame.addWindowListener(new WindowAdapter() {
             public void windowClosing(WindowEvent e) {
-                listPanel.removeAllTableListener();
+                removeHistoryListeners();
                 b.getTable("COMMANDE_CLIENT").removeTableModifiedListener(cmdClientListener);
                 b.getTable("DEVIS").removeTableModifiedListener(devisListener);
             };
@@ -587,6 +590,42 @@ public class ProjectHistory {
             } catch (Exception e) {
                 Module.log("libelles : onglet « " + entry.getKey() + " » non traite (" + e + ")");
             }
+        }
+    }
+
+    /**
+     * Nettoie les ecouteurs de table de l'historique a la fermeture de la
+     * fenetre, <b>sans jamais faire echouer la fermeture</b>.
+     * <p>
+     * Le coeur ({@code ListeHistoriquePanel.removeAllTableListener}) appelle
+     * directement sa liste de gauche : si celle-ci n'a pas ete construite
+     * ({@code jListePanel == null}), l'appel leve une NullPointerException dans
+     * l'ecouteur de fermeture, et OpenConcerto affiche « UncaughtException ».
+     * Fermer une fenetre ne doit rien produire de tel : on verifie donc que le
+     * panneau est pret (voir {@link HistoryPanelCleanup}) et on protege l'appel.
+     * <p>
+     * Un seul nettoyage par fenetre : deux ecouteurs de fermeture appellent cette
+     * methode, un second appel n'apporterait rien.
+     */
+    private void removeHistoryListeners() {
+        if (this.historyListenersRemoved) {
+            return;
+        }
+        this.historyListenersRemoved = true;
+        final ListeHistoriquePanel panel = this.listPanel;
+        final String decision = HistoryPanelCleanup.describe(panel);
+        if (!HistoryPanelCleanup.isReadyForCleanup(panel)) {
+            // Liste de gauche non construite : rien a nettoyer, et surtout
+            // aucune exception a la fermeture.
+            Module.log(decision);
+            return;
+        }
+        try {
+            panel.removeAllTableListener();
+            Module.log(decision);
+        } catch (Throwable e) {
+            // Jamais d'exception dans un ecouteur de fermeture de fenetre.
+            Module.log("historique : nettoyage des ecouteurs impossible (" + e + "), fermeture poursuivie");
         }
     }
 

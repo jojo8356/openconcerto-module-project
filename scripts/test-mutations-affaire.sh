@@ -20,6 +20,8 @@
 #  10. une double declaration du champ affaire n'est plus toleree (le module ne
 #      demarre plus : « Already added ID_AFFAIRE in ... »)
 #  11. FACTURE_FOURNISSEUR declaree deux fois, sans dedoublonnage
+#  12. le nettoyage de fermeture de l'historique ne verifie plus que la liste de
+#      gauche est construite (retour de « UncaughtException ... jListePanel »)
 #
 # Prerequis : un JDK (javac/java) et, pour les mutations 7 a 9, node + pglite.
 #
@@ -152,6 +154,13 @@ replace src/org/openconcerto/modules/project/AffairLinkSupport.java \
     '            } catch (IllegalStateException e) {
                 throw e;'
 expect_java_failure "champ deja declare : le demarrage echoue comme avant le correctif"
+
+echo "== 12. fermeture de l'historique : garde supprimee =="
+prepare
+replace src/org/openconcerto/modules/project/HistoryPanelCleanup.java \
+    '            return field.get(panel) != null;' \
+    '            return true;'
+expect_java_failure "liste de gauche non construite : plantage non evite"
 
 echo "== 11. FACTURE_FOURNISSEUR declaree deux fois, sans dedoublonnage =="
 prepare

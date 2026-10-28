@@ -58,6 +58,11 @@ public final class AffairLinkSupportTest {
         testNothingMissingOnCleanSchema();
         testMissingColumnsIgnoreAbsentTables();
         testMissingColumnsAreStableAndIdempotent();
+
+        // 5 bis. Fermeture de l'historique : jamais d'exception.
+        testCleanupSkipsUnbuiltPanel();
+        testCleanupRunsOnBuiltPanel();
+        testCleanupAcceptsUnknownPanelType();
         testMissingColumnsNeverCreateLineColumns();
         testMigrationPlanCoversSupplierInvoiceAndOrder();
 
@@ -501,6 +506,49 @@ public final class AffairLinkSupportTest {
             specs.add(table + "=ID_AFFAIRE");
         }
         return AffairLinkSupport.schemaOf(tableSet, fieldsOf(specs.toArray(new String[specs.size()])));
+    }
+
+    // ------------------------------------------------------------------
+    // Fermeture de l'historique (trace « UncaughtException » corrigee)
+    // ------------------------------------------------------------------
+
+    /** Panneau de test reproduisant le champ interne du coeur. */
+    public static final class FakePanelWithLeftList {
+        @SuppressWarnings("unused")
+        private Object jListePanel;
+
+        FakePanelWithLeftList(final boolean built) {
+            this.jListePanel = built ? new Object() : null;
+        }
+    }
+
+    /** Panneau de test sans le champ interne (autre version du client). */
+    public static final class FakePanelOtherVersion {
+    }
+
+    /**
+     * Cas du plantage : {@code jListePanel == null} (liste de gauche non
+     * construite). Le nettoyage doit etre ignore, sans exception.
+     */
+    private static void testCleanupSkipsUnbuiltPanel() {
+        assertTrue("panneau non construit : pas de nettoyage", !HistoryPanelCleanup.isReadyForCleanup(new FakePanelWithLeftList(false)));
+        assertTrue("panneau null : pas de nettoyage", !HistoryPanelCleanup.isReadyForCleanup(null));
+        final String reason = HistoryPanelCleanup.describe(new FakePanelWithLeftList(false));
+        assertTrue("raison explicite (" + reason + ")", reason.contains("jListePanel null"));
+        pass();
+    }
+
+    private static void testCleanupRunsOnBuiltPanel() {
+        assertTrue("panneau construit : nettoyage autorise", HistoryPanelCleanup.isReadyForCleanup(new FakePanelWithLeftList(true)));
+        assertTrue("decision loguee", HistoryPanelCleanup.describe(new FakePanelWithLeftList(true)).contains("nettoyage"));
+        pass();
+    }
+
+    /** Version du client ou le champ n'existe pas : on ne bloque pas. */
+    private static void testCleanupAcceptsUnknownPanelType() {
+        assertTrue("champ absent : nettoyage autorise", HistoryPanelCleanup.isReadyForCleanup(new FakePanelOtherVersion()));
+        assertEquals("champ recherche", HistoryPanelCleanup.REQUIRED_FIELD, "jListePanel");
+        pass();
     }
 
     /**
