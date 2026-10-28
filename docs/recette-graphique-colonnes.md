@@ -65,7 +65,8 @@ Deux comptes sont nécessaires :
 | 3.5 | Rouvrir **Achats > Commandes fournisseurs** sans quitter le client | l'en-tête affiche immédiatement `FOURNISSEUR` |
 | 3.6 | Vider toutes les cases d'une ligne puis **Enregistrer pour l'équipe** | la règle est supprimée en base (aucun message d'erreur) |
 | 3.7 | Modifier une case puis cliquer **Fermer** sans enregistrer | une confirmation propose d'enregistrer ; « Annuler » garde la fenêtre ouverte |
-| 3.8 | Sélectionner la ligne `SAISIE_ACHAT` / `ID_FOURNISSEUR`, cliquer **Appliquer à toutes les tables (*)** puis **Enregistrer** | une règle `*` / `ID_FOURNISSEUR` apparaît ; l'en-tête `FOURNISSEUR` s'applique dans toutes les listes |
+| 3.8 | Sélectionner la ligne `SAISIE_ACHAT` / `ID_FOURNISSEUR`, cliquer **Appliquer à toutes les tables (*)** | la ligne `*` / `ID_FOURNISSEUR` apparaît **en haut de la liste, sélectionnée**, et toutes les autres lignes de cette colonne affichent le nouveau libellé |
+| 3.8b | Cliquer **Enregistrer pour l'équipe** | les listes du client affichent `FOURNISSEUR` partout (y compris factures et commandes fournisseurs) |
 | 3.9 | Vérifier le message après enregistrement | il indique le nombre de **règles en base** (et non « 0 »), puis le nombre de colonnes rafraîchies **sur ce poste** |
 | 3.10 | Saisir une règle sur une ligne dont la table commence par `sauvegarde_` et enregistrer | le message **avertit** que cette table n'apparaît dans aucune liste |
 

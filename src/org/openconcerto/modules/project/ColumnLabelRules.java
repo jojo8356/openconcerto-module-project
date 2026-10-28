@@ -341,11 +341,35 @@ public final class ColumnLabelRules {
      * @param mode     mode courant.
      */
     public static String displayLabel(final String table, final String column, final String rule, final String mode) {
-        final String cleaned = cleanLabel(rule);
+        return resolvedLabel(column, rule, null, mode);
+    }
+
+    /**
+     * Variante qui tient compte de la regle generale {@code *.COLONNE}.
+     * <p>
+     * Sans cela, une regle creee par « Appliquer a toutes les tables (*) » etait
+     * bien enregistree mais <b>les lignes du tableau continuaient d'afficher le
+     * libelle automatique</b> : l'utilisateur croyait que le bouton n'avait rien
+     * fait. C'est exactement la meme resolution que celle appliquee aux listes :
+     * regle de la table, puis regle {@code *}, puis automatique.
+     *
+     * @param column   nom technique de la colonne.
+     * @param rule     regle propre a la table (vide si aucune).
+     * @param wildcard regle {@code *.COLONNE} (vide ou <code>null</code> si aucune).
+     * @param mode     mode courant.
+     */
+    public static String resolvedLabel(final String column, final String rule, final String wildcard, final String mode) {
         final String normalizedMode = normalizeMode(mode);
+        final String cleaned = cleanLabel(rule);
+        final String cleanedWildcard = cleanLabel(wildcard);
+        if (MODE_OFF.equals(normalizedMode)) {
+            return column;
+        }
         if (cleaned.length() > 0) {
-            // Une regle explicite s'applique, quel que soit le mode sauf OFF.
-            return MODE_OFF.equals(normalizedMode) ? column : cleaned;
+            return cleaned;
+        }
+        if (cleanedWildcard.length() > 0) {
+            return cleanedWildcard;
         }
         if (MODE_AUTO.equals(normalizedMode)) {
             return suggestLabel(column);

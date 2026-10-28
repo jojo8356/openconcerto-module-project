@@ -34,12 +34,17 @@ rappelle l'existence du bouton **« Appliquer à toutes les tables (*) »**, qui
 la règle `*.COLONNE` à partir de la ligne sélectionnée — un seul geste pour
 renommer `ID_FOURNISSEUR` dans toutes les listes.
 
+La règle `*` créée s'affiche **en haut de la liste**, sélectionnée, et toutes les
+lignes de la même colonne prennent immédiatement le nouveau libellé (règle de la
+table > règle `*` > libellé automatique), exactement comme dans les listes de
+l'ERP.
+
 ## Vérifications
 
 | Suite | Résultat |
 |---|---|
 | `scripts/run-tests.sh` | `AffairLinkSupportTest` 35, `ColumnLabelRulesTest` **50**, `SupplierOrderToInvoiceSQLInjectorTest` 19 |
-| `scripts/test-mutations-colonnes.sh` | **13 contrôles, 0 échec** — mutations 10, 11 et 12 (gris pâle, avertissement supprimé, faux positifs) détectées |
+| `scripts/test-mutations-colonnes.sh` | **14 contrôles, 0 échec** — mutations 10 à 13 (gris pâle, avertissement supprimé, faux positifs, règle `*` ignorée) détectées |
 | compilation contre `OpenConcerto.jar` 1.7.6 (CI) | success, bytecode Java 8 vérifié |
 
 ## Installation

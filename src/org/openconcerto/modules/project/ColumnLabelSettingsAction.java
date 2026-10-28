@@ -412,16 +412,35 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 return;
             }
             final Entry entry = this.model.getEntries().get(this.table.convertRowIndexToModel(row));
-            final String label = entry.display(this.model.getMode());
-            this.model.addOrUpdate(ColumnLabelRules.ANY_TABLE, entry.column, label);
+            final String label = entry.display(this.model.getMode(), this.model.wildcardLabel(entry.column));
             // La ligne de depart n'a plus besoin de regle propre : la regle *
             // couvre deja sa table, et evite deux libelles concurrents.
             if (entry.isCustomized() && !ColumnLabelRules.ANY_TABLE.equals(entry.table)) {
-                final int modelRow = this.table.convertRowIndexToModel(row);
-                this.model.reset(modelRow);
+                this.model.reset(this.table.convertRowIndexToModel(row));
             }
-            JOptionPane.showMessageDialog(this, "Règle « " + label + " » créée pour la colonne " + entry.column + " dans toutes les tables.\n"
-                    + "Cliquez sur « Enregistrer pour l'équipe » pour l'appliquer.", "Libellés", JOptionPane.INFORMATION_MESSAGE);
+            this.model.addOrUpdate(ColumnLabelRules.ANY_TABLE, entry.column, label);
+            // Amener la nouvelle ligne sous les yeux : elle est en tete de liste,
+            // donc invisible si l'utilisateur a fait defiler.
+            showRow(ColumnLabelRules.ANY_TABLE, entry.column);
+            JOptionPane.showMessageDialog(this,
+                    "Règle générale créée : la colonne " + entry.column + " s'affichera « " + label + " » dans toutes les tables.\n\n"
+                            + "Elle apparaît en haut de la liste, ligne * / " + entry.column + " (sélectionnée).\n"
+                            + "Cliquez sur « Enregistrer pour l'équipe » pour l'appliquer à tout le monde.",
+                    "Libellés", JOptionPane.INFORMATION_MESSAGE);
+        }
+
+        /** Selectionne et fait defiler jusqu'a la ligne indiquee. */
+        private void showRow(final String table, final String column) {
+            final int modelRow = this.model.indexOf(ColumnLabelRules.key(table, column));
+            if (modelRow < 0) {
+                return;
+            }
+            final int viewRow = this.table.convertRowIndexToView(modelRow);
+            if (viewRow < 0) {
+                return;
+            }
+            this.table.setRowSelectionInterval(viewRow, viewRow);
+            this.table.scrollRectToVisible(this.table.getCellRect(viewRow, 0, true));
         }
 
         private void exportForJar() {
@@ -495,6 +514,11 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             return ColumnLabelRules.displayLabel(this.table, this.column, this.label, mode);
         }
 
+        /** Affichage en tenant compte de la regle generale {@code *.COLONNE}. */
+        String display(final String mode, final String wildcard) {
+            return ColumnLabelRules.resolvedLabel(this.column, this.label, wildcard, mode);
+        }
+
         /** Vrai si la ligne porte une regle saisie (affichee en gras). */
         boolean isCustomized() {
             return ColumnLabelRules.isExplicitRule(this.label);
@@ -544,7 +568,26 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 }
             }
         }
-        return new ArrayList<Entry>(byKey.values());
+        // Ordre lisible : les regles generales (*) d'abord (elles valent partout),
+        // puis les tables par ordre alphabetique. Sans cela, la liste suit l'ordre
+        // interne de la base, ou les tables de sauvegarde se melangent au metier.
+        final List<Entry> entries = new ArrayList<Entry>(byKey.values());
+        java.util.Collections.sort(entries, new java.util.Comparator<Entry>() {
+            @Override
+            public int compare(final Entry a, final Entry b) {
+                final boolean wildcardA = ColumnLabelRules.ANY_TABLE.equals(a.table);
+                final boolean wildcardB = ColumnLabelRules.ANY_TABLE.equals(b.table);
+                if (wildcardA != wildcardB) {
+                    return wildcardA ? -1 : 1;
+                }
+                final int byTable = a.table.compareTo(b.table);
+                if (byTable != 0) {
+                    return byTable;
+                }
+                return a.column.compareTo(b.column);
+            }
+        });
+        return entries;
     }
 
     /** Modele de tableau editable, sans dependance a la base. */
@@ -558,8 +601,30 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
         /** Vrai des qu'une case a ete modifiee sans enregistrement. */
         private boolean dirty = false;
 
+        /** Regles generales : colonne -> libelle (issues des lignes {@code *}). */
+        private final Map<String, String> wildcards = new LinkedHashMap<String, String>();
+
         EntryTableModel(final List<Entry> entries) {
             this.entries = entries;
+            rebuildWildcards();
+        }
+
+        /** Recalcule l'index des regles {@code *.COLONNE}. */
+        private void rebuildWildcards() {
+            this.wildcards.clear();
+            for (final Entry entry : this.entries) {
+                if (ColumnLabelRules.ANY_TABLE.equals(entry.table)) {
+                    final String rule = ColumnLabelRules.cleanLabel(entry.label);
+                    if (rule.length() > 0) {
+                        this.wildcards.put(entry.column, rule);
+                    }
+                }
+            }
+        }
+
+        /** Libelle general pour cette colonne, ou <code>null</code>. */
+        String wildcardLabel(final String column) {
+            return this.wildcards.get(column);
         }
 
         List<Entry> getEntries() {
@@ -592,13 +657,35 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 if (this.entries.get(i).key().equals(key)) {
                     this.entries.get(i).label = label;
                     this.dirty = true;
+                    rebuildWildcards();
                     fireTableRowsUpdated(i, i);
                     return;
                 }
             }
-            this.entries.add(new Entry(table.toUpperCase(), column.toUpperCase(), label, false));
+            final Entry added = new Entry(table.toUpperCase(), column.toUpperCase(), label, false);
+            // Les regles generales (*) passent en tete : ce sont celles qui valent
+            // partout, et l'utilisateur doit les voir sans faire defiler.
+            if (ColumnLabelRules.ANY_TABLE.equals(added.table)) {
+                this.entries.add(0, added);
+                this.dirty = true;
+                rebuildWildcards();
+                fireTableRowsInserted(0, 0);
+                return;
+            }
+            this.entries.add(added);
             this.dirty = true;
+            rebuildWildcards();
             fireTableRowsInserted(this.entries.size() - 1, this.entries.size() - 1);
+        }
+
+        /** Indice de la ligne correspondant a cette cle, {@code -1} si absente. */
+        int indexOf(final String key) {
+            for (int i = 0; i < this.entries.size(); i++) {
+                if (this.entries.get(i).key().equals(key)) {
+                    return i;
+                }
+            }
+            return -1;
         }
 
         /**
@@ -614,17 +701,21 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             if (!entry.fromSchema) {
                 this.entries.remove(row);
                 this.dirty = true;
+                rebuildWildcards();
                 fireTableRowsDeleted(row, row);
                 return;
             }
             entry.reset();
             this.dirty = true;
+            rebuildWildcards();
             fireTableRowsUpdated(row, row);
         }
 
         void remove(final int row) {
             if (row >= 0 && row < this.entries.size()) {
                 this.entries.remove(row);
+                this.dirty = true;
+                rebuildWildcards();
                 fireTableRowsDeleted(row, row);
             }
         }
@@ -677,7 +768,7 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 case 2:
                     return entry.automatic();
                 default:
-                    return entry.display(this.mode);
+                    return entry.display(this.mode, this.wildcards.get(entry.column));
             }
         }
 

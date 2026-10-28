@@ -23,6 +23,8 @@
 #  11. une regle posee sur une table de sauvegarde n'est plus signalee (le
 #      message laisserait croire que le libelle s'applique)
 #  12. toute table est consideree comme une sauvegarde (faux positifs metier)
+#  13. la regle generale (*.COLONNE) n'est plus prise en compte a l'ecran (le
+#      bouton « Appliquer a toutes les tables » semble sans effet)
 #
 # Prerequis : un JDK (javac/java) pour les mutations 1 a 4 et 6 ; node + pglite
 # pour la mutation 5. Les mutations non executables sont sautees proprement.
@@ -184,6 +186,17 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
             return true;
         }"
     expect_java_failure "table metier prise pour une sauvegarde : detecte"
+
+    echo "== 13. la regle generale (*.COLONNE) ignoree a l'ecran =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        if (cleanedWildcard.length() > 0) {
+            return cleanedWildcard;
+        }" \
+        "        if (false) {
+            return cleanedWildcard;
+        }"
+    expect_java_failure "regle * sans effet dans le tableau : detectee"
 
     echo "== 6. enregistrement non transactionnel =="
     prepare

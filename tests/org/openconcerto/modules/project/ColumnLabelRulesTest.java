@@ -83,6 +83,7 @@ public final class ColumnLabelRulesTest {
         testBackupTablesAreDetected();
         testBusinessTablesAreNotBackups();
         testSaveReportExplainsWhatWasSaved();
+        testWildcardRuleAppliesEverywhere();
 
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
@@ -482,6 +483,28 @@ public final class ColumnLabelRulesTest {
         final String plurals = ColumnLabelRules.saveReport(3, 5, ColumnLabelRules.MODE_MAPPING, new ArrayList<String>());
         assertTrue("pluriel des regles", plurals.contains("3 règles"));
         assertTrue("colonnes rafraichies", plurals.contains("5 colonne(s)"));
+        pass();
+    }
+
+    /**
+     * Cas reel : apres « Appliquer a toutes les tables (*) », les lignes du
+     * tableau continuaient d'afficher le libelle automatique, ce qui donnait
+     * l'impression que le bouton n'avait rien fait. La regle generale doit etre
+     * prise en compte pour l'affichage.
+     */
+    private static void testWildcardRuleAppliesEverywhere() {
+        assertEquals("regle generale appliquee", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_AUTO));
+        assertEquals("la regle de la table gagne", "Notre fournisseur",
+                ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "Notre fournisseur", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_AUTO));
+        assertEquals("sans regle : automatique", "FOURNISSEUR",
+                ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", null, ColumnLabelRules.MODE_AUTO));
+        assertEquals("mode MAPPING sans regle : nom technique", "ID_FOURNISSEUR",
+                ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", "", ColumnLabelRules.MODE_MAPPING));
+        assertEquals("regle generale en MAPPING", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_MAPPING));
+        assertEquals("mode OFF ignore tout", "ID_FOURNISSEUR",
+                ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "Notre fournisseur", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_OFF));
         pass();
     }
 

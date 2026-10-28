@@ -109,7 +109,7 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
 
 | Colonne | Contenu |
 |---|---|
-| **Table** | table de la colonne (`*` = toutes les tables) |
+| **Table** | table de la colonne ; les règles `*` (toutes les tables) sont **en haut de la liste**, puis les tables par ordre alphabétique |
 | **Colonne** | nom technique (`ID_FOURNISSEUR`) — non modifiable |
 | **Automatique** | ce que donnerait le mode automatique (ex. `FOURNISSEUR`) |
 | **Libellé affiché (double-clic)** | **la valeur réellement affichée**, toujours en **noir** : **en gras** si elle est personnalisée, en texte normal si elle vient du mode automatique |
@@ -125,9 +125,11 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
 5. Champ **Filtrer** : taper `facture` ou `client` pour trouver la ligne.
 6. **Ajouter une colonne…** : pour une règle qui n'apparaît pas dans la liste
    (ou pour `*` = toutes les tables).
-   **Appliquer à toutes les tables (*)** : prend la ligne sélectionnée et crée
-   la règle `*.COLONNE` correspondante — la façon la plus rapide de renommer
-   `ID_FOURNISSEUR` (ou `ID_CLIENT`, `ID_AFFAIRE`…) **partout** en une fois.
+   **Appliquer à toutes les tables (*)** : prend la ligne sélectionnée, crée la
+   règle `*.COLONNE` correspondante, **l'affiche en haut de la liste** et la
+   sélectionne — la façon la plus rapide de renommer `ID_FOURNISSEUR` (ou
+   `ID_CLIENT`, `ID_AFFAIRE`…) **partout** en une fois. Toutes les lignes du
+   tableau qui n'ont pas de règle propre affichent alors ce nouveau libellé.
 7. **Enregistrer pour l'équipe** : écrit en base, puis met à jour les listes
    déjà ouvertes sur ce poste. Les autres postes verront le changement au
    prochain démarrage du client. Si des modifications ne sont pas enregistrées,

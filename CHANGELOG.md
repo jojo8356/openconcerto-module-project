@@ -8,6 +8,29 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés : la règle « toutes les tables » devient visible
+
+### Fixed
+
+- **« Appliquer à toutes les tables (*) » semblait sans effet** : la règle `*`
+  était créée (et enregistrée), mais ajoutée **en bas de la liste** — donc hors
+  écran — et surtout **les lignes du tableau continuaient d'afficher le libellé
+  automatique**, car l'affichage ignorait les règles `*.COLONNE`. Désormais :
+  - la règle `*` est **insérée en tête de liste**, sélectionnée et amenée à
+    l'écran ;
+  - l'affichage du tableau applique la même résolution que les listes de l'ERP
+    (règle de la table > règle `*` > automatique) : `ColumnLabelRules.resolvedLabel` ;
+  - le message de confirmation indique où regarder.
+- La liste est triée : règles `*` d'abord, puis tables et colonnes par ordre
+  alphabétique (les tables `sauvegarde_…` ne se mélangent plus au métier).
+
+### Tests
+
+- `ColumnLabelRulesTest` : **51 tests** (priorité table > `*` > auto, modes
+  MAPPING/OFF).
+- `scripts/test-mutations-colonnes.sh` : **14 contrôles** — la mutation 13
+  ignore les règles `*` à l'écran et la suite échoue.
+
 ## 2026-10-28 — Libellés : message clair et avertissement « table de sauvegarde »
 
 ### Fixed
