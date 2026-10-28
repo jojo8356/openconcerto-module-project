@@ -17,6 +17,9 @@
 #   7. la contrainte SQL de migration est validee d'emblee (plus de NOT VALID)
 #   8. le scenario de creation tourne sans la migration (base d'avant correctif)
 #   9. base client ET migration sans colonne sur FACTURE_FOURNISSEUR
+#  10. une double declaration du champ affaire n'est plus toleree (le module ne
+#      demarre plus : « Already added ID_AFFAIRE in ... »)
+#  11. FACTURE_FOURNISSEUR declaree deux fois, sans dedoublonnage
 #
 # Prerequis : un JDK (javac/java) et, pour les mutations 7 a 9, node + pglite.
 #
@@ -139,6 +142,31 @@ replace src/org/openconcerto/modules/project/AffairLinkSupport.java \
     '            "DEMANDE_ACHAT_ELEMENT",
             "COMMANDE_ELEMENT"));'
 expect_java_failure "colonne d affaire ajoutee sur une table de lignes : detecte"
+
+echo "== 10. double declaration du champ affaire non toleree (plantage au demarrage) =="
+prepare
+replace src/org/openconcerto/modules/project/AffairLinkSupport.java \
+    '            } catch (IllegalStateException e) {
+                // Deja declare (coeur, autre module, version precedente du module).
+                report.alreadyPresent.add(table);' \
+    '            } catch (IllegalStateException e) {
+                throw e;'
+expect_java_failure "champ deja declare : le demarrage echoue comme avant le correctif"
+
+echo "== 11. FACTURE_FOURNISSEUR declaree deux fois, sans dedoublonnage =="
+prepare
+replace src/org/openconcerto/modules/project/AffairLinkSupport.java \
+    '            "COMMANDE",
+            "FACTURE_FOURNISSEUR",' \
+    '            "COMMANDE",
+            "FACTURE_FOURNISSEUR",
+            "FACTURE_FOURNISSEUR",'
+replace src/org/openconcerto/modules/project/AffairLinkSupport.java \
+    '            if (!done.add(table)) {
+                continue;
+            }' \
+    '            done.add(table);'
+expect_java_failure "declaration en double du meme champ : detectee"
 }
 
 if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then

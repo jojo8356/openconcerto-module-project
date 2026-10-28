@@ -379,6 +379,108 @@ public final class AffairLinkSupport {
     }
 
     /**
+     * Cible d'enregistrement des champs supplementaires, c'est-a-dire les
+     * ecrans de saisie ({@code ComponentsContext.putAdditionalField} en
+     * production).
+     * <p>
+     * L'interface existe pour deux raisons : rendre cette etape testable sans
+     * OpenConcerto, et rappeler le contrat reel de
+     * {@code ComponentsContext.putAdditionalField}, qui <b>leve
+     * {@link IllegalStateException} quand le champ est deja declare</b>. C'est
+     * exactement ce qui empechait le module de demarrer (FACTURE_FOURNISSEUR
+     * declaree deux fois).
+     */
+    public interface AdditionalFieldTarget {
+        /**
+         * @return <code>true</code> si le champ vient d'etre ajoute,
+         *         <code>false</code> s'il etait deja declare.
+         * @throws IllegalStateException si le champ existait deja et que
+         *                               l'implementation ne le signale pas par
+         *                               <code>false</code>.
+         */
+        boolean putAdditionalField(String table, String field);
+    }
+
+    /** Compte rendu de {@link #registerComponentFields(Schema, AdditionalFieldTarget)}. */
+    public static final class RegistrationReport {
+        private final List<String> added = new ArrayList<String>();
+        private final List<String> alreadyPresent = new ArrayList<String>();
+        private final List<String> refused = new ArrayList<String>();
+
+        public List<String> getAdded() {
+            return Collections.unmodifiableList(this.added);
+        }
+
+        public List<String> getAlreadyPresent() {
+            return Collections.unmodifiableList(this.alreadyPresent);
+        }
+
+        /** Tables qui n'ont pas pu etre declarees, avec la raison. */
+        public List<String> getRefused() {
+            return Collections.unmodifiableList(this.refused);
+        }
+
+        /** Vrai si le module a pu declarer tous les champs qu'il voulait. */
+        public boolean isComplete() {
+            return this.refused.isEmpty();
+        }
+
+        public String getSummary() {
+            return "ajoutes " + this.added + ", deja presents " + this.alreadyPresent
+                    + (this.refused.isEmpty() ? "" : ", refuses " + this.refused);
+        }
+    }
+
+    /**
+     * Declare {@code ID_AFFAIRE} dans les ecrans de saisie, <b>une seule fois
+     * par table</b> et sans jamais faire echouer le demarrage.
+     * <p>
+     * Pourquoi cette methode existe : {@code ComponentsContext.putAdditionalField}
+     * leve {@link IllegalStateException} des que le champ est deja declare. Un
+     * module qui appelle deux fois la meme declaration (ou qui declare un champ
+     * que le cœur a deja pose) ne demarre plus du tout, avec pour seul message
+     * « Already added ID_AFFAIRE in ... ». Le demarrage du module ne doit pas
+     * dependre d'un champ d'affichage : les erreurs sont collectees dans le
+     * compte rendu, pas propagees.
+     * <p>
+     * Les cas traites :
+     * <ul>
+     * <li>table presente deux fois dans le plan : ignoree la seconde fois ;</li>
+     * <li>champ deja declare ({@link IllegalStateException}, ou
+     * <code>false</code>) : compte comme « deja present », ce n'est pas une
+     * erreur ;</li>
+     * <li>toute autre erreur (champ non cree par le module, table sans
+     * element...) : la table est « refusee », les autres sont traitees
+     * normalement.</li>
+     * </ul>
+     */
+    public static RegistrationReport registerComponentFields(final Schema schema, final AdditionalFieldTarget target) {
+        final RegistrationReport report = new RegistrationReport();
+        if (schema == null || target == null) {
+            return report;
+        }
+        final Set<String> done = new LinkedHashSet<String>();
+        for (final String table : getComponentFieldTables(schema)) {
+            if (!done.add(table)) {
+                continue;
+            }
+            try {
+                if (target.putAdditionalField(table, AFFAIR_FIELD)) {
+                    report.added.add(table);
+                } else {
+                    report.alreadyPresent.add(table);
+                }
+            } catch (IllegalStateException e) {
+                // Deja declare (coeur, autre module, version precedente du module).
+                report.alreadyPresent.add(table);
+            } catch (RuntimeException e) {
+                report.refused.add(table + " (" + e.getMessage() + ")");
+            }
+        }
+        return report;
+    }
+
+    /**
      * Verifie qu'une liste de tables couvre bien toutes les tables a affaire
      * presentes dans le schema.
      *

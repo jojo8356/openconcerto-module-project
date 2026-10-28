@@ -903,16 +903,21 @@ public final class Module extends AbstractModule {
             new SupplierOrderToInvoiceSQLInjector(root);
         }
 
-        // Rendre visible dans l'en-tete de facture l'affaire reprise par
-        // l'injecteur. La colonne ID_AFFAIRE des lignes est un autre champ.
-        SupplierInvoiceAffairComponentSupport.register(ctxt);
-
-        // Rendre l'affaire visible et enregistrable dans les ecrans de saisie.
-        // La liste vient d'AffairLinkSupport et ne contient que les tables qui
-        // portent reellement la colonne : declarer le champ sur une table qui
-        // ne l'a pas ferait echouer la construction du composant.
-        for (final String table : AffairLinkSupport.getComponentFieldTables(schemaOf(root))) {
-            ctxt.putAdditionalField(table, AffairLinkSupport.AFFAIR_FIELD);
+        // Rendre l'affaire visible et enregistrable dans les ecrans de saisie
+        // (en-tete de facture fournisseur compris).
+        //
+        // Une seule declaration par table, et jamais d'exception qui remonte :
+        // ComponentsContext.putAdditionalField leve IllegalStateException quand
+        // le champ est deja declare. La double declaration de
+        // FACTURE_FOURNISSEUR (une fois ici, une fois par
+        // SupplierInvoiceAffairComponentSupport) empechait le module de
+        // demarrer : « Already added ID_AFFAIRE in FactureFournisseurSQLElement ».
+        try {
+            final AffairLinkSupport.RegistrationReport registration = SupplierInvoiceAffairComponentSupport.register(ctxt, schemaOf(root));
+            log("affaire dans les ecrans de saisie : " + registration.getSummary());
+        } catch (Exception e) {
+            // Aucun champ d'affichage ne doit empecher le module de demarrer.
+            log("affaire non ajoutee aux ecrans de saisie : " + e);
         }
         installDeliveryNoteInvoiceAction(ctxt);
         installTransfertDemandePrix();

@@ -106,6 +106,19 @@ Guide complet (Windows, Linux, macOS, cas `NO_FACTORY`, retour arriere) :
 `docs/installation-du-jar.md`. Recette graphique :
 `docs/recette-graphique-affaire-fournisseur.md`.
 
+## Construire le jar
+
+```sh
+git clone https://github.com/jojo8356/openconcerto-module-project.git
+cd openconcerto-module-project
+sh scripts/build-jar-with-curl.sh   # telecharge OpenConcerto 1.7.6 (une fois) et compile
+# -> build/org.openconcerto.modules.project-1.1.jar
+```
+
+Prérequis : un **JDK** 8+ (17 recommandé), `curl`, `unzip` ; `node` pour les tests
+SQL. Détails et variantes (jar OpenConcerto déjà présent, publication d'une
+release) : `docs/construire-le-jar.md`.
+
 ## Paramètres : libellés des colonnes
 
 Le menu **Paramètres → Affichage → Libellés des colonnes** (visible seulement pour

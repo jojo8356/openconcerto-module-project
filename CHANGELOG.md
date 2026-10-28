@@ -8,6 +8,27 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Correctif : le module ne démarrait plus (« Already added ID_AFFAIRE »)
+
+### Fixed
+
+- **Crash au démarrage du module** : `ID_AFFAIRE` était déclaré **deux fois** sur
+  `FACTURE_FOURNISSEUR` (`SupplierInvoiceAffairComponentSupport` puis la boucle
+  sur `DIRECT_AFFAIR_TABLES`), et `ComponentsContext.putAdditionalField` lève
+  `IllegalStateException` sur un doublon. Résultat :
+  `Unable to start JarModuleFactory org.openconcerto.modules.project (1.1)` et
+  plus aucun service du module (historique des affaires, menus, rattachement).
+- Un seul point d'entrée, `AffairLinkSupport.registerComponentFields` : une
+  déclaration par table, « déjà déclaré » traité comme une information, toute
+  autre erreur collectée sans interrompre le démarrage ; compte rendu tracé.
+- Tests de non-régression : le double de `ComponentsContext` lève désormais comme
+  le vrai, deux tests rejouent le scénario du plantage, et les mutations 10 et 11
+  de `scripts/test-mutations-affaire.sh` prouvent que la suite sait échouer sur
+  ce point.
+- Documentation : `docs/correctif-demarrage-already-added.md` (cause, correctif,
+  vérifications, quoi faire sur un poste planté) et `docs/construire-le-jar.md`
+  (cloner, construire, tester, publier).
+
 ## 2026-10-28 — Paramètres : libellés des colonnes pour toute l'équipe
 
 ### Added
