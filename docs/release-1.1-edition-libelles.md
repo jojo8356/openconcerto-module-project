@@ -10,7 +10,8 @@ modifie maintenant les noms **directement dans le tableau**, et la case
 |---|---|
 | La case **Libellé affiché** était vide tant qu'aucune règle n'existait | elle affiche **le libellé réellement vu par les utilisateurs** |
 | Il fallait passer par « Ajouter une colonne… » ou deviner | **double-clic** sur la case, on tape, **Entrée** |
-| Rien ne distinguait une règle d'un libellé automatique | **gras bleu** = personnalisé, *gris italique* = automatique |
+| Rien ne distinguait une règle d'un libellé automatique | **gras** = personnalisé, texte normal = automatique |
+| Les libellés automatiques étaient en gris pâle, difficiles à lire | **tout est en noir** (`ColumnLabelStyle`) |
 | « Supprimer la règle » supprimait la ligne | **Réinitialiser (libellé auto)** : la règle est effacée, le libellé automatique revient |
 
 Le tableau a quatre colonnes : **Table**, **Colonne**, **Automatique** (ce que
@@ -36,8 +37,8 @@ au libellé automatique.
 
 | Suite | Résultat |
 |---|---|
-| `scripts/run-tests.sh` | `AffairLinkSupportTest` 35, `ColumnLabelRulesTest` **45**, `SupplierOrderToInvoiceSQLInjectorTest` 19 |
-| `scripts/test-mutations-colonnes.sh` | **10 contrôles, 0 échec** (mutations 8 et 9 : case vide, règles inutiles) |
+| `scripts/run-tests.sh` | `AffairLinkSupportTest` 35, `ColumnLabelRulesTest` **47**, `SupplierOrderToInvoiceSQLInjectorTest` 19 |
+| `scripts/test-mutations-colonnes.sh` | **11 contrôles, 0 échec** (mutations 8, 9 et 10 : case vide, règles inutiles, gris pâle) |
 | `tests/sql/e2e-colonnes.sh` | 34 contrôles, 0 échec |
 | compilation contre le vrai `OpenConcerto.jar` | aucune erreur imputable au module (CI) |
 

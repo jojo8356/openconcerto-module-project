@@ -8,6 +8,22 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés des colonnes : texte noir (lisibilité)
+
+### Fixed
+
+- La colonne **« Libellé affiché »** était en **gris italique** pour les libellés
+  automatiques : trop pâle à l'écran. Tout est désormais en **noir**, seule la
+  graisse distingue une règle (gras) d'un libellé automatique (normal)
+  (`ColumnLabelStyle`). Les en-têtes de colonnes et le reste du tableau sont
+  aussi en noir explicite, quel que soit le thème du client.
+
+### Tests
+
+- `ColumnLabelRulesTest` : **47 tests** (couleur noire + graisse).
+- `scripts/test-mutations-colonnes.sh` : **11 contrôles** — la mutation 10 remet
+  le gris pâle et la suite **échoue**.
+
 ## 2026-10-28 — Libellés des colonnes : édition directe dans le tableau
 
 ### Changed

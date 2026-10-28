@@ -112,7 +112,7 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
 | **Table** | table de la colonne (`*` = toutes les tables) |
 | **Colonne** | nom technique (`ID_FOURNISSEUR`) — non modifiable |
 | **Automatique** | ce que donnerait le mode automatique (ex. `FOURNISSEUR`) |
-| **Libellé affiché (double-clic)** | **la valeur réellement affichée** : en **gras bleu** si elle est personnalisée, en *gris italique* si elle vient du mode automatique |
+| **Libellé affiché (double-clic)** | **la valeur réellement affichée**, toujours en **noir** : **en gras** si elle est personnalisée, en texte normal si elle vient du mode automatique |
 
 3. **Pour changer un nom : double-cliquez sur la case « Libellé affiché »**,
    tapez le nouveau texte, validez avec **Entrée** (Échap annule). Le texte

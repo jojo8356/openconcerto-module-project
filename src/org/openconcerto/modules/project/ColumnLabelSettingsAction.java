@@ -126,18 +126,24 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             this.table.getColumnModel().getColumn(3).setPreferredWidth(240);
             this.table.setRowHeight(22);
             this.table.setSelectionMode(javax.swing.ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+            this.table.setForeground(Color.BLACK);
+            this.table.setGridColor(new Color(0xC8, 0xC8, 0xC8));
             // Double-clic (ou F2, ou une simple frappe) pour modifier le libelle.
-            this.table.setDefaultRenderer(String.class, new LabelRenderer());
+            // Le rendu specifique ne s'applique qu'a la colonne editable : les
+            // autres colonnes gardent le rendu standard (texte noir).
+            this.table.getColumnModel().getColumn(3).setCellRenderer(new LabelRenderer());
             this.table.getColumnModel().getColumn(3).setCellEditor(new LabelEditor());
+            this.table.getTableHeader().setForeground(Color.BLACK);
+            this.table.getTableHeader().setFont(this.table.getTableHeader().getFont() == null ? null : this.table.getTableHeader().getFont().deriveFont(Font.BOLD));
             this.table.getTableHeader().setToolTipText("Libellé affiché : double-cliquez sur une case pour le modifier, videz-la pour revenir au libellé automatique.");
 
             setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
             add(buildHeader(), BorderLayout.NORTH);
             final JPanel center = new JPanel(new BorderLayout(0, 4));
             center.add(new JScrollPane(this.table), BorderLayout.CENTER);
-            final JLabel hint = new JLabel("<html><i>Double-cliquez sur un libellé pour le modifier. "
-                    + "Les libellés en gras sont personnalisés ; en gris, ce sont les libellés automatiques.</i></html>");
-            hint.setForeground(new Color(0x55, 0x55, 0x55));
+            final JLabel hint = new JLabel("<html>Double-cliquez sur un libellé pour le modifier. "
+                    + ColumnLabelStyle.describe() + ".</html>");
+            hint.setForeground(Color.BLACK);
             center.add(hint, BorderLayout.SOUTH);
             add(center, BorderLayout.CENTER);
             add(buildButtons(), BorderLayout.SOUTH);
@@ -654,8 +660,8 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
     // ------------------------------------------------------------------
 
     /**
-     * Rend la colonne « Libellé affiché » lisible d'un coup d'oeil : en gras ce
-     * qui est personnalise, en gris italique ce qui vient du mode automatique.
+     * Rend la colonne « Libellé affiché » lisible d'un coup d'oeil : tout en
+     * noir, en gras ce qui est personnalise (voir {@link ColumnLabelStyle}).
      * L'utilisateur voit donc immediatement ce qui est deja choisi, et non une
      * case vide.
      */
@@ -674,10 +680,13 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                     customized = model.getEntries().get(modelRow).isCustomized();
                 }
             }
+            // Tout en noir : le gris rendait les libelles automatiques difficiles
+            // a lire. Seule la graisse distingue une regle (gras) d'un libelle
+            // automatique (normal).
             final Font base = table.getFont();
-            component.setFont(base == null ? null : base.deriveFont(customized ? Font.BOLD : Font.ITALIC));
+            component.setFont(ColumnLabelStyle.font(base, customized));
             if (!isSelected) {
-                component.setForeground(customized ? new Color(0x00, 0x40, 0x80) : new Color(0x77, 0x77, 0x77));
+                component.setForeground(ColumnLabelStyle.color());
             }
             if (component instanceof javax.swing.JLabel) {
                 ((javax.swing.JLabel) component).setToolTipText("<html>Double-cliquez pour modifier ce libellé.<br>Videz la case pour revenir au libellé automatique.</html>");

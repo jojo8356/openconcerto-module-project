@@ -14,6 +14,7 @@ cd "$ROOT_DIR"
     printf '%s\n' src/org/openconcerto/modules/project/AffairListSortSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/AffairLinkSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/ColumnLabelRules.java
+    printf '%s\n' src/org/openconcerto/modules/project/ColumnLabelStyle.java
     printf '%s\n' src/org/openconcerto/modules/project/SupplierInvoiceAffairComponentSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjector.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairListSortSupportTest.java

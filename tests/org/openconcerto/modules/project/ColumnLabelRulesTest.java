@@ -76,6 +76,8 @@ public final class ColumnLabelRulesTest {
         testEditDoesNotCreateUselessRule();
         testEditClearsRuleWhenEmptied();
         testEditReplacesLabel();
+        testDisplayedLabelIsBlack();
+        testCustomizedLabelIsBold();
 
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
@@ -411,6 +413,22 @@ public final class ColumnLabelRulesTest {
                 ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO, "  Notre   fournisseur "));
         assertEquals("saisir le nom technique force l'affichage brut", "ID_FOURNISSEUR",
                 ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO, "ID_FOURNISSEUR"));
+        pass();
+    }
+
+    /** Le libelle affiche doit etre noir : le gris etait trop pale a l'ecran. */
+    private static void testDisplayedLabelIsBlack() {
+        assertEquals("libelle en noir", java.awt.Color.BLACK, ColumnLabelStyle.color());
+        assertTrue("ce n'est pas un gris", ColumnLabelStyle.color().getRed() < 32 && ColumnLabelStyle.color().getGreen() < 32 && ColumnLabelStyle.color().getBlue() < 32);
+        assertTrue("aide de l'ecran a jour", ColumnLabelStyle.describe().contains("gras"));
+        pass();
+    }
+
+    private static void testCustomizedLabelIsBold() {
+        final java.awt.Font base = new java.awt.Font("Dialog", java.awt.Font.PLAIN, 12);
+        assertEquals("personnalise : gras", java.awt.Font.BOLD, ColumnLabelStyle.font(base, true).getStyle());
+        assertEquals("automatique : normal", java.awt.Font.PLAIN, ColumnLabelStyle.font(base, false).getStyle());
+        assertEquals("police inconnue : null", null, ColumnLabelStyle.font(null, true));
         pass();
     }
 

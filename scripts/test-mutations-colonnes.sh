@@ -19,6 +19,7 @@
 #   8. la case « Libellé affiché » redevient vide quand aucune regle n'existe
 #      (c'est ce que voyait l'utilisateur avant le correctif d'edition)
 #   9. une edition sans changement cree quand meme une regle (table polluee)
+#  10. le libelle affiche repasse en gris pale (illisible a l'ecran)
 #
 # Prerequis : un JDK (javac/java) pour les mutations 1 a 4 et 6 ; node + pglite
 # pour la mutation 5. Les mutations non executables sont sautees proprement.
@@ -153,6 +154,13 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
             return cleanLabel(currentRule);
         }"
     expect_java_failure "regle inutile creee par un simple clic : detectee"
+
+    echo "== 10. le libelle affiche repasse en gris pale =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelStyle.java \
+        '        return Color.BLACK;' \
+        '        return new Color(0x77, 0x77, 0x77);'
+    expect_java_failure "libelle gris pale (illisible) : detecte"
 
     echo "== 6. enregistrement non transactionnel =="
     prepare

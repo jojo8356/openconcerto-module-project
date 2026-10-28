@@ -58,8 +58,9 @@ Deux comptes sont nécessaires :
 | 3.1 | Se connecter avec **A**, menu **Paramètres → Libellés des colonnes** | écran avec la liste des colonnes et un champ **Filtrer** |
 | 3.2 | Taper `facture` dans **Filtrer** | la liste ne garde que les lignes correspondantes |
 | 3.3 | **Double-cliquer** sur la case **Libellé affiché** de la ligne `FACTURE_FOURNISSEUR` / `ID_FOURNISSEUR` | la case passe en édition, le texte existant est pré-sélectionné |
-| 3.3b | Taper `FOURNISSEUR FOURN.` puis **Entrée** | la case affiche le nouveau texte, en gras bleu (personnalisé) |
-| 3.3c | Double-cliquer, sélectionner `ID_ARTICLE` (ligne `LOT_LIVRAISON`) et vider la case, **Entrée** | la case revient au libellé automatique `ARTICLE`, en gris italique |
+| 3.3b | Taper `FOURNISSEUR FOURN.` puis **Entrée** | la case affiche le nouveau texte, en **noir gras** (personnalisé) |
+| 3.3c | Double-cliquer, sélectionner `ID_ARTICLE` (ligne `LOT_LIVRAISON`) et vider la case, **Entrée** | la case revient au libellé automatique `ARTICLE`, en noir, en texte normal |
+| 3.3d | Vérifier la lisibilité de toute la fenêtre | tous les textes sont **noirs** et lisibles (aucun gris pâle) |
 | 3.4 | Cliquer **Enregistrer pour l'équipe** | message de confirmation, aucune erreur en console |
 | 3.5 | Rouvrir **Achats > Commandes fournisseurs** sans quitter le client | l'en-tête affiche immédiatement `FOURNISSEUR` |
 | 3.6 | Vider toutes les cases d'une ligne puis **Enregistrer pour l'équipe** | la règle est supprimée en base (aucun message d'erreur) |
