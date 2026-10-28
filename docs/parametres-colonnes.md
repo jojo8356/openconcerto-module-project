@@ -116,7 +116,10 @@ s'appliquent ; une règle propre à une table (`COMMANDE.ID_AFFAIRE`) est
 appliquée dans l'historique des affaires et dans les listes du module, pas dans
 une liste du cœur où la table n'est pas identifiable.
 
-## 7. Vérifications exécutables
+## 7. Recette manuelle et vérifications exécutables
+
+Recette cliquable pas à pas (deux comptes, retour arrière, vérification en base) :
+`docs/recette-graphique-colonnes.md`.
 
 ```sh
 sh tests/sql/e2e-colonnes.sh          # 34 contrôles SQL (pglite)
