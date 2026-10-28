@@ -31,12 +31,28 @@ fournisseurs) et leurs lignes (`COMMANDE_ELEMENT`, `FACTURE_FOURNISSEUR_ELEMENT`
 
 1. **Sauvegarder la base** (le module ajoute des colonnes, il ne supprime rien).
 2. Arrêter le client.
-3. Remplacer le jar du module :
-   - Windows : `%APPDATA%\.openconcerto\modules\org.openconcerto.modules.project\`
-   - Linux/macOS : `~/.openconcerto/modules/org.openconcerto.modules.project/`
-   - ou, si le client utilise un dossier de modules propre au serveur, le
-     dossier `modules` de l'installation OpenConcerto.
+3. Copier le jar **directement dans le dossier `Modules` lu par le client**
+   (majuscule, pas de sous-dossier), et **retirer** l'ancien jar du même
+   module pour n'en laisser qu'un seul.
+   - Le bon chemin se lit dans le client : menu **? / Aide → Informations**,
+     ligne **« Dossiers des modules »**.
+   - Chemins habituels :
+     - Linux, client lancé depuis `/opt/openconcerto` → `/opt/openconcerto/Modules/`
+     - Linux, client extrait dans le dossier personnel → `~/OpenConcerto-1.7.6/Modules/`
+     - Linux, dossier de données → `~/.local/share/OpenConcerto/Modules/`
+     - Windows → `C:\Program Files\OpenConcerto\Modules\` (ou le chemin
+       affiché par *Informations*)
+     - macOS → `…/OpenConcerto.app/Contents/…/Modules/`
+   - En cas de doute, poser le jar dans **tous** les dossiers `Modules`
+     trouvés : celui du client est forcément l'un d'eux. Script fourni :
+     `sh scripts/installer-jar-release.sh --jar <chemin du jar>`.
 4. Redémarrer le client, se connecter à la société.
+
+> Une fois posé, vérifier dans **Informations → Gestion des modules** que notre
+> module est listé en **1.1**. Si le client refuse de démarrer avec
+> `NO_FACTORY=[Module org.openconcerto.modules.project v1.1]`, la base épingle
+> une autre version : voir `docs/release-process.md` §5.1
+> (`scripts/fix-module-version.sh`).
 
 Au démarrage, la console peut afficher :
 

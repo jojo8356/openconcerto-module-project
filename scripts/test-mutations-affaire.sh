@@ -86,6 +86,11 @@ expect_java_success() {
     fi
 }
 
+# Mutations 0 a 6 : elles compilent le module, donc il faut un JDK. Elles sont
+# regroupees dans une fonction pour etre sautees proprement quand aucun JDK
+# n'est installe sur la machine de test (le reste de la suite tourne alors
+# quand meme : mutations SQL et scenario).
+mutations_java() {
 echo "== 0. controle : la copie non modifiee doit passer =="
 prepare
 expect_java_success "copie non modifiee : tests au vert"
@@ -134,6 +139,13 @@ replace src/org/openconcerto/modules/project/AffairLinkSupport.java \
     '            "DEMANDE_ACHAT_ELEMENT",
             "COMMANDE_ELEMENT"));'
 expect_java_failure "colonne d affaire ajoutee sur une table de lignes : detecte"
+}
+
+if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
+    mutations_java
+else
+    echo "(javac/java absents : mutations Java 0 a 6 ignorees)"
+fi
 
 echo "== 7. contrainte SQL validee d'emblee (plus de NOT VALID) =="
 if command -v node >/dev/null 2>&1; then

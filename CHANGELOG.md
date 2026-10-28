@@ -75,6 +75,16 @@
   OpenConcerto 1.7.6 officiel, contrôle du bytecode Java 8, empreinte SHA-256
   publiée avec le jar. Notes : `docs/release-1.1-affaire-fournisseur.md`.
 - Recette graphique clic par clic : `docs/recette-graphique-affaire-fournisseur.md`.
+- `scripts/installer-jar-release.sh` : pose le jar dans le ou les dossiers
+  `Modules` du client (détection `Modules` relatif au lancement, contrôle du
+  module et de sa version, bytecode Java 8, sauvegarde de l'ancien jar, nom
+  conventionnel `<id>-<version>.jar`, `--dry-run`, `--liste`).
+- `tests/installer/test-installer-jar.sh` : 19 contrôles du script
+  d'installation (détection, refus d'un fichier qui n'est pas un module, refus
+  d'un autre module, `--dry-run` sans écriture, un seul jar actif à la fin,
+  aucun accès SQL).
+- `docs/installation-du-jar.md` : où mettre le jar (Windows, Linux, macOS),
+  comment trouver le bon dossier, `NO_FACTORY`, retour arrière.
 - Correction de compilation : `ComponentsContext` n'expose pas sa base
   (`ElementContext.getRoot()` est protégé) → `Module.affairRoot(ComponentsContext)`
   passe par l'élément `AFFAIRE`.

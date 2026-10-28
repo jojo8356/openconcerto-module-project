@@ -88,7 +88,23 @@ git tag v1.1-affaire-fournisseur && git push origin v1.1-affaire-fournisseur
 
 La release contient `org.openconcerto.modules.project-1.1.jar`, son empreinte
 SHA-256 et les notes de version (`docs/release-1.1-affaire-fournisseur.md`).
-Recette graphique, clic par clic : `docs/recette-graphique-affaire-fournisseur.md`.
+
+### Où mettre le jar apres telechargement
+
+Dans le dossier **`Modules` du client OpenConcerto** (le jar directement dedans,
+et un seul jar par module). Le chemin exact se lit dans le client :
+menu **? / Aide -> Informations**, ligne « Dossiers des modules ».
+
+```sh
+sh scripts/installer-jar-release.sh --liste        # quels dossiers Modules ?
+sh scripts/installer-jar-release.sh --jar ~/Downloads/org.openconcerto.modules.project-1.1.jar
+```
+
+Detecte les dossiers, controle le module et sa version, sauvegarde l'ancien jar
+dans `Modules/_backup_modules/`, copie le nouveau sous son nom conventionnel.
+Guide complet (Windows, Linux, macOS, cas `NO_FACTORY`, retour arriere) :
+`docs/installation-du-jar.md`. Recette graphique :
+`docs/recette-graphique-affaire-fournisseur.md`.
 
 ## Documentation
 

@@ -11,7 +11,9 @@
 #      fournisseur puis de sa facture, et modification de leur affaire »
 #      (tests/sql/scenario-creation-fournisseur.sh) ;
 #   4. les tests de mutation qui verifient que tout ceci sait echouer
-#      (scripts/test-mutations-affaire.sh).
+#      (scripts/test-mutations-affaire.sh) ;
+#   5. les tests du script d'installation du jar dans le client
+#      (tests/installer/test-installer-jar.sh).
 #
 # Usage :
 #   sh scripts/test-affaire-fournisseur.sh
@@ -77,6 +79,8 @@ if [ "$AVEC_MUTATIONS" -eq 1 ]; then
 else
     printf '\nmutations ignorees (--sans-mutations)\n'
 fi
+
+lancer "installation du jar dans le client (dossier Modules)" tests/installer/test-installer-jar.sh
 
 printf '\n==============================================\n'
 printf 'Suites executees : %s | suites en echec : %s\n' "$ETAPES" "$ECHECS"
