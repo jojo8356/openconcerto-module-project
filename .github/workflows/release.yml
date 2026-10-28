@@ -105,10 +105,28 @@ jobs:
           TITLE: ${{ github.event.inputs.title }}
         run: |
           set -e
-          NOTES="${NOTES_FILE:-docs/release-1.1-affaire-fournisseur.md}"
+          # Notes de version : celle fournie, sinon le fichier qui porte le nom du
+          # tag (docs/release-<tag sans « v »>.md), sinon les notes du lot 1.1.
+          NOTES="${NOTES_FILE:-}"
+          if [ -z "$NOTES" ]; then
+            case "$TAG" in
+                v*) CANDIDATE="docs/release-${TAG#v}.md" ;;
+                *)  CANDIDATE="docs/release-$TAG.md" ;;
+            esac
+            if [ -f "$CANDIDATE" ]; then
+                NOTES="$CANDIDATE"
+            else
+                NOTES="docs/release-1.1-affaire-fournisseur.md"
+            fi
+          fi
           test -f "$NOTES" || { echo "::error::notes de version absentes : $NOTES"; exit 1; }
+          echo "Notes de version : $NOTES"
+          # Titre : celui fourni, sinon le titre de niveau 1 des notes.
           if [ -z "$TITLE" ]; then
-            TITLE="Module project $MODULE_VERSION — affaire sur les commandes et factures fournisseurs"
+            TITLE=$(grep -m 1 '^# ' "$NOTES" | sed 's/^# *//')
+          fi
+          if [ -z "$TITLE" ]; then
+            TITLE="Module project $MODULE_VERSION"
           fi
           FLAGS=""
           if [ "$PRERELEASE" = "true" ]; then
