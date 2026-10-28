@@ -258,6 +258,17 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                     }
                 }
             });
+            final JButton everywhere = new JButton("Appliquer à toutes les tables (*)");
+            everywhere.setToolTipText("<html>Crée une règle <b>*</b> pour la colonne des lignes sélectionnées : le libellé s'appliquera<br>"
+                    + "dans toutes les tables qui n'ont pas leur propre règle.<br>Utile pour ID_FOURNISSEUR, ID_CLIENT, ID_AFFAIRE…</html>");
+            everywhere.addActionListener(new AbstractAction() {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    applyToAllTables();
+                }
+            });
             final JButton export = new JButton("Exporter pour le jar…");
             export.addActionListener(new AbstractAction() {
                 private static final long serialVersionUID = 1L;
@@ -278,6 +289,7 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             });
             buttons.add(add);
             buttons.add(reset);
+            buttons.add(everywhere);
             buttons.add(export);
             buttons.add(close);
             buttons.add(save);
@@ -339,9 +351,24 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             final int changed = ColumnLabelUi.refreshAll();
             this.model.markSaved();
             this.model.setMode(mode);
-            JOptionPane.showMessageDialog(this, "Libellés enregistrés pour toute l'équipe (" + labels.size() + " regle(s), mode " + mode + ").\n"
-                    + changed + " colonne(s) mise(s) a jour sur ce poste.\n\nLes autres postes les verront au prochain demarrage du client.", "Libellés", JOptionPane.INFORMATION_MESSAGE);
+            // Tables de sauvegarde parmi les regles enregistrees : ces libelles
+            // ne s'afficheront dans aucune liste (cas reel : regle posee sur
+            // sauvegarde_FACTURE_FOURNISSEUR_avant... au lieu de la vraie table).
+            final List<String> backupTables = ColumnLabelRules.backupTables(tablesOf(labels));
+            JOptionPane.showMessageDialog(this, ColumnLabelRules.saveReport(labels.size(), changed, mode, backupTables), "Libellés", JOptionPane.INFORMATION_MESSAGE);
             return true;
+        }
+
+        /** Tables concernees par un ensemble de regles (cle = TABLE.COLONNE). */
+        private List<String> tablesOf(final Map<String, String> labels) {
+            final Set<String> tables = new LinkedHashSet<String>();
+            for (final String key : labels.keySet()) {
+                final int dot = key.indexOf('.');
+                if (dot > 0) {
+                    tables.add(key.substring(0, dot));
+                }
+            }
+            return new ArrayList<String>(tables);
         }
 
         private void addRule() {
@@ -369,6 +396,32 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 return;
             }
             this.model.addOrUpdate(tableName, columnName, ColumnLabelRules.cleanLabel(label));
+        }
+
+        /**
+         * Cree (ou met a jour) une regle {@code *.COLONNE} avec le libelle de la
+         * ligne selectionnee, pour que le renommage s'applique dans <b>toutes</b>
+         * les tables : c'est la reponse au cas « je veux FOURNISSEUR partout »
+         * sans avoir a editer chaque table une par une.
+         */
+        private void applyToAllTables() {
+            final int row = this.table.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Sélectionnez d'abord une ligne : sa colonne servira pour toutes les tables.",
+                        "Libellés", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            final Entry entry = this.model.getEntries().get(this.table.convertRowIndexToModel(row));
+            final String label = entry.display(this.model.getMode());
+            this.model.addOrUpdate(ColumnLabelRules.ANY_TABLE, entry.column, label);
+            // La ligne de depart n'a plus besoin de regle propre : la regle *
+            // couvre deja sa table, et evite deux libelles concurrents.
+            if (entry.isCustomized() && !ColumnLabelRules.ANY_TABLE.equals(entry.table)) {
+                final int modelRow = this.table.convertRowIndexToModel(row);
+                this.model.reset(modelRow);
+            }
+            JOptionPane.showMessageDialog(this, "Règle « " + label + " » créée pour la colonne " + entry.column + " dans toutes les tables.\n"
+                    + "Cliquez sur « Enregistrer pour l'équipe » pour l'appliquer.", "Libellés", JOptionPane.INFORMATION_MESSAGE);
         }
 
         private void exportForJar() {

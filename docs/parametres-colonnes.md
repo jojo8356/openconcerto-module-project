@@ -125,6 +125,9 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
 5. Champ **Filtrer** : taper `facture` ou `client` pour trouver la ligne.
 6. **Ajouter une colonne…** : pour une règle qui n'apparaît pas dans la liste
    (ou pour `*` = toutes les tables).
+   **Appliquer à toutes les tables (*)** : prend la ligne sélectionnée et crée
+   la règle `*.COLONNE` correspondante — la façon la plus rapide de renommer
+   `ID_FOURNISSEUR` (ou `ID_CLIENT`, `ID_AFFAIRE`…) **partout** en une fois.
 7. **Enregistrer pour l'équipe** : écrit en base, puis met à jour les listes
    déjà ouvertes sur ce poste. Les autres postes verront le changement au
    prochain démarrage du client. Si des modifications ne sont pas enregistrées,
@@ -170,7 +173,36 @@ Ce que couvre chaque suite :
 | `e2e-colonnes.sh` (34) | migration idempotente, unicité `(table, colonne)`, règle `*` + règle par table, enregistrement transactionnel (état préservé en cas d'erreur), UTF-8, requête « qui a le plus de droits » (superutilisateur > administrateur > nombre de droits, comptes désactivés ignorés), aucune table du cœur touchée |
 | `test-mutations-colonnes.sh` (7) | le préfixe qui n'est plus retiré, le mode `AUTO` ignoré, le mauvais rôle choisi, la dérive Java/SQL, l'index qui n'est plus unique, l'enregistrement sans transaction : **tous détectés** |
 
-## 9. Dépannage
+## 9. Tables de sauvegarde : pourquoi un libellé peut rester sans effet
+
+Une règle posée sur une table de **sauvegarde** (`sauvegarde_…_avant_2024`,
+`…_old`, `…_copie`) est bien enregistrée, mais **n'a aucun effet visible** :
+ces tables ne sont affichées dans aucune liste de l'ERP.
+
+Elles sont reconnaissables à leur nom (préfixe `sauvegarde_`, `backup`, `copie`,
+`zz_`, suffixe `_avant`, `_old`, `_ancien`, `_bck`). Au moment d'enregistrer, le
+module le signale :
+
+> ⚠ 1 règle concerne une table de sauvegarde : `sauvegarde_FACTURE_FOURNISSEUR_avant_2024`
+> Ces tables n'apparaissent dans aucune liste : ces libellés n'auront aucun effet visible.
+
+Deux façons de corriger :
+
+- utiliser **Appliquer à toutes les tables (*)** sur la bonne colonne : la règle
+  vaut pour toutes les tables, y compris la vraie `FACTURE_FOURNISSEUR` ;
+- ou repérer la ligne dont la colonne **Table** vaut exactement
+  `FACTURE_FOURNISSEUR` (trier la colonne Table, ou filtrer sur `facture`).
+
+Le texte de fin d'enregistrement distingue deux choses qui n'ont rien à voir :
+
+| Ligne du message | Signification |
+|---|---|
+| `1 règle en base, mode AUTO` | la modification **est** enregistrée sur le serveur (pour toute l'équipe) |
+| `Listes déjà ouvertes sur ce poste : 0 colonne mise à jour` | aucune fenêtre **déjà ouverte sur ce poste** n'affiche ces colonnes ; rien à rafraîchir ici |
+
+Un `0` sur la deuxième ligne ne veut donc pas dire que rien n'a été enregistré.
+
+## 10. Dépannage
 
 | Symptôme | Cause probable | Que faire |
 |---|---|---|

@@ -217,6 +217,114 @@ public final class ColumnLabelRules {
         return header;
     }
 
+    /** Debuts de nom qui designent une copie de table (sauvegarde, essai...). */
+    private static final List<String> BACKUP_PREFIXES = Collections.unmodifiableList(Arrays.asList(
+            "sauvegarde", "sauvegarde_", "backup", "copie", "archive", "ancien", "tmp_", "zz_"));
+
+    /** Fins de nom qui designent une copie de table. */
+    private static final List<String> BACKUP_SUFFIXES = Collections.unmodifiableList(Arrays.asList(
+            "_avant", "_old", "_ancien", "_ancienne", "_backup", "_copie", "_bck", "_sauvegarde", "_archive"));
+
+    /** Fragments internes qui designent une copie de table. */
+    private static final List<String> BACKUP_INFIXES = Collections.unmodifiableList(Arrays.asList(
+            "_sauvegarde_", "_backup_", "_copie_", "_avant_"));
+
+    /**
+     * Vrai si le nom de table ressemble a une <b>copie</b> de table (sauvegarde,
+     * archivage, essai). Ces tables n'apparaissent dans aucune liste de l'ERP :
+     * une regle de libelle posee dessus n'a donc aucun effet visible.
+     * <p>
+     * Cas reel : une regle avait ete saisie sur
+     * {@code sauvegarde_FACTURE_FOURNISSEUR_avant_...} au lieu de
+     * {@code FACTURE_FOURNISSEUR}. Le libelle etait bien enregistre, mais
+     * l'utilisateur ne voyait aucun changement dans ses listes — d'ou le message
+     * d'aide au moment d'enregistrer.
+     * <p>
+     * La detection est volontairement <b>stricte</b> (debut, fin ou fragment
+     * explicite) : chercher « test » n'importe ou declencherait des faux
+     * positifs sur des tables metier (une « ATTESTATION », par exemple).
+     */
+    public static boolean looksLikeBackupTable(final String table) {
+        if (table == null) {
+            return false;
+        }
+        final String name = normalizeName(table).toLowerCase(java.util.Locale.ROOT);
+        if (name.length() == 0) {
+            return false;
+        }
+        for (final String prefix : BACKUP_PREFIXES) {
+            if (name.startsWith(prefix)) {
+                return true;
+            }
+        }
+        for (final String suffix : BACKUP_SUFFIXES) {
+            if (name.endsWith(suffix)) {
+                return true;
+            }
+        }
+        for (final String infix : BACKUP_INFIXES) {
+            if (name.contains(infix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Tables de sauvegarde parmi une liste, dans l'ordre d'apparition, sans doublon. */
+    public static List<String> backupTables(final java.util.Collection<String> tables) {
+        final List<String> result = new ArrayList<String>();
+        if (tables == null) {
+            return result;
+        }
+        for (final String table : tables) {
+            if (looksLikeBackupTable(table) && !result.contains(table)) {
+                result.add(table);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Texte du message de fin d'enregistrement.
+     * <p>
+     * Il separe deux choses que l'ancien message melangeait, au point de faire
+     * croire que rien n'avait ete enregistre :
+     * <ol>
+     * <li>les <b>regles</b> ecrites sur le serveur SQL (partagees) ;</li>
+     * <li>les <b>colonnes deja affichees</b> sur ce poste qui ont ete
+     * rafraichies (souvent 0 : les listes ne sont pas ouvertes, ou la colonne
+     * n'y figure pas).</li>
+     * </ol>
+     * Et il signale les regles posees sur une table de sauvegarde, qui n'auront
+     * aucun effet visible.
+     *
+     * @param rules        nombre de regles enregistrees.
+     * @param refreshed    nombre de colonnes rafraichies sur ce poste.
+     * @param mode         mode enregistre.
+     * @param backupTables tables de sauvegarde concernees (vide si aucune).
+     */
+    public static String saveReport(final int rules, final int refreshed, final String mode, final List<String> backupTables) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append("Libellés enregistrés sur le serveur SQL pour toute l'équipe.\n");
+        sb.append("- ").append(rules).append(rules > 1 ? " règles" : " règle").append(" en base, mode ").append(normalizeMode(mode)).append(".\n");
+        sb.append("- Listes déjà ouvertes sur ce poste : ").append(refreshed);
+        sb.append(refreshed == 0 ? " colonne mise à jour (aucune liste ouverte n'affiche ces colonnes).\n" : " colonne(s) mise(s) à jour.\n");
+        sb.append("\nLes autres postes verront les nouveaux libellés au prochain démarrage du client.");
+        if (backupTables != null && !backupTables.isEmpty()) {
+            sb.append("\n\n⚠ ").append(backupTables.size()).append(backupTables.size() > 1 ? " règles concernent" : " règle concerne");
+            sb.append(" une table de sauvegarde :\n  ");
+            for (int i = 0; i < backupTables.size() && i < 3; i++) {
+                if (i > 0) {
+                    sb.append("\n  ");
+                }
+                sb.append(backupTables.get(i));
+            }
+            sb.append("\nCes tables n'apparaissent dans aucune liste : ces libellés n'auront aucun effet visible.");
+            sb.append("\nPour renommer une colonne dans toutes les tables, utilisez « Appliquer à toutes les tables (*) ».");
+        }
+        return sb.toString();
+    }
+
     /**
      * Libelle <b>reellement affiche</b> pour une colonne, tel que l'ecran de
      * parametrage doit le montrer : la regle si elle existe, sinon le libelle

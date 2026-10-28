@@ -8,6 +8,29 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés : message clair et avertissement « table de sauvegarde »
+
+### Fixed
+
+- Le message de fin d'enregistrement laissait croire que rien n'avait été
+  enregistré : il affichait « 0 colonne(s) mise(s) à jour sur ce poste ».
+  Il sépare désormais les deux informations (`ColumnLabelRules.saveReport`) :
+  **règles écrites en base** (partagées) et **colonnes rafraîchies sur ce poste**
+  (souvent 0 quand aucune liste n'est ouverte ou n'affiche ces colonnes).
+- **Avertissement sur les tables de sauvegarde** : une règle posée sur
+  `sauvegarde_FACTURE_FOURNISSEUR_avant_…` ne s'affiche dans aucune liste. Le
+  message cite la table et propose la règle `*`.
+- Nouveau bouton **« Appliquer à toutes les tables (*) »** : crée la règle
+  `*.COLONNE` à partir de la ligne sélectionnée — renommer `ID_FOURNISSEUR`
+  partout en une seule opération.
+
+### Tests
+
+- `ColumnLabelRulesTest` : **50 tests** (détection des tables de sauvegarde,
+  garde-fou contre les faux positifs type `ATTESTATION`, contenu du message).
+- `scripts/test-mutations-colonnes.sh` : **13 contrôles** — mutations 11 et 12
+  (avertissement supprimé, toute table vue comme une sauvegarde) détectées.
+
 ## 2026-10-28 — Libellés des colonnes : texte noir (lisibilité)
 
 ### Fixed

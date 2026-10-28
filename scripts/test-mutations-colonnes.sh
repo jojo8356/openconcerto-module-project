@@ -20,6 +20,9 @@
 #      (c'est ce que voyait l'utilisateur avant le correctif d'edition)
 #   9. une edition sans changement cree quand meme une regle (table polluee)
 #  10. le libelle affiche repasse en gris pale (illisible a l'ecran)
+#  11. une regle posee sur une table de sauvegarde n'est plus signalee (le
+#      message laisserait croire que le libelle s'applique)
+#  12. toute table est consideree comme une sauvegarde (faux positifs metier)
 #
 # Prerequis : un JDK (javac/java) pour les mutations 1 a 4 et 6 ; node + pglite
 # pour la mutation 5. Les mutations non executables sont sautees proprement.
@@ -161,6 +164,26 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
         '        return Color.BLACK;' \
         '        return new Color(0x77, 0x77, 0x77);'
     expect_java_failure "libelle gris pale (illisible) : detecte"
+
+    echo "== 11. une regle sur une table de sauvegarde n'est plus signalee =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        if (backupTables != null && !backupTables.isEmpty()) {" \
+        "        if (false) {"
+    expect_java_failure "regle sans effet visible non signalee : detectee"
+
+    echo "== 12. toute table est vue comme une sauvegarde (faux positifs) =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        final String name = normalizeName(table).toLowerCase(java.util.Locale.ROOT);
+        if (name.length() == 0) {
+            return false;
+        }" \
+        "        final String name = normalizeName(table).toLowerCase(java.util.Locale.ROOT);
+        if (name.length() >= 0) {
+            return true;
+        }"
+    expect_java_failure "table metier prise pour une sauvegarde : detecte"
 
     echo "== 6. enregistrement non transactionnel =="
     prepare

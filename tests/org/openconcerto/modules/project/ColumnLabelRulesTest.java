@@ -79,6 +79,11 @@ public final class ColumnLabelRulesTest {
         testDisplayedLabelIsBlack();
         testCustomizedLabelIsBold();
 
+        // 5 ter. Tables de sauvegarde et message de fin d'enregistrement.
+        testBackupTablesAreDetected();
+        testBusinessTablesAreNotBackups();
+        testSaveReportExplainsWhatWasSaved();
+
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
         testSaveIsOneTransaction();
@@ -429,6 +434,54 @@ public final class ColumnLabelRulesTest {
         assertEquals("personnalise : gras", java.awt.Font.BOLD, ColumnLabelStyle.font(base, true).getStyle());
         assertEquals("automatique : normal", java.awt.Font.PLAIN, ColumnLabelStyle.font(base, false).getStyle());
         assertEquals("police inconnue : null", null, ColumnLabelStyle.font(null, true));
+        pass();
+    }
+
+    /**
+     * Cas reel : une regle saisie sur {@code sauvegarde_FACTURE_FOURNISSEUR_avant…}
+     * est bien enregistree mais n'a aucun effet visible, car cette table
+     * n'apparait dans aucune liste.
+     */
+    private static void testBackupTablesAreDetected() {
+        assertTrue("prefixe sauvegarde_", ColumnLabelRules.looksLikeBackupTable("sauvegarde_FACTURE_FOURNISSEUR_avant_2024"));
+        assertTrue("suffixe _old", ColumnLabelRules.looksLikeBackupTable("FACTURE_FOURNISSEUR_OLD"));
+        assertTrue("suffixe _avant", ColumnLabelRules.looksLikeBackupTable("COMMANDE_AVANT"));
+        assertTrue("prefixe zz_", ColumnLabelRules.looksLikeBackupTable("zz_essai"));
+        assertTrue("fragment _copie_", ColumnLabelRules.looksLikeBackupTable("COMMANDE_copie_1"));
+        assertTrue("null : pas une sauvegarde", !ColumnLabelRules.looksLikeBackupTable(null));
+
+        final List<String> tables = Arrays.asList("COMMANDE", "sauvegarde_FACTURE_FOURNISSEUR_avant_2024",
+                "FACTURE_FOURNISSEUR", "sauvegarde_FACTURE_FOURNISSEUR_avant_2024");
+        final List<String> backups = ColumnLabelRules.backupTables(tables);
+        assertEquals("une seule table de sauvegarde, sans doublon", 1, backups.size());
+        assertEquals("c'est la table sauvegardee", "sauvegarde_FACTURE_FOURNISSEUR_avant_2024", backups.get(0));
+        pass();
+    }
+
+    /** Garde-fou : ne pas confondre une table metier avec une sauvegarde. */
+    private static void testBusinessTablesAreNotBackups() {
+        for (final String table : Arrays.asList("FACTURE_FOURNISSEUR", "COMMANDE", "ATTESTATION", "SAISIE_ACHAT", "AFFAIRE", "TEST", "CONTACT_FOURNISSEUR")) {
+            assertTrue("table metier non signalee : " + table, !ColumnLabelRules.looksLikeBackupTable(table));
+        }
+        pass();
+    }
+
+    private static void testSaveReportExplainsWhatWasSaved() {
+        final String plain = ColumnLabelRules.saveReport(1, 0, ColumnLabelRules.MODE_AUTO, new ArrayList<String>());
+        assertTrue("regle bien enregistree (" + plain + ")", plain.contains("1 règle en base"));
+        assertTrue("mode rappele", plain.contains("AUTO"));
+        assertTrue("rafraichissement explique", plain.contains("Listes déjà ouvertes") && plain.contains("0 colonne"));
+        assertTrue("prochain demarrage rappele", plain.contains("prochain démarrage"));
+        assertTrue("aucun avertissement sans table de sauvegarde", !plain.contains("sauvegarde :"));
+
+        final String warn = ColumnLabelRules.saveReport(1, 0, ColumnLabelRules.MODE_AUTO, Arrays.asList("sauvegarde_FACTURE_FOURNISSEUR_avant_2024"));
+        assertTrue("avertissement de table de sauvegarde (" + warn + ")", warn.contains("table de sauvegarde"));
+        assertTrue("nom de la table cite", warn.contains("sauvegarde_FACTURE_FOURNISSEUR_avant_2024"));
+        assertTrue("conseil du caractere etoile", warn.contains("toutes les tables (*)"));
+
+        final String plurals = ColumnLabelRules.saveReport(3, 5, ColumnLabelRules.MODE_MAPPING, new ArrayList<String>());
+        assertTrue("pluriel des regles", plurals.contains("3 règles"));
+        assertTrue("colonnes rafraichies", plurals.contains("5 colonne(s)"));
         pass();
     }
 
