@@ -57,10 +57,13 @@ Deux comptes sont nécessaires :
 |---|---|---|
 | 3.1 | Se connecter avec **A**, menu **Paramètres → Libellés des colonnes** | écran avec la liste des colonnes et un champ **Filtrer** |
 | 3.2 | Taper `facture` dans **Filtrer** | la liste ne garde que les lignes correspondantes |
-| 3.3 | Sur la ligne `FACTURE_FOURNISSEUR` / `ID_FOURNISSEUR` (ou `*` / `ID_FOURNISSEUR`), saisir `FOURNISSEUR` dans **Libellé affiché** | la saisie reste affichée |
+| 3.3 | **Double-cliquer** sur la case **Libellé affiché** de la ligne `FACTURE_FOURNISSEUR` / `ID_FOURNISSEUR` | la case passe en édition, le texte existant est pré-sélectionné |
+| 3.3b | Taper `FOURNISSEUR FOURN.` puis **Entrée** | la case affiche le nouveau texte, en gras bleu (personnalisé) |
+| 3.3c | Double-cliquer, sélectionner `ID_ARTICLE` (ligne `LOT_LIVRAISON`) et vider la case, **Entrée** | la case revient au libellé automatique `ARTICLE`, en gris italique |
 | 3.4 | Cliquer **Enregistrer pour l'équipe** | message de confirmation, aucune erreur en console |
 | 3.5 | Rouvrir **Achats > Commandes fournisseurs** sans quitter le client | l'en-tête affiche immédiatement `FOURNISSEUR` |
-| 3.6 | Saisir un libellé **vide** sur une autre ligne et enregistrer | refusé, message explicite, rien n'est enregistré |
+| 3.6 | Vider toutes les cases d'une ligne puis **Enregistrer pour l'équipe** | la règle est supprimée en base (aucun message d'erreur) |
+| 3.7 | Modifier une case puis cliquer **Fermer** sans enregistrer | une confirmation propose d'enregistrer ; « Annuler » garde la fenêtre ouverte |
 
 ## 4. Le réglage vaut pour les autres postes / comptes
 

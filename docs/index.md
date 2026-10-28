@@ -47,6 +47,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Cloner et construire le jar](./construire-le-jar.md)
 - [Recette graphique — libellés des colonnes](./recette-graphique-colonnes.md)
 - [Release 1.1 — le menu Paramètres est visible](./release-1.1-menu-parametres.md)
+- [Release 1.1 — édition directe des libellés](./release-1.1-edition-libelles.md)
 
 ## Documentation existante
 

@@ -218,6 +218,76 @@ public final class ColumnLabelRules {
     }
 
     /**
+     * Libelle <b>reellement affiche</b> pour une colonne, tel que l'ecran de
+     * parametrage doit le montrer : la regle si elle existe, sinon le libelle
+     * automatique du mode courant.
+     * <p>
+     * Pourquoi cette methode existe : l'ecran affichait la <i>regle</i>, donc une
+     * case vide pour toutes les colonnes non personnalisees. L'utilisateur ne
+     * pouvait pas voir ce qui s'affiche aujourd'hui, ni cliquer sur la bonne
+     * valeur de depart. Ici on montre toujours ce que voit l'utilisateur final.
+     *
+     * @param table    table de la colonne ({@code *} accepte).
+     * @param column   nom technique de la colonne (ex. {@code ID_FOURNISSEUR}).
+     * @param rule     regle saisie, vide ou <code>null</code> si aucune.
+     * @param mode     mode courant.
+     */
+    public static String displayLabel(final String table, final String column, final String rule, final String mode) {
+        final String cleaned = cleanLabel(rule);
+        final String normalizedMode = normalizeMode(mode);
+        if (cleaned.length() > 0) {
+            // Une regle explicite s'applique, quel que soit le mode sauf OFF.
+            return MODE_OFF.equals(normalizedMode) ? column : cleaned;
+        }
+        if (MODE_AUTO.equals(normalizedMode)) {
+            return suggestLabel(column);
+        }
+        return column;
+    }
+
+    /**
+     * Valeur a enregistrer pour une case « Libellé affiché » apres edition :
+     * texte nettoye, ou chaine vide si l'utilisateur a vide la case (retour au
+     * libelle automatique).
+     */
+    public static String editLabel(final String value) {
+        return cleanLabel(value);
+    }
+
+    /**
+     * Regle a enregistrer apres une edition en direct de la case « Libellé
+     * affiché ».
+     * <p>
+     * Trois cas, et c'est tout l'interet de la methode :
+     * <ul>
+     * <li>la case est videe : on <b>efface</b> la regle (retour a
+     * l'automatique) ;</li>
+     * <li>le texte est identique a ce qui etait affiche : rien ne change, on ne
+     * cree pas de regle inutile (sinon un simple clic + Entree remplirait la
+     * table de centaines de regles identiques au libelle automatique) ;</li>
+     * <li>sinon : le texte devient la regle.</li>
+     * </ul>
+     *
+     * @param currentRule regle actuelle (vide si aucune).
+     * @param mode        mode courant, pour savoir ce qui etait affiche.
+     * @param newValue    texte saisi dans la case.
+     * @return la nouvelle regle (chaine vide = automatique).
+     */
+    public static String applyEdit(final String table, final String column, final String currentRule, final String mode, final String newValue) {
+        final String cleaned = editLabel(newValue);
+        final String before = displayLabel(table, column, currentRule, mode);
+        if (cleaned.equals(before)) {
+            return cleanLabel(currentRule);
+        }
+        return cleaned;
+    }
+
+    /** Vrai si la case porte une regle explicite (donc personnalisee). */
+    public static boolean isExplicitRule(final String label) {
+        return cleanLabel(label).length() > 0;
+    }
+
+    /**
      * Applique les regles a une liste d'en-tetes (une liste de l'ERP, un tableau
      * de parametrage...).
      *

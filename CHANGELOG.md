@@ -8,6 +8,34 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés des colonnes : édition directe dans le tableau
+
+### Changed
+
+- La case **« Libellé affiché »** n'est plus vide quand rien n'est personnalisé :
+  elle montre **ce que voient les utilisateurs** (règle saisie, sinon libellé
+  automatique). La colonne **Automatique** rappelle ce que donnerait la
+  suppression du préfixe `ID_`.
+- **Modification en direct** : double-clic sur la case (ou F2, ou frappe directe
+  dans la case sélectionnée), texte pré-sélectionné, **Entrée** valide,
+  **Échap** annule. Les libellés personnalisés apparaissent en **gras bleu**,
+  les automatiques en *gris italique*.
+- **Vider une case** (ou **Réinitialiser (libellé auto)** sur plusieurs lignes)
+  revient au libellé automatique. Un texte inchangé ne crée pas de règle
+  inutile : la table ne se remplit pas de centaines de règles identiques à
+  l'automatique (`ColumnLabelRules.applyEdit`).
+- La fermeture de la fenêtre propose d'enregistrer les modifications non
+  sauvegardées (`EntryTableModel.isDirty`).
+- La colonne « Aperçu » devient **« Automatique »**, et l'aide de l'écran décrit
+  le double-clic.
+
+### Tests
+
+- `ColumnLabelRulesTest` : **45 tests** (5 nouveaux : affichage du libellé réel,
+  suivi du mode, édition inchangée, case vidée, remplacement du libellé).
+- `scripts/test-mutations-colonnes.sh` : **10 contrôles** — les mutations 8 et 9
+  remettent la case vide et la création de règles inutiles, et sont détectées.
+
 ## 2026-10-28 — Le menu « Libellés des colonnes » est désormais visible
 
 ### Fixed

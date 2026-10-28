@@ -16,6 +16,9 @@
 #   6. l'enregistrement n'est plus transactionnel
 #   7. un utilisateur inconnu n'est plus traite comme « a reessayer » (le menu
 #      des libelles disparait pour tout le monde, y compris l'administrateur)
+#   8. la case « Libellé affiché » redevient vide quand aucune regle n'existe
+#      (c'est ce que voyait l'utilisateur avant le correctif d'edition)
+#   9. une edition sans changement cree quand meme une regle (table polluee)
 #
 # Prerequis : un JDK (javac/java) pour les mutations 1 a 4 et 6 ; node + pglite
 # pour la mutation 5. Les mutations non executables sont sautees proprement.
@@ -129,6 +132,27 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
         'return reason.startsWith("utilisateur de la session inconnu") || reason.startsWith("aucun utilisateur lisible");' \
         'return false;'
     expect_java_failure "utilisateur inconnu traite comme un refus : detecte"
+
+    echo "== 8. la case « Libelle affiche » redevient vide sans regle =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        if (MODE_AUTO.equals(normalizedMode)) {
+            return suggestLabel(column);
+        }
+        return column;" \
+        "        return \"\";"
+    expect_java_failure "case vide au lieu du libelle affiche : detecte"
+
+    echo "== 9. une edition sans changement cree une regle inutile =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        if (cleaned.equals(before)) {
+            return cleanLabel(currentRule);
+        }" \
+        "        if (false) {
+            return cleanLabel(currentRule);
+        }"
+    expect_java_failure "regle inutile creee par un simple clic : detectee"
 
     echo "== 6. enregistrement non transactionnel =="
     prepare

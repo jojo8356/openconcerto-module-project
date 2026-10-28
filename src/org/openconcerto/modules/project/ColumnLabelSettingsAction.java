@@ -1,11 +1,15 @@
 package org.openconcerto.modules.project;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
@@ -19,6 +23,7 @@ import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.DefaultCellEditor;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -35,6 +40,7 @@ import javax.swing.table.TableRowSorter;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 
 import org.openconcerto.sql.model.DBRoot;
 import org.openconcerto.sql.model.SQLField;
@@ -114,17 +120,37 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             this.table = new JTable(this.model);
             this.sorter = new TableRowSorter<EntryTableModel>(this.model);
             this.table.setRowSorter(this.sorter);
-            this.table.getColumnModel().getColumn(0).setPreferredWidth(160);
-            this.table.getColumnModel().getColumn(1).setPreferredWidth(200);
-            this.table.getColumnModel().getColumn(2).setPreferredWidth(200);
-            this.table.getColumnModel().getColumn(3).setPreferredWidth(220);
+            this.table.getColumnModel().getColumn(0).setPreferredWidth(150);
+            this.table.getColumnModel().getColumn(1).setPreferredWidth(190);
+            this.table.getColumnModel().getColumn(2).setPreferredWidth(190);
+            this.table.getColumnModel().getColumn(3).setPreferredWidth(240);
             this.table.setRowHeight(22);
+            this.table.setSelectionMode(javax.swing.ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+            // Double-clic (ou F2, ou une simple frappe) pour modifier le libelle.
+            this.table.setDefaultRenderer(String.class, new LabelRenderer());
+            this.table.getColumnModel().getColumn(3).setCellEditor(new LabelEditor());
+            this.table.getTableHeader().setToolTipText("Libellé affiché : double-cliquez sur une case pour le modifier, videz-la pour revenir au libellé automatique.");
 
             setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
             add(buildHeader(), BorderLayout.NORTH);
-            add(new JScrollPane(this.table), BorderLayout.CENTER);
+            final JPanel center = new JPanel(new BorderLayout(0, 4));
+            center.add(new JScrollPane(this.table), BorderLayout.CENTER);
+            final JLabel hint = new JLabel("<html><i>Double-cliquez sur un libellé pour le modifier. "
+                    + "Les libellés en gras sont personnalisés ; en gris, ce sont les libellés automatiques.</i></html>");
+            hint.setForeground(new Color(0x55, 0x55, 0x55));
+            center.add(hint, BorderLayout.SOUTH);
+            add(center, BorderLayout.CENTER);
             add(buildButtons(), BorderLayout.SOUTH);
             this.modeBox.setSelectedItem(ColumnLabelStore.getMode());
+            this.model.setMode(ColumnLabelStore.getMode());
+            this.modeBox.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    // La colonne « Libellé affiché » montre ce que voit
+                    // l'utilisateur : elle doit suivre le mode choisi.
+                    SettingsPanel.this.model.setMode(String.valueOf(SettingsPanel.this.modeBox.getSelectedItem()));
+                }
+            });
         }
 
         private JPanel buildHeader() {
@@ -136,7 +162,9 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             c.insets = new java.awt.Insets(0, 0, 4, 6);
 
             final JLabel intro = new JLabel("<html><b>Ces libelles s'appliquent a toute l'equipe.</b> Ils sont enregistres sur le serveur SQL, "
-                    + "pas sur ce poste.<br>Laissez la colonne « Libellé » vide pour garder la regle automatique (suppression du prefixe <i>ID_</i>).</html>");
+                    + "pas sur ce poste.<br>La colonne <b>Libellé affiché</b> montre ce que voient les utilisateurs : "
+                    + "<b>double-cliquez</b> sur une case pour le modifier en direct. "
+                    + "Une case vide (ou le bouton <i>Réinitialiser</i>) remet le libelle automatique (suppression du prefixe <i>ID_</i>).</html>");
             c.gridwidth = GridBagConstraints.REMAINDER;
             header.add(intro, c);
 
@@ -205,15 +233,22 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                     addRule();
                 }
             });
-            final JButton remove = new JButton("Supprimer la règle");
-            remove.addActionListener(new AbstractAction() {
+            final JButton reset = new JButton("Réinitialiser (libellé auto)");
+            reset.setToolTipText("Efface la règle des lignes sélectionnées : le libellé automatique revient (suppression du préfixe ID_).");
+            reset.addActionListener(new AbstractAction() {
                 private static final long serialVersionUID = 1L;
 
                 @Override
                 public void actionPerformed(final ActionEvent e) {
-                    final int row = SettingsPanel.this.table.getSelectedRow();
-                    if (row >= 0) {
-                        SettingsPanel.this.model.remove(SettingsPanel.this.table.convertRowIndexToModel(row));
+                    final int[] rows = SettingsPanel.this.table.getSelectedRows();
+                    if (rows.length == 0) {
+                        JOptionPane.showMessageDialog(SettingsPanel.this, "Sélectionnez d'abord une ou plusieurs lignes.", "Libellés", JOptionPane.INFORMATION_MESSAGE);
+                        return;
+                    }
+                    // De la fin vers le debut : les indices restent valides quand
+                    // une ligne est retiree.
+                    for (int i = rows.length - 1; i >= 0; i--) {
+                        SettingsPanel.this.model.reset(SettingsPanel.this.table.convertRowIndexToModel(rows[i]));
                     }
                 }
             });
@@ -232,18 +267,47 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
 
                 @Override
                 public void actionPerformed(final ActionEvent e) {
-                    SettingsPanel.this.frame.dispose();
+                    confirmClose();
                 }
             });
             buttons.add(add);
-            buttons.add(remove);
+            buttons.add(reset);
             buttons.add(export);
             buttons.add(close);
             buttons.add(save);
             return buttons;
         }
 
+        /**
+         * Fermeture de la fenetre : propose d'enregistrer les libelles modifies
+         * dans le tableau, puisque le tableau sert maintenant a saisir.
+         */
+        private void confirmClose() {
+            if (this.model.isDirty()) {
+                final int answer = JOptionPane.showConfirmDialog(this,
+                        "Des libellés ont été modifiés et ne sont pas encore enregistrés pour l'équipe.\nEnregistrer maintenant ?",
+                        "Libellés", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+                if (answer == JOptionPane.CANCEL_OPTION || answer == JOptionPane.CLOSED_OPTION) {
+                    return;
+                }
+                if (answer == JOptionPane.YES_OPTION) {
+                    if (!save()) {
+                        return;
+                    }
+                }
+            }
+            this.frame.dispose();
+        }
+
         private void saveToDatabase() {
+            save();
+        }
+
+        /**
+         * @return <code>true</code> si l'enregistrement a reussi (ou si rien
+         *         n'empechait de fermer).
+         */
+        private boolean save() {
             final Map<String, String> labels = new LinkedHashMap<String, String>();
             for (final Entry entry : this.model.getEntries()) {
                 final String label = ColumnLabelRules.cleanLabel(entry.label);
@@ -252,7 +316,7 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 }
                 if (!ColumnLabelRules.isValidLabel(label)) {
                     JOptionPane.showMessageDialog(this, "Le libelle de « " + entry.key() + " » est invalide (vide, trop long, ou avec un caractere de controle).", "Libellés", JOptionPane.WARNING_MESSAGE);
-                    return;
+                    return false;
                 }
                 labels.put(entry.key(), label);
             }
@@ -264,11 +328,14 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                     sb.append("  - ").append(problem).append('\n');
                 }
                 JOptionPane.showMessageDialog(this, sb.toString(), "Libellés", JOptionPane.ERROR_MESSAGE);
-                return;
+                return false;
             }
             final int changed = ColumnLabelUi.refreshAll();
+            this.model.markSaved();
+            this.model.setMode(mode);
             JOptionPane.showMessageDialog(this, "Libellés enregistrés pour toute l'équipe (" + labels.size() + " regle(s), mode " + mode + ").\n"
                     + changed + " colonne(s) mise(s) a jour sur ce poste.\n\nLes autres postes les verront au prochain demarrage du client.", "Libellés", JOptionPane.INFORMATION_MESSAGE);
+            return true;
         }
 
         private void addRule() {
@@ -336,24 +403,47 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
     static final class Entry {
         final String table;
         final String column;
+        /** Regle saisie ; vide = libelle automatique. */
         String label;
+        /** Vrai si la colonne existe dans la base (sinon : regle orpheline). */
+        final boolean fromSchema;
 
         Entry(final String table, final String column, final String label) {
+            this(table, column, label, true);
+        }
+
+        Entry(final String table, final String column, final String label, final boolean fromSchema) {
             this.table = table;
             this.column = column;
             this.label = label == null ? "" : label;
+            this.fromSchema = fromSchema;
         }
 
         String key() {
             return ColumnLabelRules.key(this.table, this.column);
         }
 
-        String preview() {
-            final String cleaned = ColumnLabelRules.cleanLabel(this.label);
-            if (cleaned.length() > 0) {
-                return cleaned;
-            }
+        /** Libelle automatique, sans regle : ce que montre la colonne « Automatique ». */
+        String automatic() {
             return ColumnLabelRules.suggestLabel(this.column);
+        }
+
+        /**
+         * Ce que voit reellement l'utilisateur final : la regle si elle existe,
+         * sinon le libelle automatique. C'est la valeur editable de l'ecran.
+         */
+        String display(final String mode) {
+            return ColumnLabelRules.displayLabel(this.table, this.column, this.label, mode);
+        }
+
+        /** Vrai si la ligne porte une regle saisie (affichee en gras). */
+        boolean isCustomized() {
+            return ColumnLabelRules.isExplicitRule(this.label);
+        }
+
+        /** Reinitialise la regle : retour au libelle automatique. */
+        void reset() {
+            this.label = "";
         }
     }
 
@@ -391,7 +481,7 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             if (!byKey.containsKey(rule.getKey())) {
                 final int dot = rule.getKey().indexOf('.');
                 if (dot > 0) {
-                    byKey.put(rule.getKey(), new Entry(rule.getKey().substring(0, dot), rule.getKey().substring(dot + 1), rule.getValue()));
+                    byKey.put(rule.getKey(), new Entry(rule.getKey().substring(0, dot), rule.getKey().substring(dot + 1), rule.getValue(), false));
                 }
             }
         }
@@ -402,9 +492,12 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
     static final class EntryTableModel extends AbstractTableModel {
 
         private static final long serialVersionUID = 1L;
-        private static final String[] COLUMNS = { "Table", "Colonne", "Aperçu", "Libellé affiché" };
+        private static final String[] COLUMNS = { "Table", "Colonne", "Automatique", "Libellé affiché (double-clic)" };
 
         private final List<Entry> entries;
+        private String mode = ColumnLabelRules.DEFAULT_MODE;
+        /** Vrai des qu'une case a ete modifiee sans enregistrement. */
+        private boolean dirty = false;
 
         EntryTableModel(final List<Entry> entries) {
             this.entries = entries;
@@ -414,17 +507,60 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             return this.entries;
         }
 
+        String getMode() {
+            return this.mode;
+        }
+
+        /** Vrai si des libelles ont ete modifies depuis le dernier enregistrement. */
+        boolean isDirty() {
+            return this.dirty;
+        }
+
+        /** A appeler apres un enregistrement reussi. */
+        void markSaved() {
+            this.dirty = false;
+        }
+
+        /** Change le mode : la colonne « Libellé affiché » doit suivre. */
+        void setMode(final String mode) {
+            this.mode = mode == null ? ColumnLabelRules.DEFAULT_MODE : mode;
+            fireTableDataChanged();
+        }
+
         void addOrUpdate(final String table, final String column, final String label) {
             final String key = ColumnLabelRules.key(table, column);
             for (int i = 0; i < this.entries.size(); i++) {
                 if (this.entries.get(i).key().equals(key)) {
                     this.entries.get(i).label = label;
+                    this.dirty = true;
                     fireTableRowsUpdated(i, i);
                     return;
                 }
             }
-            this.entries.add(new Entry(table.toUpperCase(), column.toUpperCase(), label));
+            this.entries.add(new Entry(table.toUpperCase(), column.toUpperCase(), label, false));
+            this.dirty = true;
             fireTableRowsInserted(this.entries.size() - 1, this.entries.size() - 1);
+        }
+
+        /**
+         * Revient au libelle automatique pour cette ligne. Une ligne qui vient
+         * d'une regle sans colonne correspondante (table ou colonne supprimee)
+         * est retiree : elle n'a plus de sens une fois la regle effacee.
+         */
+        void reset(final int row) {
+            if (row < 0 || row >= this.entries.size()) {
+                return;
+            }
+            final Entry entry = this.entries.get(row);
+            if (!entry.fromSchema) {
+                this.entries.remove(row);
+                this.dirty = true;
+                fireTableRowsDeleted(row, row);
+                return;
+            }
+            entry.reset();
+            this.dirty = true;
+            fireTableRowsUpdated(row, row);
         }
 
         void remove(final int row) {
@@ -432,6 +568,17 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 this.entries.remove(row);
                 fireTableRowsDeleted(row, row);
             }
+        }
+
+        /** Nombre de lignes portant une regle saisie. */
+        int countCustomized() {
+            int count = 0;
+            for (final Entry entry : this.entries) {
+                if (entry.isCustomized()) {
+                    count++;
+                }
+            }
+            return count;
         }
 
         @Override
@@ -454,6 +601,7 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             return String.class;
         }
 
+        /** Seule la colonne « Libellé affiché » se modifie, directement dans le tableau. */
         @Override
         public boolean isCellEditable(final int row, final int column) {
             return column == 3;
@@ -468,19 +616,107 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 case 1:
                     return entry.column;
                 case 2:
-                    return entry.preview();
+                    return entry.automatic();
                 default:
-                    return entry.label;
+                    return entry.display(this.mode);
             }
         }
 
+        /**
+         * Enregistre la saisie en direct : le texte devient la regle, une case
+         * videe revient au libelle automatique.
+         */
         @Override
         public void setValueAt(final Object value, final int row, final int column) {
-            if (column != 3) {
+            if (column != 3 || row < 0 || row >= this.entries.size()) {
                 return;
             }
-            this.entries.get(row).label = value == null ? "" : String.valueOf(value);
+            final Entry entry = this.entries.get(row);
+            final String typed = value == null ? "" : String.valueOf(value);
+            if (typed.trim().length() > ColumnLabelRules.MAX_LABEL_LENGTH) {
+                JOptionPane.showMessageDialog(null, "Libelle trop long (" + typed.trim().length() + " caracteres, maximum " + ColumnLabelRules.MAX_LABEL_LENGTH + ").",
+                        "Libellés", JOptionPane.WARNING_MESSAGE);
+                fireTableRowsUpdated(row, row);
+                return;
+            }
+            // Case videe = retour a l'automatique ; texte inchange = pas de regle.
+            final String newRule = ColumnLabelRules.applyEdit(entry.table, entry.column, entry.label, this.mode, typed);
+            if (!newRule.equals(ColumnLabelRules.cleanLabel(entry.label))) {
+                this.dirty = true;
+            }
+            entry.label = newRule;
             fireTableRowsUpdated(row, row);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Rendu et edition de la colonne « Libellé affiché »
+    // ------------------------------------------------------------------
+
+    /**
+     * Rend la colonne « Libellé affiché » lisible d'un coup d'oeil : en gras ce
+     * qui est personnalise, en gris italique ce qui vient du mode automatique.
+     * L'utilisateur voit donc immediatement ce qui est deja choisi, et non une
+     * case vide.
+     */
+    private static final class LabelRenderer extends DefaultTableCellRenderer {
+
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected, final boolean hasFocus, final int row, final int column) {
+            final Component component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            boolean customized = false;
+            if (table.getModel() instanceof EntryTableModel) {
+                final int modelRow = table.convertRowIndexToModel(row);
+                final EntryTableModel model = (EntryTableModel) table.getModel();
+                if (modelRow >= 0 && modelRow < model.getEntries().size()) {
+                    customized = model.getEntries().get(modelRow).isCustomized();
+                }
+            }
+            final Font base = table.getFont();
+            component.setFont(base == null ? null : base.deriveFont(customized ? Font.BOLD : Font.ITALIC));
+            if (!isSelected) {
+                component.setForeground(customized ? new Color(0x00, 0x40, 0x80) : new Color(0x77, 0x77, 0x77));
+            }
+            if (component instanceof javax.swing.JLabel) {
+                ((javax.swing.JLabel) component).setToolTipText("<html>Double-cliquez pour modifier ce libellé.<br>Videz la case pour revenir au libellé automatique.</html>");
+            }
+            return component;
+        }
+    }
+
+    /**
+     * Editeur de la colonne « Libellé affiché » : ouvrable par double-clic, par
+     * F2 ou en tapant directement. Le texte de la case est pre-selectionne pour
+     * etre remplace d'une seule frappe ; Entree valide, Echap annule.
+     */
+    private static final class LabelEditor extends DefaultCellEditor {
+
+        private static final long serialVersionUID = 1L;
+
+        LabelEditor() {
+            super(new JTextField());
+            setClickCountToStart(2);
+            final JTextField field = (JTextField) getComponent();
+            field.setToolTipText("Libellé affiché dans les listes. Vide = libellé automatique.");
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(final JTable table, final Object value, final boolean isSelected, final int row, final int column) {
+            final Component component = super.getTableCellEditorComponent(table, value, isSelected, row, column);
+            // Pre-selection : taper remplace tout le libelle.
+            if (component instanceof JTextField) {
+                final JTextField field = (JTextField) component;
+                field.selectAll();
+                SwingUtilities.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        field.selectAll();
+                    }
+                });
+            }
+            return component;
         }
     }
 

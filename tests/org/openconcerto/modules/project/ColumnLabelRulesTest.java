@@ -70,6 +70,13 @@ public final class ColumnLabelRulesTest {
         testDescribeAccessExplains();
         testUndeterminedAccessIsRetried();
 
+        // 5. Edition en direct dans l'ecran (colonne « Libellé affiché »).
+        testDisplayLabelShowsWhatUsersSee();
+        testDisplayLabelFollowsMode();
+        testEditDoesNotCreateUselessRule();
+        testEditClearsRuleWhenEmptied();
+        testEditReplacesLabel();
+
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
         testSaveIsOneTransaction();
@@ -351,6 +358,59 @@ public final class ColumnLabelRulesTest {
         assertTrue("acces accorde : decision definitive", !ColumnLabelRules.accessIsUndetermined("acces accorde : Gisèle (superutilisateur, 5 droits)"));
         assertTrue("pas de table de droits : decision definitive",
                 !ColumnLabelRules.accessIsUndetermined("aucune table de droits dans la base : parametrage ouvert"));
+        pass();
+    }
+
+    // ------------------------------------------------------------------
+    // 5 bis. Edition en direct (« Libellé affiché »)
+    // ------------------------------------------------------------------
+
+    /**
+     * L'ecran doit montrer ce que voient les utilisateurs, pas une case vide :
+     * sans regle, la case affiche le libelle automatique.
+     */
+    private static void testDisplayLabelShowsWhatUsersSee() {
+        assertEquals("sans regle, on voit le libelle automatique", "FOURNISSEUR",
+                ColumnLabelRules.displayLabel("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO));
+        assertEquals("sans regle et sans mode auto, le nom technique", "ID_FOURNISSEUR",
+                ColumnLabelRules.displayLabel("COMMANDE", "ID_FOURNISSEUR", null, ColumnLabelRules.MODE_MAPPING));
+        assertEquals("avec regle, on voit la regle", "Fournisseur",
+                ColumnLabelRules.displayLabel("COMMANDE", "ID_FOURNISSEUR", "Fournisseur", ColumnLabelRules.MODE_MAPPING));
+        assertEquals("mode OFF : nom technique meme avec une regle", "ID_FOURNISSEUR",
+                ColumnLabelRules.displayLabel("COMMANDE", "ID_FOURNISSEUR", "Fournisseur", ColumnLabelRules.MODE_OFF));
+        pass();
+    }
+
+    private static void testDisplayLabelFollowsMode() {
+        final String auto = ColumnLabelRules.displayLabel("AFFAIRE", "ID_CLIENT", "", ColumnLabelRules.MODE_AUTO);
+        final String mapping = ColumnLabelRules.displayLabel("AFFAIRE", "ID_CLIENT", "", ColumnLabelRules.MODE_MAPPING);
+        assertEquals("AUTO supprime le prefixe", "CLIENT", auto);
+        assertEquals("MAPPING ne touche pas au libelle", "ID_CLIENT", mapping);
+        pass();
+    }
+
+    /** Cliquer puis Entree ne doit pas creer une regle identique a l'automatique. */
+    private static void testEditDoesNotCreateUselessRule() {
+        assertEquals("texte inchange : aucune regle creee", "",
+                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO, "FOURNISSEUR"));
+        assertEquals("regle existante inchangee : regle conservee", "Fournisseur",
+                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "Fournisseur", ColumnLabelRules.MODE_AUTO, "Fournisseur"));
+        pass();
+    }
+
+    private static void testEditClearsRuleWhenEmptied() {
+        assertEquals("case videe : retour a l'automatique", "",
+                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "Fournisseur", ColumnLabelRules.MODE_AUTO, "   "));
+        assertEquals("case videe (null)", "",
+                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "Fournisseur", ColumnLabelRules.MODE_AUTO, null));
+        pass();
+    }
+
+    private static void testEditReplacesLabel() {
+        assertEquals("nouveau libelle saisi", "Notre fournisseur",
+                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO, "  Notre   fournisseur "));
+        assertEquals("saisir le nom technique force l'affichage brut", "ID_FOURNISSEUR",
+                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO, "ID_FOURNISSEUR"));
         pass();
     }
 

@@ -105,18 +105,31 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
 ## 6. Utiliser l'écran
 
 1. Menu **Paramètres → Libellés des colonnes**.
-2. La liste montre toutes les colonnes techniques (`ID_…`) des tables, avec :
-   - **Table**, **Colonne** (nom technique, non modifiable) ;
-   - **Aperçu** : ce qui sera affiché si on laisse la case vide ;
-   - **Libellé affiché** : la case à remplir.
-3. Champ **Filtrer** : taper `facture` ou `client` pour trouver la ligne.
-4. **Ajouter une colonne…** : pour une règle qui n'apparaît pas dans la liste
+2. Le tableau montre **ce que voient les utilisateurs**, pas des cases vides :
+
+| Colonne | Contenu |
+|---|---|
+| **Table** | table de la colonne (`*` = toutes les tables) |
+| **Colonne** | nom technique (`ID_FOURNISSEUR`) — non modifiable |
+| **Automatique** | ce que donnerait le mode automatique (ex. `FOURNISSEUR`) |
+| **Libellé affiché (double-clic)** | **la valeur réellement affichée** : en **gras bleu** si elle est personnalisée, en *gris italique* si elle vient du mode automatique |
+
+3. **Pour changer un nom : double-cliquez sur la case « Libellé affiché »**,
+   tapez le nouveau texte, validez avec **Entrée** (Échap annule). Le texte
+   existant est pré-sélectionné : taper remplace tout. On peut aussi sélectionner
+   la case et taper directement, ou appuyer sur **F2**.
+4. **Vider une case** (ou bouton **Réinitialiser (libellé auto)** sur une ou
+   plusieurs lignes sélectionnées) = retour au libellé automatique
+   (`ID_CLIENT` → `CLIENT`). Aucune règle inutile n'est enregistrée si le texte
+   n'a pas changé.
+5. Champ **Filtrer** : taper `facture` ou `client` pour trouver la ligne.
+6. **Ajouter une colonne…** : pour une règle qui n'apparaît pas dans la liste
    (ou pour `*` = toutes les tables).
-5. **Supprimer la règle** : revient au libellé automatique pour cette ligne.
-6. **Enregistrer pour l'équipe** : écrit en base, puis met à jour les listes
+7. **Enregistrer pour l'équipe** : écrit en base, puis met à jour les listes
    déjà ouvertes sur ce poste. Les autres postes verront le changement au
-   prochain démarrage du client.
-7. **Exporter pour le jar…** : écrit un fichier `column-labels.properties` à
+   prochain démarrage du client. Si des modifications ne sont pas enregistrées,
+   la fermeture de la fenêtre propose de les sauver.
+8. **Exporter pour le jar…** : écrit un fichier `column-labels.properties` à
    poser dans `src/org/openconcerto/modules/project/` avant de reconstruire le
    jar (pour une nouvelle installation, ou pour figer les libellés d'une
    version livrée).
