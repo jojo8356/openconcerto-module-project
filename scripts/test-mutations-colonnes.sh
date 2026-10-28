@@ -29,6 +29,8 @@
 #      est deja un libelle metier (« Fournisseur ») ignore la regle ID_FOURNISSEUR
 #  15. le mode AUTO ecrase les libelles metier du coeur (« Fournisseur » devient
 #      « FOURNISSEUR »)
+#  16. plus de resolution par libelle automatique (un en-tete metier ne retrouve
+#      plus sa regle quand l'identifiant technique manque)
 #
 # Prerequis : un JDK (javac/java) pour les mutations 1 a 4 et 6 ; node + pglite
 # pour la mutation 5. Les mutations non executables sont sautees proprement.
@@ -219,6 +221,13 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
                 return suggestLabel(normalizedField == null ? header : normalizedField);
             }"
     expect_java_failure "libelle metier ecrase en mode AUTO : detecte"
+
+    echo "== 16. resolution par libelle automatique supprimee =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        final String byAutoLabel = ruleByAutomaticLabel(header, table, labels);" \
+        "        final String byAutoLabel = null;"
+    expect_java_failure "en-tete metier sans identifiant technique : regle perdue"
 
     echo "== 6. enregistrement non transactionnel =="
     prepare

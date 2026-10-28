@@ -467,6 +467,14 @@ public final class ColumnLabelRules {
         if (byHeader != null && !byHeader.equals(header)) {
             return byHeader;
         }
+        // Dernier filet : certaines listes du coeur n'exposent pas l'identifiant
+        // technique de leurs colonnes. On retrouve alors la regle par le libelle
+        // automatique : une regle sur ID_FOURNISSEUR produit « FOURNISSEUR », qui
+        // est exactement l'en-tete affiche par OpenConcerto.
+        final String byAutoLabel = ruleByAutomaticLabel(header, table, labels);
+        if (byAutoLabel != null) {
+            return byAutoLabel;
+        }
         if (MODE_AUTO.equals(normalizedMode)) {
             // Le mode AUTO ne remplace pas un libelle metier deja lisible
             // (« Fournisseur », « Designation ») : il ne s'applique qu'aux
@@ -480,6 +488,62 @@ public final class ColumnLabelRules {
             }
         }
         return header;
+    }
+
+    /**
+     * Retrouve une regle dont le <b>libelle automatique</b> correspond a l'en-tete
+     * affiche.
+     * <p>
+     * Exemple : la regle {@code *.ID_FOURNISSEUR} donne « FOURNISSEUR » ; un
+     * en-tete « Fournisseur » (libelle metier choisi par le coeur) correspond
+     * donc a cette regle. Cela permet d'appliquer les libelles meme quand la
+     * liste ne fournit pas l'identifiant technique de la colonne.
+     * <p>
+     * Priorite : regle de la table, puis regle generale ({@code *}).
+     *
+     * @return le libelle a afficher, ou <code>null</code> si aucune regle ne
+     *         correspond.
+     */
+    public static String ruleByAutomaticLabel(final String header, final String table, final Map<String, String> labels) {
+        if (header == null || labels == null || labels.isEmpty()) {
+            return null;
+        }
+        final String wanted = normalizeLabelText(header);
+        if (wanted.length() == 0) {
+            return null;
+        }
+        String wildcardMatch = null;
+        for (final Map.Entry<String, String> rule : labels.entrySet()) {
+            if (!isUsable(rule.getValue())) {
+                continue;
+            }
+            final String key = rule.getKey();
+            final int dot = key.indexOf('.');
+            if (dot <= 0) {
+                continue;
+            }
+            final String ruleTable = key.substring(0, dot);
+            final String ruleColumn = key.substring(dot + 1);
+            if (!normalizeLabelText(suggestLabel(ruleColumn)).equals(wanted)) {
+                continue;
+            }
+            if (table != null && normalizeName(table).equals(ruleTable)) {
+                return rule.getValue();
+            }
+            if (ANY_TABLE.equals(ruleTable) && wildcardMatch == null) {
+                wildcardMatch = rule.getValue();
+            }
+        }
+        return wildcardMatch;
+    }
+
+    /** Texte comparable : majuscules, sans accents, sans ponctuation ni espaces. */
+    static String normalizeLabelText(final String text) {
+        if (text == null) {
+            return "";
+        }
+        final String upper = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        return upper.toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]", "");
     }
 
     /**

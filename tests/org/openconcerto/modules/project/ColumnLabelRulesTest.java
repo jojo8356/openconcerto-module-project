@@ -91,6 +91,7 @@ public final class ColumnLabelRulesTest {
         testRuleAppliesThroughTechnicalField();
         testHeaderRuleStillWorks();
         testAutoNeverOverwritesBusinessHeader();
+        testRuleFoundByAutomaticLabel();
 
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
@@ -592,6 +593,37 @@ public final class ColumnLabelRulesTest {
                 ColumnLabelRules.resolveForColumn("id_client", "COMMANDE", "ID_CLIENT", none, ColumnLabelRules.MODE_AUTO));
         assertEquals("en-tete technique avec espaces", "CLIENT",
                 ColumnLabelRules.resolveForColumn("ID CLIENT", "COMMANDE", "ID_CLIENT", none, ColumnLabelRules.MODE_AUTO));
+        pass();
+    }
+
+    /**
+     * Filet de securite : meme sans identifiant technique, un en-tete
+     * « Fournisseur » doit retrouver la regle {@code *.ID_FOURNISSEUR}.
+     */
+    private static void testRuleFoundByAutomaticLabel() {
+        final Map<String, String> labels = new LinkedHashMap<String, String>();
+        labels.put(ColumnLabelRules.key(ColumnLabelRules.ANY_TABLE, "ID_FOURNISSEUR"), "FOURNISSEUR UNIQUE");
+        assertEquals("en-tete metier reconnu", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.ruleByAutomaticLabel("Fournisseur", "COMMANDE_ELEMENT", labels));
+        assertEquals("casse et accents ignores", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.ruleByAutomaticLabel("FOURNISSEUR ", null, labels));
+        assertEquals("aucune correspondance", null,
+                ColumnLabelRules.ruleByAutomaticLabel("Référence", "COMMANDE_ELEMENT", labels));
+
+        labels.put(ColumnLabelRules.key("COMMANDE", "ID_FOURNISSEUR"), "Notre fournisseur");
+        assertEquals("regle de table prioritaire", "Notre fournisseur",
+                ColumnLabelRules.ruleByAutomaticLabel("Fournisseur", "COMMANDE", labels));
+        assertEquals("autre table : la regle generale", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.ruleByAutomaticLabel("Fournisseur", "SAISIE_ACHAT", labels));
+
+        // Passer par la resolution complete (champ technique inconnu) : c'est le
+        // chemin reel des listes du coeur qui n'exposent pas l'identifiant.
+        assertEquals("resolution complete sans champ technique", "FOURNISSEUR UNIQUE",
+                ColumnLabelRules.resolveForColumn("Fournisseur", null, null, labels, ColumnLabelRules.MODE_AUTO));
+
+        assertEquals("normalisation", "FOURNISSEUR", ColumnLabelRules.normalizeLabelText("Fournisseur"));
+        // « N° de devis » : le ° disparait, les lettres restent.
+        assertEquals("normalisation ponctuation", "NDEDEVIS", ColumnLabelRules.normalizeLabelText("N° de devis"));
         pass();
     }
 

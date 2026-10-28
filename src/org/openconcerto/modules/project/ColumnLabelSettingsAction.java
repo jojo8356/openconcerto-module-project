@@ -373,6 +373,8 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
                 return false;
             }
             final int changed = ColumnLabelUi.refreshAll();
+            Module.log("libelles : enregistrement de " + labels.size() + " regle(s), " + changed + " colonne(s) rafraichie(s), "
+                    + ColumnLabelUi.countManagedTables() + " tableau(x) suivi(s)");
             this.model.markSaved();
             this.model.setMode(mode);
             // Tables de sauvegarde parmi les regles enregistrees : ces libelles

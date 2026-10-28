@@ -58,6 +58,19 @@ public final class ColumnLabelUi {
 
     private static volatile boolean globalInstalled = false;
 
+    /** Nombre de tableaux sur lesquels le rendu d'en-tete est en place. */
+    private static final java.util.Set<JTable> MANAGED_TABLES = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<JTable, Boolean>());
+
+    /** Nombre de tableaux suivis (diagnostic affiche apres un enregistrement). */
+    public static int countManagedTables() {
+        synchronized (MANAGED_TABLES) {
+            return MANAGED_TABLES.size();
+        }
+    }
+
+    /** Journal detaille des resolutions (option -Dproject.labels.debug=true). */
+    private static final boolean DEBUG = Boolean.getBoolean("project.labels.debug");
+
     private ColumnLabelUi() {
     }
 
@@ -79,6 +92,20 @@ public final class ColumnLabelUi {
         final String field = ColumnLabelRules.technicalField(identifier);
         final String tableName = table != null && table.trim().length() > 0 ? table : ColumnLabelRules.technicalTable(identifier);
         return ColumnLabelRules.resolveForColumn(header, tableName, field, ColumnLabelStore.getLabels(), ColumnLabelStore.getMode());
+    }
+
+    /**
+     * Resolution d'un en-tete pour une colonne d'un tableau donne : utilise
+     * l'identifiant technique quand il est disponible, et retombe sinon sur la
+     * resolution par libelle (voir {@link ColumnLabelRules#ruleByAutomaticLabel}).
+     */
+    static String resolvedHeader(final String header, final JTable table, final String tableName, final int modelIndex) {
+        final String identifier = identifierOf(table, modelIndex);
+        final String resolved = labelForColumn(header, tableNameOf(table, tableName), identifier);
+        if (identifier == null && resolved != null && resolved.equals(header) && DEBUG) {
+            Module.log("libelles : identifiant technique indisponible pour la colonne « " + header + " » (resolution par libelle)");
+        }
+        return resolved;
     }
 
     /**
@@ -188,7 +215,7 @@ public final class ColumnLabelUi {
                 }
                 final String current = (String) header;
                 final int modelIndex = table.convertColumnIndexToModel(i);
-                final String resolved = labelForColumn(current, tableNameOf(table, tableName), identifierOf(table, modelIndex));
+                final String resolved = resolvedHeader(current, table, tableName, modelIndex);
                 if (resolved != null && !resolved.equals(current)) {
                     column.setHeaderValue(resolved);
                     changed++;
@@ -278,14 +305,23 @@ public final class ColumnLabelUi {
         if (table == null || table.getTableHeader() == null) {
             return;
         }
-        if (Boolean.TRUE.equals(table.getClientProperty(HEADER_RENDERER_KEY))) {
-            return;
-        }
         try {
             final JTableHeader header = table.getTableHeader();
-            final TableCellRenderer previous = header.getDefaultRenderer();
-            header.setDefaultRenderer(new LabelHeaderRenderer(table, previous));
-            table.putClientProperty(HEADER_RENDERER_KEY, Boolean.TRUE);
+            final TableCellRenderer current = header.getDefaultRenderer();
+            // Les listes du coeur remplacent le rendu d'en-tete apres leur
+            // construction : on ne se contente donc pas de « deja installe »,
+            // on verifie que notre rendu est toujours celui en place.
+            if (current instanceof LabelHeaderRenderer) {
+                return;
+            }
+            header.setDefaultRenderer(new LabelHeaderRenderer(table, current));
+            synchronized (MANAGED_TABLES) {
+                MANAGED_TABLES.add(table);
+            }
+            if (!Boolean.TRUE.equals(table.getClientProperty(HEADER_RENDERER_KEY))) {
+                table.putClientProperty(HEADER_RENDERER_KEY, Boolean.TRUE);
+                Module.log("libelles : rendu d'en-tete installe sur un tableau");
+            }
         } catch (Exception e) {
             Module.log("libelles : rendu d'en-tete impossible (" + e + ")");
         }
@@ -312,7 +348,7 @@ public final class ColumnLabelUi {
             if (value instanceof String) {
                 try {
                     final int modelIndex = this.table.convertColumnIndexToModel(column);
-                    final String label = labelForColumn((String) value, tableNameOf(this.table, null), identifierOf(this.table, modelIndex));
+                    final String label = resolvedHeader((String) value, this.table, null, modelIndex);
                     if (label != null && label.length() > 0) {
                         displayed = label;
                     }

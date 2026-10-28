@@ -178,6 +178,11 @@ retrouve le nom technique derrière l'en-tête (`SQLTableModelColumn.getIdentifi
 si bien qu'une règle saisie sur `ID_FOURNISSEUR` s'applique **aussi** à ces
 colonnes.
 
+Si une liste ne fournit pas du tout l'identifiant technique de ses colonnes, le
+module retrouve la règle par le **libellé automatique** : une règle sur
+`ID_FOURNISSEUR` produit `FOURNISSEUR`, ce qui correspond à l'en-tête
+« Fournisseur » affiché par OpenConcerto.
+
 Deux façons de la saisir, au choix :
 
 | Règle | Effet |
@@ -206,6 +211,16 @@ l'écran (listes du cœur), seules la règle `*.COLONNE` et la règle automatiqu
 s'appliquent ; une règle propre à une table (`COMMANDE.ID_AFFAIRE`) est
 appliquée dans l'historique des affaires et dans les listes du module, pas dans
 une liste du cœur où la table n'est pas identifiable.
+
+### Vérifier que l'application est active
+
+Après un enregistrement, la console affiche :
+`[module project] libelles : enregistrement de N regle(s), X colonne(s) rafraichie(s), Y tableau(x) suivi(s)`.
+
+- `Y` = nombre de tableaux sur lesquels le renommage est en place. S'il vaut 0,
+  aucune liste n'est ouverte : ouvrir une liste puis rouvrir l'écran.
+- Pour un journal détaillé, lancer le client avec
+  `-Dproject.labels.debug=true` : chaque colonne non reconnue est tracée.
 
 ## 9. Recette manuelle et vérifications exécutables
 

@@ -8,6 +8,31 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés : filets de sécurité dans les listes du cœur
+
+### Fixed
+
+- Le rendu d'en-tête pouvait être **remplacé par le cœur** après notre
+  installation (les listes posent leur propre rendu à la construction) : il est
+  désormais réinstallé à chaque passage (`installHeaderRenderer` vérifie que
+  notre rendu est bien celui en place, au lieu de se fier à un drapeau posé une
+  seule fois).
+- Quand une liste **n'expose pas l'identifiant technique** de ses colonnes, la
+  règle est retrouvée par son **libellé automatique** :
+  `*.ID_FOURNISSEUR` → « FOURNISSEUR » correspond à l'en-tête « Fournisseur »
+  (`ColumnLabelRules.ruleByAutomaticLabel`).
+- Diagnostic : après chaque enregistrement, la console indique le nombre de
+  règles, de colonnes rafraîchies et de **tableaux suivis**
+  (`ColumnLabelUi.countManagedTables`) ; `-Dproject.labels.debug=true` trace
+  chaque colonne non reconnue.
+
+### Tests
+
+- `ColumnLabelRulesTest` : **57 tests** (résolution par libellé automatique,
+  priorité table > `*`, normalisation casse/accents/ponctuation).
+- `scripts/test-mutations-colonnes.sh` : **17 contrôles** — la mutation 16
+  supprime ce filet et la suite échoue.
+
 ## 2026-10-28 — Libellés : les règles s'appliquent aussi aux colonnes à libellé métier
 
 ### Fixed
