@@ -6,8 +6,8 @@ dans les listes de l'ERP, **pour tout le monde**.
 
 Cas d'origine : dans les listes, certaines colonnes s'affichent avec leur nom
 technique (`ID_CLIENT`, `ID_FACTURE_FOURNISSEUR`, `ID_AFFAIRE`). Pour une
-utilisatrice métier c'est illisible : elle veut voir `CLIENT`, `FACTURE
-FOURNISSEUR`, `AFFAIRE`.
+utilisatrice métier c'est illisible : elle veut voir `Client`, `Facture
+fournisseur`, `Affaire`.
 
 ---
 
@@ -15,10 +15,17 @@ FOURNISSEUR`, `AFFAIRE`.
 
 | Avant | Après |
 |---|---|
-| `ID_CLIENT` | `CLIENT` |
-| `ID_AFFAIRE` | `AFFAIRE` |
-| `ID_FACTURE_FOURNISSEUR` | `FACTURE FOURNISSEUR` |
+| `ID_CLIENT` | `Client` |
+| `ID_AFFAIRE` | `Affaire` |
+| `ID_FACTURE_FOURNISSEUR` | `Facture fournisseur` |
+| `ID_USER_COMMON_CREATE` | `User common create` |
 | `TOTAL_HT`, `DATE` | inchangés (ce n'est pas une clé étrangère) |
+
+La mise en forme suit **exactement celle du cœur d'OpenConcerto**
+(`SQLFieldTranslator.getDefaultDesc` : `firstUpThenLow`, puis les `_` remplacés
+par des espaces) : **première lettre en majuscule, jamais de capitales**. Un
+libellé automatique ne crie donc plus `FOURNISSEUR` mais affiche `Fournisseur`,
+comme les en-têtes d'origine de l'ERP.
 
 La transformation est **automatique** dès l'installation (mode `AUTO`, décrit
 plus bas) : la suppression du préfixe `ID_` est appliquée partout, sans rien
@@ -111,7 +118,7 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
 |---|---|
 | **Table** | table de la colonne ; les règles `*` (toutes les tables) sont **en haut de la liste**, puis les tables par ordre alphabétique |
 | **Colonne** | nom **technique** (`ID_FOURNISSEUR`) — non modifiable ; c'est lui qui sert de clé, même quand la liste affiche un libellé métier |
-| **Automatique** | ce que donnerait le mode automatique (ex. `FOURNISSEUR`) |
+| **Automatique** | ce que donnerait le mode automatique (ex. `Fournisseur`) |
 | **Libellé affiché (double-clic)** | **la valeur réellement affichée**, toujours en **noir** : **en gras** si elle est personnalisée, en texte normal si elle vient du mode automatique |
 
 3. **Pour changer un nom : double-cliquez sur la case « Libellé affiché »**,
@@ -120,7 +127,7 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
    la case et taper directement, ou appuyer sur **F2**.
 4. **Vider une case** (ou bouton **Réinitialiser (libellé auto)** sur une ou
    plusieurs lignes sélectionnées) = retour au libellé automatique
-   (`ID_CLIENT` → `CLIENT`). Aucune règle inutile n'est enregistrée si le texte
+   (`ID_CLIENT` → `Client`). Aucune règle inutile n'est enregistrée si le texte
    n'a pas changé.
 5. **Filtrer** : le sélecteur à gauche du champ choisit la **colonne** sur
    laquelle porte la recherche (`Toutes les colonnes`, `Table`, `Colonne`,

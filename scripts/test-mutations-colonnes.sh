@@ -29,6 +29,8 @@
 #      est deja un libelle metier (« Fournisseur ») ignore la regle ID_FOURNISSEUR
 #  15. le mode AUTO ecrase les libelles metier du coeur (« Fournisseur » devient
 #      « FOURNISSEUR »)
+#  17. le libelle automatique reste en capitales (FOURNISSEUR au lieu de
+#      Fournisseur) : le module ne suit plus la mise en forme du coeur
 #  16. plus de resolution par libelle automatique (un en-tete metier ne retrouve
 #      plus sa regle quand l'identifiant technique manque)
 #
@@ -113,9 +115,9 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
     echo "== 1. le prefixe ID_ n'est plus retire =="
     prepare
     replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
-        "        return name.substring(3).replace('_', ' ');" \
+        "        return firstUpThenLow(name.substring(3)).replace('_', ' ');" \
         "        return name;"
-    expect_java_failure "ID_CLIENT n'est plus transforme en CLIENT : detecte"
+    expect_java_failure "ID_CLIENT n'est plus transforme en Client : detecte"
 
     echo "== 2. le mode AUTO est ignore =="
     prepare
@@ -221,6 +223,13 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
                 return suggestLabel(normalizedField == null ? header : normalizedField);
             }"
     expect_java_failure "libelle metier ecrase en mode AUTO : detecte"
+
+    echo "== 17. libelle automatique en capitales =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        "        return firstUpThenLow(name.substring(3)).replace('_', ' ');" \
+        "        return name.substring(3).replace('_', ' ');"
+    expect_java_failure "libelle automatique en capitales (FOURNISSEUR au lieu de Fournisseur)"
 
     echo "== 16. resolution par libelle automatique supprimee =="
     prepare

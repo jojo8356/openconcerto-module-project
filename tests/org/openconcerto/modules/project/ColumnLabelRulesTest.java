@@ -92,6 +92,7 @@ public final class ColumnLabelRulesTest {
         testHeaderRuleStillWorks();
         testAutoNeverOverwritesBusinessHeader();
         testRuleFoundByAutomaticLabel();
+        testAutomaticLabelUsesCoreTitleStyle();
 
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
@@ -116,13 +117,13 @@ public final class ColumnLabelRulesTest {
     // ------------------------------------------------------------------
 
     private static void testIdPrefixIsRemoved() {
-        assertEquals("ID_CLIENT devient CLIENT", "CLIENT", ColumnLabelRules.suggestLabel("ID_CLIENT"));
-        assertEquals("ID_AFFAIRE devient AFFAIRE", "AFFAIRE", ColumnLabelRules.suggestLabel("ID_AFFAIRE"));
+        assertEquals("ID_CLIENT devient Client", "Client", ColumnLabelRules.suggestLabel("ID_CLIENT"));
+        assertEquals("ID_AFFAIRE devient Affaire", "Affaire", ColumnLabelRules.suggestLabel("ID_AFFAIRE"));
         pass();
     }
 
     private static void testUnderscoresBecomeSpaces() {
-        assertEquals("ID_FACTURE_FOURNISSEUR devient FACTURE FOURNISSEUR", "FACTURE FOURNISSEUR", ColumnLabelRules.suggestLabel("ID_FACTURE_FOURNISSEUR"));
+        assertEquals("ID_FACTURE_FOURNISSEUR devient Facture fournisseur", "Facture fournisseur", ColumnLabelRules.suggestLabel("ID_FACTURE_FOURNISSEUR"));
         pass();
     }
 
@@ -138,7 +139,7 @@ public final class ColumnLabelRulesTest {
     }
 
     private static void testLowercaseIsNormalized() {
-        assertEquals("minuscules acceptees", "CLIENT", ColumnLabelRules.suggestLabel("id_client"));
+        assertEquals("minuscules acceptees", "Client", ColumnLabelRules.suggestLabel("id_client"));
         pass();
     }
 
@@ -176,7 +177,7 @@ public final class ColumnLabelRulesTest {
     }
 
     private static void testAutoModeStripsPrefix() {
-        assertEquals("mode AUTO sans regle", "CLIENT", ColumnLabelRules.resolve("ID_CLIENT", "COMMANDE", rules(), ColumnLabelRules.MODE_AUTO));
+        assertEquals("mode AUTO sans regle", "Client", ColumnLabelRules.resolve("ID_CLIENT", "COMMANDE", rules(), ColumnLabelRules.MODE_AUTO));
         pass();
     }
 
@@ -220,7 +221,7 @@ public final class ColumnLabelRulesTest {
         final List<String> headers = Arrays.asList("NUMERO", "ID_CLIENT", "DATE");
         final List<String> resolved = ColumnLabelRules.resolveAll(headers, "COMMANDE", rules(), ColumnLabelRules.MODE_AUTO);
         assertEquals("meme taille", headers.size(), resolved.size());
-        assertEquals("CLIENT en deuxieme position", "CLIENT", resolved.get(1));
+        assertEquals("Client en deuxieme position", "Client", resolved.get(1));
         assertEquals("NUMERO inchange", "NUMERO", resolved.get(0));
         pass();
     }
@@ -386,7 +387,7 @@ public final class ColumnLabelRulesTest {
      * sans regle, la case affiche le libelle automatique.
      */
     private static void testDisplayLabelShowsWhatUsersSee() {
-        assertEquals("sans regle, on voit le libelle automatique", "FOURNISSEUR",
+        assertEquals("sans regle, on voit le libelle automatique", "Fournisseur",
                 ColumnLabelRules.displayLabel("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO));
         assertEquals("sans regle et sans mode auto, le nom technique", "ID_FOURNISSEUR",
                 ColumnLabelRules.displayLabel("COMMANDE", "ID_FOURNISSEUR", null, ColumnLabelRules.MODE_MAPPING));
@@ -400,7 +401,7 @@ public final class ColumnLabelRulesTest {
     private static void testDisplayLabelFollowsMode() {
         final String auto = ColumnLabelRules.displayLabel("AFFAIRE", "ID_CLIENT", "", ColumnLabelRules.MODE_AUTO);
         final String mapping = ColumnLabelRules.displayLabel("AFFAIRE", "ID_CLIENT", "", ColumnLabelRules.MODE_MAPPING);
-        assertEquals("AUTO supprime le prefixe", "CLIENT", auto);
+        assertEquals("AUTO supprime le prefixe", "Client", auto);
         assertEquals("MAPPING ne touche pas au libelle", "ID_CLIENT", mapping);
         pass();
     }
@@ -408,7 +409,7 @@ public final class ColumnLabelRulesTest {
     /** Cliquer puis Entree ne doit pas creer une regle identique a l'automatique. */
     private static void testEditDoesNotCreateUselessRule() {
         assertEquals("texte inchange : aucune regle creee", "",
-                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO, "FOURNISSEUR"));
+                ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "", ColumnLabelRules.MODE_AUTO, "Fournisseur"));
         assertEquals("regle existante inchangee : regle conservee", "Fournisseur",
                 ColumnLabelRules.applyEdit("COMMANDE", "ID_FOURNISSEUR", "Fournisseur", ColumnLabelRules.MODE_AUTO, "Fournisseur"));
         pass();
@@ -505,7 +506,7 @@ public final class ColumnLabelRulesTest {
                 ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_AUTO));
         assertEquals("la regle de la table gagne", "Notre fournisseur",
                 ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "Notre fournisseur", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_AUTO));
-        assertEquals("sans regle : automatique", "FOURNISSEUR",
+        assertEquals("sans regle : automatique", "Fournisseur",
                 ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", null, ColumnLabelRules.MODE_AUTO));
         assertEquals("mode MAPPING sans regle : nom technique", "ID_FOURNISSEUR",
                 ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", "", ColumnLabelRules.MODE_MAPPING));
@@ -587,12 +588,36 @@ public final class ColumnLabelRulesTest {
                 ColumnLabelRules.resolveForColumn("Fournisseur", "COMMANDE", "ID_COMMANDE", none, ColumnLabelRules.MODE_AUTO));
         assertEquals("libelle metier conserve (designation)", "Désignation",
                 ColumnLabelRules.resolveForColumn("Désignation", "COMMANDE_ELEMENT", "ID_ARTICLE", none, ColumnLabelRules.MODE_AUTO));
-        assertEquals("en-tete technique simplifie", "FOURNISSEUR",
+        assertEquals("en-tete technique simplifie", "Fournisseur",
                 ColumnLabelRules.resolveForColumn("ID_FOURNISSEUR", "COMMANDE", "ID_FOURNISSEUR", none, ColumnLabelRules.MODE_AUTO));
-        assertEquals("en-tete technique en minuscules", "CLIENT",
+        assertEquals("en-tete technique en minuscules", "Client",
                 ColumnLabelRules.resolveForColumn("id_client", "COMMANDE", "ID_CLIENT", none, ColumnLabelRules.MODE_AUTO));
-        assertEquals("en-tete technique avec espaces", "CLIENT",
+        assertEquals("en-tete technique avec espaces", "Client",
                 ColumnLabelRules.resolveForColumn("ID CLIENT", "COMMANDE", "ID_CLIENT", none, ColumnLabelRules.MODE_AUTO));
+        pass();
+    }
+
+    /**
+     * Le libelle automatique doit ressembler aux en-tetes du coeur : premiere
+     * lettre en majuscule, jamais de capitales. C'est la regle
+     * {@code SQLFieldTranslator.getDefaultDesc} d'OpenConcerto
+     * ({@code firstUpThenLow} + soulignes remplaces par des espaces).
+     */
+    private static void testAutomaticLabelUsesCoreTitleStyle() {
+        assertEquals("ID_FOURNISSEUR", "Fournisseur", ColumnLabelRules.suggestLabel("ID_FOURNISSEUR"));
+        assertEquals("ID_MOUVEMENT", "Mouvement", ColumnLabelRules.suggestLabel("ID_MOUVEMENT"));
+        assertEquals("ID_SALARIE", "Salarie", ColumnLabelRules.suggestLabel("ID_SALARIE"));
+        assertEquals("ID_USER_COMMON_CREATE", "User common create", ColumnLabelRules.suggestLabel("ID_USER_COMMON_CREATE"));
+        assertEquals("ID_ETAT_AFFAIRE", "Etat affaire", ColumnLabelRules.suggestLabel("ID_ETAT_AFFAIRE"));
+        assertEquals("ID_CODE_AMENAGEMENT_PARTIEL", "Code amenagement partiel",
+                ColumnLabelRules.suggestLabel("ID_CODE_AMENAGEMENT_PARTIEL"));
+        // aucune capitale isolee ne subsiste dans le libelle automatique
+        for (final String column : new String[] { "ID_CLIENT", "ID_FOURNISSEUR", "ID_TYPE_AFFAIRE", "ID_USER_COMMON_MODIFY" }) {
+            final String label = ColumnLabelRules.suggestLabel(column);
+            assertEquals("pas de capitales pour " + column, label, ColumnLabelRules.firstUpThenLow(label));
+        }
+        assertEquals("chaine vide", "", ColumnLabelRules.firstUpThenLow(""));
+        assertEquals("deja en forme", "Client", ColumnLabelRules.firstUpThenLow("CLIENT"));
         pass();
     }
 

@@ -46,10 +46,11 @@ Deux comptes sont nécessaires :
 | # | Action | Résultat attendu |
 |---|---|---|
 | 2.1 | Ouvrir une liste qui contient des clés étrangères : **Achats > Commandes fournisseurs** | la liste s'ouvre |
-| 2.2 | Regarder les en-têtes | plus de `ID_FOURNISSEUR` : l'en-tête s'appelle `FOURNISSEUR` |
-| 2.3 | Ouvrir **Ventes > Clients** (ou toute liste avec `ID_…`) | les en-têtes `ID_CLIENT`, `ID_…` sont devenus `CLIENT`, `…` |
-| 2.4 | Ouvrir l'historique du module (**Historique des affaires**) | l'onglet affaire ne montre plus `ID_AFFAIRE` mais `AFFAIRE` |
+| 2.2 | Regarder les en-têtes | plus de `ID_FOURNISSEUR` : l'en-tête s'appelle `Fournisseur` — **première lettre en majuscule, pas de capitales** (mise en forme du cœur) |
+| 2.3 | Ouvrir **Ventes > Clients** (ou toute liste avec `ID_…`) | les en-têtes `ID_CLIENT`, `ID_…` sont devenus `Client`, `…` |
+| 2.4 | Ouvrir l'historique du module (**Historique des affaires**) | l'onglet affaire ne montre plus `ID_AFFAIRE` mais `Affaire` |
 | 2.5 | Cliquer sur l'en-tête de cette colonne pour trier | le tri fonctionne, le libellé ne « saute » pas |
+| 2.6 | Ouvrir **Paramètres → Libellés des colonnes** | la colonne `Automatique` affiche `Fournisseur`, `Mouvement`, `Salaire`, `User common create` : **aucune capitale** |
 
 ## 3. Choisir un libellé pour toute l'équipe
 

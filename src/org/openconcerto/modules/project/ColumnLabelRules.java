@@ -104,20 +104,42 @@ public final class ColumnLabelRules {
 
     /**
      * Libelle propose automatiquement pour une colonne : suppression du prefixe
-     * {@code ID_} et remplacement des soulignes par des espaces.
+     * {@code ID_}, puis <b>mise en forme a la maniere du coeur</b> — premiere
+     * lettre en majuscule, le reste en minuscules, soulignes remplaces par des
+     * espaces.
      * <p>
-     * {@code ID_AFFAIRE} devient {@code AFFAIRE}, {@code ID_CLIENT} devient
-     * {@code CLIENT}, {@code ID_FACTURE_FOURNISSEUR} devient
-     * {@code FACTURE FOURNISSEUR}. Une colonne qui n'est pas une cle etrangere
-     * ({@code DATE}, {@code TOTAL_HT}, {@code ID}) est renvoyee telle quelle :
-     * on ne « devine » jamais un libelle metier.
+     * C'est exactement la regle d'OpenConcerto
+     * ({@code SQLFieldTranslator.getDefaultDesc} : {@code firstUpThenLow} puis
+     * remplacement des soulignes). {@code ID_FOURNISSEUR} devient donc
+     * {@code Fournisseur} — et non {@code FOURNISSEUR} —, {@code ID_ETAT_AFFAIRE}
+     * devient {@code Etat affaire}, {@code ID_FACTURE_FOURNISSEUR} devient
+     * {@code Facture fournisseur}. Le libelle automatique ressemble ainsi aux
+     * en-tetes du coeur, qui ne sont jamais en capitales.
+     * <p>
+     * Une colonne qui n'est pas une cle etrangere ({@code DATE},
+     * {@code TOTAL_HT}, {@code ID}) est renvoyee telle quelle : on ne
+     * « devine » jamais un libelle metier pour elle.
      */
     public static String suggestLabel(final String column) {
         final String name = normalizeName(column);
         if (!isIdColumn(name)) {
             return name;
         }
-        return name.substring(3).replace('_', ' ');
+        return firstUpThenLow(name.substring(3)).replace('_', ' ');
+    }
+
+    /**
+     * Premiere lettre en majuscule, le reste en minuscules — equivalent de
+     * {@code StringUtils.firstUpThenLow} du coeur d'OpenConcerto.
+     * <p>
+     * {@code "FOURNISSEUR"} devient {@code "Fournisseur"}, {@code "CLIENT"}
+     * devient {@code "Client"}. Une chaine vide est renvoyee telle quelle.
+     */
+    public static String firstUpThenLow(final String text) {
+        if (text == null || text.length() == 0) {
+            return text == null ? "" : text;
+        }
+        return Character.toUpperCase(text.charAt(0)) + text.substring(1).toLowerCase(java.util.Locale.ROOT);
     }
 
     /**

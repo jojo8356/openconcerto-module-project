@@ -8,6 +8,29 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés automatiques : « Fournisseur », plus « FOURNISSEUR »
+
+### Changed
+
+- Le libellé **automatique** suit désormais la mise en forme du cœur
+  d'OpenConcerto (`SQLFieldTranslator.getDefaultDesc` : `firstUpThenLow` puis
+  `_` → espace) : `ID_FOURNISSEUR` donne **`Fournisseur`** (et non plus
+  `FOURNISSEUR`), `ID_ETAT_AFFAIRE` → `Etat affaire`,
+  `ID_FACTURE_FOURNISSEUR` → `Facture fournisseur`. Nouvelle fonction publique
+  `ColumnLabelRules.firstUpThenLow`.
+- Conséquence dans l'ERP : une liste qui affiche encore un en-tête technique
+  (`ID_CLIENT`) affiche maintenant `Client`, comme les en-têtes natifs ; plus
+  aucune capitale dans les libellés automatiques.
+- Les règles **explicites** saisies par l'utilisateur restent inchangées, casse
+  comprise : une règle `FOURNISSEURES` reste affichée `FOURNISSEURES` tant
+  qu'elle n'est pas corrigée.
+
+### Tests
+
+- `ColumnLabelRulesTest` : **58 tests** — nouveau
+  `testAutomaticLabelUsesCoreTitleStyle` (parité avec `firstUpThenLow`, aucun
+  libellé automatique en capitales).
+
 ## 2026-10-28 — Libellés : filets de sécurité dans les listes du cœur
 
 ### Fixed
