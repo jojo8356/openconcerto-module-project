@@ -1,6 +1,6 @@
 # Module project 1.1 — libellés des colonnes pour toute l'équipe
 
-Ce lot ajoute le menu **Paramètres → Affichage → Libellés des colonnes**. Il répond
+Ce lot ajoute le menu **Paramètres → Libellés des colonnes**. Il répond
 à la gêne signalée par Gisèle : dans les listes, les colonnes s'appellent
 `ID_CLIENT`, `ID_AFFAIRE`, `ID_FACTURE_FOURNISSEUR`… alors qu'elle veut lire
 `CLIENT`, `AFFAIRE`, `FACTURE FOURNISSEUR`.

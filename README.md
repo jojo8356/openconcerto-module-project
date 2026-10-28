@@ -121,7 +121,7 @@ release) : `docs/construire-le-jar.md`.
 
 ## Paramètres : libellés des colonnes
 
-Le menu **Paramètres → Affichage → Libellés des colonnes** (visible seulement pour
+Le menu **Paramètres → Libellés des colonnes** (visible seulement pour
 l'utilisateur qui a le plus de droits dans la base) permet de choisir, pour toute
 l'équipe, le nom affiché des colonnes des listes : `ID_CLIENT` devient `CLIENT`,
 `ID_FACTURE_FOURNISSEUR` devient `FACTURE FOURNISSEUR`.

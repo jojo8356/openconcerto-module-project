@@ -8,6 +8,31 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Le menu « Libellés des colonnes » est désormais visible
+
+### Fixed
+
+- **Menu introuvable** : l'entrée était ajoutée dans `setupMenu`, donc **avant**
+  l'ouverture de la session. La vérification des droits répondait alors
+  « utilisateur de la session inconnu », ce qui était interprété comme un refus :
+  le menu disparaissait pour **tout le monde**, y compris pour l'administrateur.
+  Le menu est maintenant ajouté au démarrage (`start()`), dans la barre de menus
+  du client, **menu `Paramètres` juste avant `Aide`** (repli dans `Structure` si
+  cette version de client refuse la création du menu).
+- Tant que l'utilisateur courant n'est pas connu, le module **réessaie toutes
+  les 2 s pendant 30 s** au lieu de renoncer (`ColumnLabelRules.accessIsUndetermined`) ;
+  seul un refus explicite (« le rôle le plus haut est X ») masque le menu.
+- Le libellé exact du chemin est corrigé dans toute la documentation :
+  **Paramètres → Libellés des colonnes** (`Affichage` est un groupe de séparation
+  interne, pas un sous-menu).
+
+### Tests
+
+- `ColumnLabelRulesTest` : 40 tests (nouveau test sur la décision « indéterminée »).
+- `scripts/test-mutations-colonnes.sh` : 8 contrôles — la mutation 7 traite à
+  nouveau un utilisateur inconnu comme un refus et la suite **échoue**, donc le
+  comportement est bien protégé.
+
 ## 2026-10-28 — Correctif : le module ne démarrait plus (« Already added ID_AFFAIRE »)
 
 ### Fixed
@@ -33,7 +58,7 @@
 
 ### Added
 
-- **Menu « Paramètres → Affichage → Libellés des colonnes »**, visible uniquement
+- **Menu « Paramètres → Libellés des colonnes »**, visible uniquement
   pour l'utilisateur qui a **le plus de droits dans la base** (super-utilisateurs,
   sinon administrateurs, sinon le plus grand nombre de droits dans `USER_RIGHT` ;
   comptes désactivés ignorés). Il y choisit, pour toute l'équipe, le nom affiché

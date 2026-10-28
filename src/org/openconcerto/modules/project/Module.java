@@ -114,6 +114,15 @@ import org.openconcerto.utils.cc.ITransformer;
 public final class Module extends AbstractModule {
 
     public static final String PROJECT_TABLENAME = "AFFAIRE";
+
+    /** Menu ou est propose le parametrage des libelles de colonnes. */
+    private static final String PARAM_MENU = "Paramètres";
+
+    /** Nombre de nouvelles tentatives d'affichage du menu (toutes les 2 s). */
+    private static final int MAX_MENU_ATTEMPTS = 15;
+
+    /** Delai entre deux tentatives, en millisecondes. */
+    private static final int MENU_RETRY_DELAY_MS = 2000;
     private static boolean deliveryNoteListActionSyncInstalled = false;
     /**
      * Tables qui portent directement {@code ID_AFFAIRE}. La liste vient de
@@ -1142,20 +1151,58 @@ public final class Module extends AbstractModule {
      * choix est stocke sur le serveur SQL (table {@code PROJECT_COLUMN_LABEL}),
      * pas sur le poste.
      */
-    private void addMenuAffairColumns(final MenuContext ctxt) {
-        final DBRoot root = affairRoot(ctxt);
-        final boolean allowed;
-        try {
-            allowed = ColumnLabelAccess.canEdit(root);
-        } catch (Exception e) {
-            log("menu des libelles de colonnes indisponible : " + e);
-            return;
-        }
-        if (!allowed) {
-            log("menu « Libellés des colonnes » masque : " + ColumnLabelAccess.getLastReason());
-            return;
-        }
-        ctxt.addMenuItem(new ColumnLabelSettingsAction(root), "Paramètres", "Affichage");
+    private void installColumnLabelMenu() {
+        installColumnLabelMenu(0);
+    }
+
+
+    /**
+     * Ajoute le menu <b>Paramètres &gt; Libellés des colonnes</b> dans la barre
+     * de menus, une fois la session ouverte.
+     * <p>
+     * Pourquoi ici et pas dans {@code setupMenu} : a ce moment-la, le client n'a
+     * pas encore etabli l'utilisateur courant. La verification des droits
+     * repondait alors « utilisateur inconnu », donc le menu etait masque pour
+     * <b>tout le monde</b>, y compris pour l'administrateur : c'est exactement
+     * le symptome « je ne trouve pas le menu ». On ajoute donc le menu apres le
+     * demarrage, et tant que la decision ne peut pas etre prise on reessaie
+     * (toutes les 2 s, pendant 30 s) au lieu de renoncer.
+     */
+    private void installColumnLabelMenu(final int attempt) {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+                    if (!ColumnLabelAccess.canEdit(root, false)) {
+                        if (ColumnLabelAccess.isUndetermined() && attempt < MAX_MENU_ATTEMPTS) {
+                            final javax.swing.Timer timer = new javax.swing.Timer(MENU_RETRY_DELAY_MS, new ActionListener() {
+                                @Override
+                                public void actionPerformed(final ActionEvent e) {
+                                    installColumnLabelMenu(attempt + 1);
+                                }
+                            });
+                            timer.setRepeats(false);
+                            timer.start();
+                            return;
+                        }
+                        log("menu « Libellés des colonnes » masque : " + ColumnLabelAccess.getLastReason());
+                        return;
+                    }
+                    final ColumnLabelSettingsAction action = new ColumnLabelSettingsAction(root);
+                    try {
+                        MainFrame.getInstance().addMenuItem(action, PARAM_MENU, "Affichage");
+                    } catch (Exception e) {
+                        // Repli : menu existant dans toutes les versions du client.
+                        log("menu « Paramètres » indisponible (" + e + "), ajout dans « Structure »");
+                        MainFrame.getInstance().addMenuItem(new ColumnLabelSettingsAction(root), "Structure", "Paramètres");
+                    }
+                    log("menu « Libellés des colonnes » ajoute (utilisateur " + ColumnLabelAccess.currentUserName() + ")");
+                } catch (Exception e) {
+                    log("menu « Libellés des colonnes » impossible : " + e);
+                }
+            }
+        });
     }
 
     @Override
@@ -1184,8 +1231,6 @@ public final class Module extends AbstractModule {
         }, MainFrame.CREATE_MENU);
 
         addMenuImportExport(ctxt);
-
-        addMenuAffairColumns(ctxt);
 
     }
 
@@ -1364,6 +1409,7 @@ public final class Module extends AbstractModule {
     protected void start() {
         installDeliveryNoteListActionSync();
         installColumnLabels();
+        installColumnLabelMenu();
 
         final JComponent quoteComponent = createQuotePanel();
         final JComponent orderComponent = createOrderPanel();

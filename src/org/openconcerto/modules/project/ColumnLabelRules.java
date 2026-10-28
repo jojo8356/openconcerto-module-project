@@ -466,6 +466,23 @@ public final class ColumnLabelRules {
     // ------------------------------------------------------------------
 
     /**
+     * Vrai quand la decision d'acces n'a pas pu etre prise faute de savoir
+     * <b>qui</b> est connecte (ou faute d'utilisateurs lisibles).
+     * <p>
+     * C'est le cas au demarrage du client : le menu du module est construit
+     * avant que la session soit etablie. Traiter ce cas comme un refus faisait
+     * disparaitre le menu pour <b>tout le monde</b>, y compris pour
+     * l'administrateur ; il faut au contraire reessayer un peu plus tard. Seul
+     * un refus explicite (« le role le plus haut est X ») doit masquer le menu.
+     */
+    public static boolean accessIsUndetermined(final String reason) {
+        if (reason == null) {
+            return true;
+        }
+        return reason.startsWith("utilisateur de la session inconnu") || reason.startsWith("aucun utilisateur lisible");
+    }
+
+    /**
      * Requete qui donne, pour chaque utilisateur actif, ses droits : drapeaux
      * {@code SUPERUSER} / {@code ADMIN} et nombre de droits accordes.
      * <p>

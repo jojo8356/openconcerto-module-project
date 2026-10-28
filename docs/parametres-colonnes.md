@@ -1,6 +1,6 @@
 # Paramètres — libellés des colonnes (pour toute l'équipe)
 
-Le menu **Paramètres → Affichage → Libellés des colonnes** permet à la personne
+Le menu **Paramètres → Libellés des colonnes** permet à la personne
 qui a **le plus de droits dans la base** de choisir le nom des colonnes affichées
 dans les listes de l'ERP, **pour tout le monde**.
 
@@ -26,7 +26,29 @@ paramétrer. L'écran sert aux **exceptions** : un libellé différent selon la
 table, une abréviation, un libellé métier (`N° de devis`), ou le retour en
 arrière.
 
-## 2. Qui peut ouvrir l'écran
+## 2. Où se trouve le menu
+
+Le module crée un menu de premier niveau **Paramètres** dans la barre de menus,
+**juste avant le menu « Aide »** (donc à droite de `Paye` et `Structure`) :
+
+```
+Fichier  Saisie  Gestion  Comptabilité  Déclaration  Statistiques  Paiement  Paye  Structure  Paramètres  Aide
+                                                                                            └── Libellés des colonnes
+```
+
+(`Affichage` est un simple groupe de séparation interne : l'entrée apparaît
+directement dans le menu `Paramètres`.)
+
+Le menu est ajouté **après l'ouverture de la session**, parce que c'est à ce
+moment-là que le client sait quel utilisateur est connecté. Tant que ce n'est
+pas le cas, le module réessaie toutes les 2 secondes pendant 30 secondes : un
+utilisateur inconnu n'est jamais interprété comme un refus (c'est ce qui faisait
+disparaître le menu pour tout le monde).
+
+Si le menu `Paramètres` ne peut pas être créé (version de client très
+différente), l'entrée est ajoutée dans **Structure**.
+
+## 3. Qui peut ouvrir l'écran
 
 Le menu n'est proposé qu'à l'utilisateur qui a le plus de droits dans la base,
 dans cet ordre :
@@ -46,7 +68,7 @@ l'ouverture, un message explique qui a le droit et pourquoi.
 > Le journal du client trace la décision au démarrage :
 > `[module project] menu « Libellés des colonnes » masque : acces refuse : le role le plus haut est Gisèle (superutilisateur, 5 droits)`
 
-## 3. Où le réglage est enregistré : serveur SQL **et** jar
+## 4. Où le réglage est enregistré : serveur SQL **et** jar
 
 | Emplacement | Rôle | Qui gagne |
 |---|---|---|
@@ -69,7 +91,7 @@ PROJECT_SETTINGS       KEY, VALUE, DATE, ID_USER      -- dont column.label.mode
   tables (une seule saisie pour `ID_CLIENT`) ;
 - `DATE` / `ID_USER` : trace de qui a changé quoi, quand.
 
-## 4. Les trois modes
+## 5. Les trois modes
 
 | Mode | Effet |
 |---|---|
@@ -80,9 +102,9 @@ PROJECT_SETTINGS       KEY, VALUE, DATE, ID_USER      -- dont column.label.mode
 L'ordre de résolution est fixe : `TABLE.COLONNE` → `*.COLONNE` →
 suppression du `ID_` (si `AUTO`) → nom d'origine.
 
-## 5. Utiliser l'écran
+## 6. Utiliser l'écran
 
-1. Menu **Paramètres → Affichage → Libellés des colonnes**.
+1. Menu **Paramètres → Libellés des colonnes**.
 2. La liste montre toutes les colonnes techniques (`ID_…`) des tables, avec :
    - **Table**, **Colonne** (nom technique, non modifiable) ;
    - **Aperçu** : ce qui sera affiché si on laisse la case vide ;
@@ -99,7 +121,7 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
    jar (pour une nouvelle installation, ou pour figer les libellés d'une
    version livrée).
 
-## 6. Ce qui est couvert à l'écran
+## 7. Ce qui est couvert à l'écran
 
 Le renommage est appliqué **sans modifier le cœur OpenConcerto**, à deux
 niveaux :
@@ -116,7 +138,7 @@ s'appliquent ; une règle propre à une table (`COMMANDE.ID_AFFAIRE`) est
 appliquée dans l'historique des affaires et dans les listes du module, pas dans
 une liste du cœur où la table n'est pas identifiable.
 
-## 7. Recette manuelle et vérifications exécutables
+## 8. Recette manuelle et vérifications exécutables
 
 Recette cliquable pas à pas (deux comptes, retour arrière, vérification en base) :
 `docs/recette-graphique-colonnes.md`.
@@ -135,7 +157,7 @@ Ce que couvre chaque suite :
 | `e2e-colonnes.sh` (34) | migration idempotente, unicité `(table, colonne)`, règle `*` + règle par table, enregistrement transactionnel (état préservé en cas d'erreur), UTF-8, requête « qui a le plus de droits » (superutilisateur > administrateur > nombre de droits, comptes désactivés ignorés), aucune table du cœur touchée |
 | `test-mutations-colonnes.sh` (7) | le préfixe qui n'est plus retiré, le mode `AUTO` ignoré, le mauvais rôle choisi, la dérive Java/SQL, l'index qui n'est plus unique, l'enregistrement sans transaction : **tous détectés** |
 
-## 8. Dépannage
+## 9. Dépannage
 
 | Symptôme | Cause probable | Que faire |
 |---|---|---|

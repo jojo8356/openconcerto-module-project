@@ -1,7 +1,7 @@
 # Recette graphique — libellés des colonnes
 
-Test **manuel, dans l'interface**, du menu **Paramètres → Affichage → Libellés des
-colonnes** (jar `org.openconcerto.modules.project-1.1.jar`).
+Test **manuel, dans l'interface**, du menu **Paramètres → Libellés des colonnes**
+(jar `org.openconcerto.modules.project-1.1.jar`).
 
 Durée : 15 minutes. Aucun SQL n'est nécessaire pour la recette ; la vérification
 en base est une simple lecture (étape 6), à faire avec un compte administrateur.
@@ -27,11 +27,16 @@ Deux comptes sont nécessaires :
 | # | Action | Résultat attendu |
 |---|---|---|
 | 1.1 | Se connecter avec le compte **B** | accueil |
-| 1.2 | Ouvrir le menu **Paramètres** | pas d'entrée **Affichage → Libellés des colonnes** |
+| 1.2 | Ouvrir le menu **Paramètres** | pas d'entrée **Libellés des colonnes** |
 | 1.3 | Dans la console, chercher `Libellés des colonnes` | une ligne du type `… menu « Libellés des colonnes » masque : …` qui nomme le compte ayant le droit |
 | 1.4 | Se déconnecter, se connecter avec **A** | accueil |
-| 1.5 | Ouvrir **Paramètres** | entrée **Affichage → Libellés des colonnes** présente |
+| 1.5 | Ouvrir **Paramètres** | entrée **Libellés des colonnes** présente |
 
+> Le menu `Paramètres` apparaît à droite de `Structure`, juste avant `Aide`. Il est
+> ajouté après l'ouverture de la session : compter quelques secondes (le module
+> réessaie pendant 30 s) et regarder la console pour la ligne
+> `menu « Libellés des colonnes » ajoute (utilisateur …)`.
+>
 > Si le menu est absent chez **A** aussi : lire la ligne de log (elle donne le nom
 > du compte considéré comme le mieux doté) et vérifier dans **Utilisateurs** les
 > cases super-utilisateur / administrateur, ainsi que les droits accordés.
@@ -50,7 +55,7 @@ Deux comptes sont nécessaires :
 
 | # | Action | Résultat attendu |
 |---|---|---|
-| 3.1 | Se connecter avec **A**, menu **Paramètres → Affichage → Libellés des colonnes** | écran avec la liste des colonnes et un champ **Filtrer** |
+| 3.1 | Se connecter avec **A**, menu **Paramètres → Libellés des colonnes** | écran avec la liste des colonnes et un champ **Filtrer** |
 | 3.2 | Taper `facture` dans **Filtrer** | la liste ne garde que les lignes correspondantes |
 | 3.3 | Sur la ligne `FACTURE_FOURNISSEUR` / `ID_FOURNISSEUR` (ou `*` / `ID_FOURNISSEUR`), saisir `FOURNISSEUR` dans **Libellé affiché** | la saisie reste affichée |
 | 3.4 | Cliquer **Enregistrer pour l'équipe** | message de confirmation, aucune erreur en console |

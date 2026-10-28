@@ -31,7 +31,7 @@ un doublon.
 - toute autre erreur est collectée **sans jamais interrompre le démarrage** ; le
   compte rendu est tracé :
   `[module project] affaire dans les ecrans de saisie : ajoutes […], deja presents […], refuses []` ;
-- le menu **Paramètres → Affichage → Libellés des colonnes** et tout le lot
+- le menu **Paramètres → Libellés des colonnes** et tout le lot
   précédent (libellés partagés pour toute l'équipe, réglages sur le serveur SQL
   et valeurs par défaut dans le jar) restent inchangés.
 

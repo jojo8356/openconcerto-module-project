@@ -14,6 +14,8 @@
 #   4. la requete SQL du module derive de la reference SQL
 #   5. l'index unique des libelles devient un index simple (doublons possibles)
 #   6. l'enregistrement n'est plus transactionnel
+#   7. un utilisateur inconnu n'est plus traite comme « a reessayer » (le menu
+#      des libelles disparait pour tout le monde, y compris l'administrateur)
 #
 # Prerequis : un JDK (javac/java) pour les mutations 1 a 4 et 6 ; node + pglite
 # pour la mutation 5. Les mutations non executables sont sautees proprement.
@@ -120,6 +122,13 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
         'order by 3 desc, 4 desc, 5 desc, 1' \
         'order by 1'
     expect_java_failure "requete de droits differente du fichier SQL : detectee"
+
+    echo "== 7. utilisateur inconnu traite comme un refus (menu invisible) =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        'return reason.startsWith("utilisateur de la session inconnu") || reason.startsWith("aucun utilisateur lisible");' \
+        'return false;'
+    expect_java_failure "utilisateur inconnu traite comme un refus : detecte"
 
     echo "== 6. enregistrement non transactionnel =="
     prepare

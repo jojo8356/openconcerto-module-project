@@ -55,14 +55,30 @@ public final class ColumnLabelAccess {
      *             se prend alors sur les droits de la session).
      */
     public static boolean canEdit(final DBRoot root) {
+        return canEdit(root, true);
+    }
+
+    /**
+     * Variante silencieuse, utilisee par les nouvelles tentatives d'affichage
+     * du menu : seule la decision finale doit apparaitre dans le journal.
+     */
+    public static boolean canEdit(final DBRoot root, final boolean logDecision) {
         final String reason = explain(root);
         lastReason = reason;
         final boolean allowed = reason.startsWith("acces accorde") || reason.startsWith("aucune table de droits");
         lastResult = Boolean.valueOf(allowed);
-        if (!allowed) {
+        if (!allowed && logDecision) {
             Module.log("parametres des colonnes : " + reason);
         }
         return allowed;
+    }
+
+    /**
+     * Vrai quand la decision n'a pas pu etre prise (utilisateur de la session
+     * encore inconnu au demarrage) : il faut reessayer, pas masquer le menu.
+     */
+    public static boolean isUndetermined() {
+        return ColumnLabelRules.accessIsUndetermined(lastReason);
     }
 
     /** Vrai si la decision a deja ete prise dans cette session. */

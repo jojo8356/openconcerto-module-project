@@ -68,6 +68,7 @@ public final class ColumnLabelRulesTest {
         testSeveralTopUsers();
         testDeniedForOrdinaryUser();
         testDescribeAccessExplains();
+        testUndeterminedAccessIsRetried();
 
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
@@ -330,6 +331,26 @@ public final class ColumnLabelRulesTest {
         assertTrue("acces accorde explique (" + granted + ")", granted.startsWith("acces accorde"));
         final String denied = ColumnLabelRules.describeAccess(5, users);
         assertTrue("refus explique (" + denied + ")", denied.startsWith("acces refuse") && denied.contains("Nadia"));
+        pass();
+    }
+
+    /**
+     * Un utilisateur inconnu (menu construit avant l'ouverture de la session)
+     * ne doit pas etre traite comme un refus : sinon le menu disparait pour tout
+     * le monde, y compris pour l'administrateur. Un refus explicite, lui, doit
+     * bien masquer le menu.
+     */
+    private static void testUndeterminedAccessIsRetried() {
+        assertTrue("utilisateur inconnu : indetermine",
+                ColumnLabelRules.accessIsUndetermined("utilisateur de la session inconnu : parametrage reserve aux administrateurs"));
+        assertTrue("aucun utilisateur lisible : indetermine",
+                ColumnLabelRules.accessIsUndetermined("aucun utilisateur lisible dans la base : parametrage reserve aux administrateurs"));
+        assertTrue("raison vide : indetermine", ColumnLabelRules.accessIsUndetermined(null));
+        assertTrue("refus explicite : decision definitive",
+                !ColumnLabelRules.accessIsUndetermined("acces refuse : le role le plus haut est Gisèle (superutilisateur, 5 droits)"));
+        assertTrue("acces accorde : decision definitive", !ColumnLabelRules.accessIsUndetermined("acces accorde : Gisèle (superutilisateur, 5 droits)"));
+        assertTrue("pas de table de droits : decision definitive",
+                !ColumnLabelRules.accessIsUndetermined("aucune table de droits dans la base : parametrage ouvert"));
         pass();
     }
 
