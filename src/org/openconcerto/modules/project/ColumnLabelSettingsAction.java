@@ -110,6 +110,8 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
         private final JTable table;
         private final TableRowSorter<EntryTableModel> sorter;
         private final JTextField filter = new JTextField();
+        /** Sur quelle colonne porte le filtre : -1 = toutes. */
+        private final JComboBox filterColumn = new JComboBox(ColumnLabelRules.FILTER_CHOICES.toArray());
         private final JComboBox modeBox = new JComboBox(new String[] { ColumnLabelRules.MODE_AUTO, ColumnLabelRules.MODE_MAPPING, ColumnLabelRules.MODE_OFF });
 
         SettingsPanel(final DBRoot root, final JFrame frame) {
@@ -186,6 +188,21 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             c.gridx = 2;
             header.add(new JLabel("Filtrer :"), c);
             c.gridx = 3;
+            c.weightx = 0;
+            c.fill = GridBagConstraints.NONE;
+            // Choix de la colonne filtree : taper « fournisseur » dans « Colonne »
+            // va beaucoup plus vite que de parcourir 300 lignes.
+            this.filterColumn.setToolTipText("<html>Colonne sur laquelle porte le filtre.<br>"
+                    + "« Colonne » cherche dans les noms techniques (ID_FOURNISSEUR),<br>"
+                    + "« Libellé affiché » dans ce que voient les utilisateurs.</html>");
+            this.filterColumn.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    applyFilter();
+                }
+            });
+            header.add(this.filterColumn, c);
+            c.gridx = 4;
             c.weightx = 1;
             c.fill = GridBagConstraints.HORIZONTAL;
             this.filter.setPreferredSize(new Dimension(200, 22));
@@ -209,14 +226,21 @@ public final class ColumnLabelSettingsAction extends AbstractAction {
             return header;
         }
 
+        /** Indice de colonne du modele correspondant au choix du sélecteur. */
+        private int filterColumnIndex() {
+            return ColumnLabelRules.filterColumnIndex(this.filterColumn.getSelectedIndex());
+        }
+
         private void applyFilter() {
             final String text = this.filter.getText() == null ? "" : this.filter.getText().trim();
             if (text.length() == 0) {
                 this.sorter.setRowFilter(null);
                 return;
             }
-            // Filtre simple sur les quatre colonnes affichees.
-            this.sorter.setRowFilter(RowFilter.regexFilter("(?i)" + java.util.regex.Pattern.quote(text)));
+            final String pattern = "(?i)" + java.util.regex.Pattern.quote(text);
+            final int index = filterColumnIndex();
+            // Filtre sur la colonne choisie, ou sur les quatre si « Toutes ».
+            this.sorter.setRowFilter(index < 0 ? RowFilter.regexFilter(pattern) : RowFilter.regexFilter(pattern, index));
         }
 
         private JPanel buildButtons() {

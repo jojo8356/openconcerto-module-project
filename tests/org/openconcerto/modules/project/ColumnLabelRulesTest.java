@@ -84,6 +84,7 @@ public final class ColumnLabelRulesTest {
         testBusinessTablesAreNotBackups();
         testSaveReportExplainsWhatWasSaved();
         testWildcardRuleAppliesEverywhere();
+        testFilterChoicesMatchColumns();
 
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
@@ -505,6 +506,19 @@ public final class ColumnLabelRulesTest {
                 ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_MAPPING));
         assertEquals("mode OFF ignore tout", "ID_FOURNISSEUR",
                 ColumnLabelRules.resolvedLabel("ID_FOURNISSEUR", "Notre fournisseur", "FOURNISSEUR UNIQUE", ColumnLabelRules.MODE_OFF));
+        pass();
+    }
+
+    /** Le selecteur de filtre doit viser la bonne colonne du tableau. */
+    private static void testFilterChoicesMatchColumns() {
+        assertEquals("cinq choix", 5, ColumnLabelRules.FILTER_CHOICES.size());
+        assertEquals("premier choix : toutes", "Toutes les colonnes", ColumnLabelRules.FILTER_CHOICES.get(0));
+        assertEquals("toutes les colonnes = -1", -1, ColumnLabelRules.filterColumnIndex(0));
+        assertEquals("Table = colonne 0", 0, ColumnLabelRules.filterColumnIndex(1));
+        assertEquals("Colonne = colonne 1", 1, ColumnLabelRules.filterColumnIndex(2));
+        assertEquals("Automatique = colonne 2", 2, ColumnLabelRules.filterColumnIndex(3));
+        assertEquals("Libellé affiché = colonne 3", 3, ColumnLabelRules.filterColumnIndex(4));
+        assertEquals("choix hors liste : toutes", -1, ColumnLabelRules.filterColumnIndex(9));
         pass();
     }
 

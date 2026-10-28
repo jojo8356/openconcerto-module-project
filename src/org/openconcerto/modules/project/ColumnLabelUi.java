@@ -1,6 +1,7 @@
 package org.openconcerto.modules.project;
 
 import java.awt.AWTEvent;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Toolkit;
@@ -11,6 +12,9 @@ import java.util.List;
 
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.TableColumn;
@@ -49,6 +53,7 @@ import org.openconcerto.sql.view.list.ITableModel;
 public final class ColumnLabelUi {
 
     private static final String INSTALLED_KEY = "project-column-labels-installed";
+    private static final String HEADER_RENDERER_KEY = "project-column-labels-header-renderer";
     private static final String MODEL_LISTENER_KEY = "project-column-labels-model-listener";
 
     private static volatile boolean globalInstalled = false;
@@ -183,6 +188,7 @@ public final class ColumnLabelUi {
             return 0;
         }
         final int changed = applyHeaders(table, null);
+        installHeaderRenderer(table);
         if (Boolean.TRUE.equals(table.getClientProperty(MODEL_LISTENER_KEY))) {
             return changed;
         }
@@ -208,6 +214,77 @@ public final class ColumnLabelUi {
             Module.log("libelles : surveillance d'un tableau impossible (" + e + ")");
         }
         return changed;
+    }
+
+    /**
+     * Installe un rendu d'en-tete qui applique le libelle <b>au moment de
+     * l'affichage</b>.
+     * <p>
+     * Pourquoi ne pas se contenter de reecrire la valeur des colonnes : les
+     * listes de l'ERP reconstruisent leurs colonnes a chaque rafraichissement
+     * ({@code ITableModel.updateColNames}), et un en-tete deja renomme peut etre
+     * reintroduit tel quel par le cœur. Resultat constate : le libelle changeait
+     * dans l'ecran de parametrage mais <b>pas dans les listes</b>
+     * (« Articles commandés », « Factures fournisseurs »...).
+     * <p>
+     * En resolvant le libelle au dessin, n'importe quel rafraichissement ou
+     * changement de modele affiche la bonne valeur, sans dependre d'un evenement.
+     * Le rendu d'origine du theme est conserve (tri, icones, couleurs).
+     */
+    static void installHeaderRenderer(final JTable table) {
+        if (table == null || table.getTableHeader() == null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(table.getClientProperty(HEADER_RENDERER_KEY))) {
+            return;
+        }
+        try {
+            final JTableHeader header = table.getTableHeader();
+            final TableCellRenderer previous = header.getDefaultRenderer();
+            header.setDefaultRenderer(new LabelHeaderRenderer(table, previous));
+            table.putClientProperty(HEADER_RENDERER_KEY, Boolean.TRUE);
+        } catch (Exception e) {
+            Module.log("libelles : rendu d'en-tete impossible (" + e + ")");
+        }
+    }
+
+    /**
+     * Rendu d'en-tete qui traduit la valeur affichee (voir
+     * {@link ColumnLabelUi#installHeaderRenderer(JTable)}).
+     */
+    private static final class LabelHeaderRenderer implements TableCellRenderer {
+
+        private final JTable table;
+        private final TableCellRenderer previous;
+        private final TableCellRenderer fallback = new DefaultTableCellRenderer();
+
+        LabelHeaderRenderer(final JTable table, final TableCellRenderer previous) {
+            this.table = table;
+            this.previous = previous;
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(final JTable ignored, final Object value, final boolean isSelected, final boolean hasFocus, final int row, final int column) {
+            Object displayed = value;
+            if (value instanceof String) {
+                try {
+                    final String label = labelFor((String) value, tableNameOf(this.table, null));
+                    if (label != null && label.length() > 0) {
+                        displayed = label;
+                    }
+                } catch (Exception e) {
+                    // jamais d'exception pendant un dessin
+                }
+            }
+            final TableCellRenderer delegate = this.previous == null ? this.fallback : this.previous;
+            final Component component = delegate.getTableCellRendererComponent(this.table, displayed, isSelected, hasFocus, row, column);
+            if (!isSelected && component instanceof javax.swing.JLabel) {
+                // En-tetes lisibles quel que soit le theme (meme exigence que
+                // l'ecran de parametrage : plus de gris pale).
+                ((javax.swing.JLabel) component).setForeground(new Color(0x20, 0x20, 0x20));
+            }
+            return component;
+        }
     }
 
     /**

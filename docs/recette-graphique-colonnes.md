@@ -56,7 +56,8 @@ Deux comptes sont nécessaires :
 | # | Action | Résultat attendu |
 |---|---|---|
 | 3.1 | Se connecter avec **A**, menu **Paramètres → Libellés des colonnes** | écran avec la liste des colonnes et un champ **Filtrer** |
-| 3.2 | Taper `facture` dans **Filtrer** | la liste ne garde que les lignes correspondantes |
+| 3.2 | Choisir `Colonne` dans le sélecteur à gauche de **Filtrer**, puis taper `fournisseur` | la liste ne garde que les lignes dont la **colonne** contient « fournisseur » |
+| 3.2b | Choisir `Table`, taper `facture` | seules les lignes des tables concernées restent |
 | 3.3 | **Double-cliquer** sur la case **Libellé affiché** de la ligne `FACTURE_FOURNISSEUR` / `ID_FOURNISSEUR` | la case passe en édition, le texte existant est pré-sélectionné |
 | 3.3b | Taper `FOURNISSEUR FOURN.` puis **Entrée** | la case affiche le nouveau texte, en **noir gras** (personnalisé) |
 | 3.3c | Double-cliquer, sélectionner `ID_ARTICLE` (ligne `LOT_LIVRAISON`) et vider la case, **Entrée** | la case revient au libellé automatique `ARTICLE`, en noir, en texte normal |
@@ -67,6 +68,7 @@ Deux comptes sont nécessaires :
 | 3.7 | Modifier une case puis cliquer **Fermer** sans enregistrer | une confirmation propose d'enregistrer ; « Annuler » garde la fenêtre ouverte |
 | 3.8 | Sélectionner la ligne `SAISIE_ACHAT` / `ID_FOURNISSEUR`, cliquer **Appliquer à toutes les tables (*)** | la ligne `*` / `ID_FOURNISSEUR` apparaît **en haut de la liste, sélectionnée**, et toutes les autres lignes de cette colonne affichent le nouveau libellé |
 | 3.8b | Cliquer **Enregistrer pour l'équipe** | les listes du client affichent `FOURNISSEUR` partout (y compris factures et commandes fournisseurs) |
+| 3.8c | Ouvrir **Historique des affaires**, onglet **Articles commandés** (ou Gestion > Factures fournisseurs) | les en-têtes portent les libellés choisis, sans redémarrer le client |
 | 3.9 | Vérifier le message après enregistrement | il indique le nombre de **règles en base** (et non « 0 »), puis le nombre de colonnes rafraîchies **sur ce poste** |
 | 3.10 | Saisir une règle sur une ligne dont la table commence par `sauvegarde_` et enregistrer | le message **avertit** que cette table n'apparaît dans aucune liste |
 

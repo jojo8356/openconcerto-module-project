@@ -8,6 +8,30 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — Libellés appliqués dans toutes les listes + filtre par colonne
+
+### Fixed
+
+- **Les libellés ne changeaient pas dans les listes de l'ERP** (historique des
+  affaires, factures fournisseurs, articles commandés…). Les en-têtes étaient
+  renommés une fois, puis perdus : les listes reconstruisent leurs colonnes à
+  chaque rafraîchissement. Le libellé est désormais résolu **au moment du dessin
+  de l'en-tête** (`ColumnLabelUi.installHeaderRenderer`), donc il s'applique quel
+  que soit le moment où la liste se reconstruit, sans redémarrage.
+
+### Added
+
+- **Sélecteur de colonne dans le filtre** de l'écran de paramétrage :
+  `Toutes les colonnes`, `Table`, `Colonne`, `Automatique`, `Libellé affiché`
+  (`ColumnLabelRules.FILTER_CHOICES` / `filterColumnIndex`). Chercher
+  `fournisseur` dans `Colonne` va beaucoup plus vite que de parcourir la liste.
+
+### Tests
+
+- `ColumnLabelRulesTest` : **52 tests** (correspondance sélecteur → colonne).
+- `scripts/test-mutations-colonnes.sh` : 14 contrôles.
+- compilation contre `OpenConcerto.jar` 1.7.6 : aucune erreur imputable au module.
+
 ## 2026-10-28 — Libellés : la règle « toutes les tables » devient visible
 
 ### Fixed

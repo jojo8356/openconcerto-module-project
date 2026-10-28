@@ -217,6 +217,26 @@ public final class ColumnLabelRules {
         return header;
     }
 
+    /** Choix du selecteur de filtre de l'ecran de parametrage. */
+    public static final List<String> FILTER_CHOICES = Collections.unmodifiableList(Arrays.asList(
+            "Toutes les colonnes", "Table", "Colonne", "Automatique", "Libellé affiché"));
+
+    /**
+     * Indice de colonne du tableau correspondant a un choix du filtre.
+     * <p>
+     * Indexe comme les colonnes de l'ecran : 0 = Table, 1 = Colonne,
+     * 2 = Automatique, 3 = Libellé affiché.
+     *
+     * @param choice indice dans {@link #FILTER_CHOICES}.
+     * @return l'indice de colonne, ou {@code -1} pour « toutes les colonnes ».
+     */
+    public static int filterColumnIndex(final int choice) {
+        if (choice <= 0 || choice >= FILTER_CHOICES.size()) {
+            return -1;
+        }
+        return choice - 1;
+    }
+
     /** Debuts de nom qui designent une copie de table (sauvegarde, essai...). */
     private static final List<String> BACKUP_PREFIXES = Collections.unmodifiableList(Arrays.asList(
             "sauvegarde", "sauvegarde_", "backup", "copie", "archive", "ancien", "tmp_", "zz_"));

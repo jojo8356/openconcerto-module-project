@@ -122,7 +122,11 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
    plusieurs lignes sélectionnées) = retour au libellé automatique
    (`ID_CLIENT` → `CLIENT`). Aucune règle inutile n'est enregistrée si le texte
    n'a pas changé.
-5. Champ **Filtrer** : taper `facture` ou `client` pour trouver la ligne.
+5. **Filtrer** : le sélecteur à gauche du champ choisit la **colonne** sur
+   laquelle porte la recherche (`Toutes les colonnes`, `Table`, `Colonne`,
+   `Automatique`, `Libellé affiché`), puis on tape `facture`, `client`… Le
+   filtre `Colonne` est le plus rapide pour retrouver `ID_FOURNISSEUR` dans une
+   base où il y a des centaines de lignes.
 6. **Ajouter une colonne…** : pour une règle qui n'apparaît pas dans la liste
    (ou pour `*` = toutes les tables).
    **Appliquer à toutes les tables (*)** : prend la ligne sélectionnée, crée la
@@ -139,7 +143,34 @@ suppression du `ID_` (si `AUTO`) → nom d'origine.
    jar (pour une nouvelle installation, ou pour figer les libellés d'une
    version livrée).
 
-## 7. Ce qui est couvert à l'écran
+## 7. Ce qui est couvert dans les listes de l'ERP
+
+Le libellé est appliqué **au moment de l'affichage des en-têtes**, dans toutes les
+listes et tous les écrans de saisie, y compris ceux du cœur OpenConcerto que le
+module ne construit pas :
+
+- listes de l'ERP (Gestion, Achats, Ventes…) et onglets de l'historique des
+  affaires ;
+- tableaux des écrans de saisie.
+
+Ce choix (traduire à l'affichage plutôt que réécrire les colonnes) est ce qui
+rend le changement visible **tout de suite**, sans redémarrer : les listes de
+l'ERP reconstruisent leurs colonnes en permanence, et une valeur réécrite une
+fois était perdue au rafraîchissement suivant.
+
+Deux limites à connaître :
+
+- une règle propre à une table (`FACTURE_FOURNISSEUR.ID_FOURNISSEUR`) ne
+  s'applique que si la liste expose cette table ; dans une liste du cœur où la
+  table n'est pas identifiable, seules la règle `*` et la règle automatique
+  s'appliquent — c'est justement le cas d'usage du bouton
+  **Appliquer à toutes les tables (*)** ;
+- si l'en-tête affiché par OpenConcerto est déjà un libellé métier et non le nom
+  technique (`Fournisseur` au lieu de `ID_FOURNISSEUR`), aucune règle ne peut le
+  reconnaître : le module ne devine pas. Il faut alors passer par la règle `*`
+  sur la colonne réellement présente.
+
+## 8. Ce qui est couvert à l'écran
 
 Le renommage est appliqué **sans modifier le cœur OpenConcerto**, à deux
 niveaux :
@@ -156,7 +187,7 @@ s'appliquent ; une règle propre à une table (`COMMANDE.ID_AFFAIRE`) est
 appliquée dans l'historique des affaires et dans les listes du module, pas dans
 une liste du cœur où la table n'est pas identifiable.
 
-## 8. Recette manuelle et vérifications exécutables
+## 9. Recette manuelle et vérifications exécutables
 
 Recette cliquable pas à pas (deux comptes, retour arrière, vérification en base) :
 `docs/recette-graphique-colonnes.md`.
@@ -175,7 +206,7 @@ Ce que couvre chaque suite :
 | `e2e-colonnes.sh` (34) | migration idempotente, unicité `(table, colonne)`, règle `*` + règle par table, enregistrement transactionnel (état préservé en cas d'erreur), UTF-8, requête « qui a le plus de droits » (superutilisateur > administrateur > nombre de droits, comptes désactivés ignorés), aucune table du cœur touchée |
 | `test-mutations-colonnes.sh` (7) | le préfixe qui n'est plus retiré, le mode `AUTO` ignoré, le mauvais rôle choisi, la dérive Java/SQL, l'index qui n'est plus unique, l'enregistrement sans transaction : **tous détectés** |
 
-## 9. Tables de sauvegarde : pourquoi un libellé peut rester sans effet
+## 10. Tables de sauvegarde : pourquoi un libellé peut rester sans effet
 
 Une règle posée sur une table de **sauvegarde** (`sauvegarde_…_avant_2024`,
 `…_old`, `…_copie`) est bien enregistrée, mais **n'a aucun effet visible** :
@@ -204,7 +235,7 @@ Le texte de fin d'enregistrement distingue deux choses qui n'ont rien à voir :
 
 Un `0` sur la deuxième ligne ne veut donc pas dire que rien n'a été enregistré.
 
-## 10. Dépannage
+## 11. Dépannage
 
 | Symptôme | Cause probable | Que faire |
 |---|---|---|

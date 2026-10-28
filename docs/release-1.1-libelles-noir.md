@@ -15,6 +15,20 @@ La distinction reste visible : **gras** = libellé personnalisé (une règle
 existe), texte normal = libellé automatique (suppression du préfixe `ID_`).
 Le double-clic pour modifier est inchangé.
 
+## Filtre par colonne
+
+Le champ **Filtrer** est précédé d'un sélecteur : `Toutes les colonnes`, `Table`,
+`Colonne`, `Automatique`, `Libellé affiché`. Choisir `Colonne` puis taper
+`fournisseur` retrouve `ID_FOURNISSEUR` immédiatement, même dans une base de
+plusieurs centaines de colonnes.
+
+## Application dans toutes les listes
+
+Le libellé est désormais traduit **au dessin de l'en-tête** : il s'applique dans
+les listes de l'ERP (historique des affaires, articles commandés, factures
+fournisseurs…) et dans les écrans de saisie, sans redémarrage, même quand la
+liste reconstruit ses colonnes.
+
 ## Message de fin d'enregistrement
 
 L'ancien message disait « 0 colonne(s) mise(s) à jour sur ce poste », ce qui
