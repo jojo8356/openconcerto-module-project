@@ -1,0 +1,15 @@
+exit=0
+--- fin du journal ---
+Téléchargement de https://www.openconcerto.org/fr/telechargement/1.7/OpenConcerto-1.7.6-multiposte.zip ...
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+  0      0   0      0   0      0      0      0                              0  0 83.27M   0 225.7k   0      0 225.5k      0   06:18   00:01   06:17 225.7k 71 83.27M  71 59.93M   0      0 29.62M      0   00:02   00:02         29.64M100 83.27M 100 83.27M   0      0 37.24M      0   00:02   00:02         29.64M100 83.27M 100 83.27M   0      0 37.24M      0   00:02   00:02         29.64M100 83.27M 100 83.27M   0      0 37.24M      0   00:02   00:02         29.64M
+Extraction de OpenConcerto-1.7.6-multiposte.zip ...
+OpenConcerto.jar extrait : /home/runner/work/openconcerto-module-project/openconcerto-module-project/build/openconcerto-dist/extracted/OpenConcerto-1.7.6-multiposte/OpenConcerto.jar
+Build du module...
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: src/org/openconcerto/modules/project/ColumnLabelSettingsAction.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+Java bytecode check passed: all classes are major <= 52
+/home/runner/work/openconcerto-module-project/openconcerto-module-project/build/org.openconcerto.modules.project-1.1.jar
