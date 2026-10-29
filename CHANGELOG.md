@@ -8,6 +8,38 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-28 — `scripts/oc-psql.sh` : SQL sur la base Docker sans `.env`
+
+### Added
+
+- **`scripts/oc-psql.sh`** : ouvre `psql` sur la base OpenConcerto en parlant
+  **directement au conteneur**, sans `docker compose`. Corrige les deux erreurs
+  qui bloquaient : `no configuration file provided` (le `docker-compose.yml` est
+  dans `docker/openconcerto-1.7.6/`, pas à la racine) et
+  `required variable POSTGRES_PASSWORD is missing` (`.env` non versionné).
+  - détecte le conteneur (port **5433**, sinon premier conteneur
+    `postgres`/`postgis`), le rôle (`POSTGRES_USER`) et la base (`POSTGRES_DB`,
+    sinon l'unique base `OpenConcerto*`) ; en cas d'ambiguïté, **liste et
+    s'arrête** au lieu de deviner ;
+  - modes : invite interactive, `-c SQL`, `-f fichier`, `-l` (bases), `-n`
+    (dry-run) ;
+  - `--no-password LOGIN` et `--password LOGIN MDP` : écrit
+    `Base64(SHA1(...))` dans `"Common"."USER_COMMON"."PASSWORD"`, avec la
+    vérification dans la même commande ;
+  - compatible `sh` (aucune dépendance côté hôte : ni bash, ni `psql`).
+- `docs/psql-docker.md` : les deux messages d'erreur, leur cause, la méthode
+  script, les commandes Docker équivalentes et les précautions (login unique,
+  retour arrière).
+
+### Tests
+
+- `tests/shell/test-oc-psql.sh` : **38 contrôles, 0 échec**, sans Docker (faux
+  `docker` en tête de `PATH`). Couvre la détection par port puis par image,
+  l'absence de conteneur, `POSTGRES_DB` disparu après restauration, plusieurs
+  bases (refus explicite), `-d` forcé, `--no-password` (empreinte exacte de la
+  chaîne vide), `--password`, `-l`, `-n`, `-f` (stdin sans TTY) et l'absence
+  totale d'appel à `docker compose`.
+
 ## 2026-10-28 — Libellés automatiques : « Fournisseur », plus « FOURNISSEUR »
 
 ### Changed
