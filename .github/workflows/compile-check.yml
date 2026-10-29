@@ -1,0 +1,48 @@
+name: Compilation (rapport temporaire)
+
+# Workflow TEMPORAIRE : il compile le module contre le vrai OpenConcerto.jar et
+# renvoie le journal de compilation DANS le depot (build-errors.txt), pour
+# pouvoir lire les erreurs depuis un environnement ou le log Actions n'est pas
+# accessible. A supprimer une fois la mise au point terminee.
+
+on:
+  push:
+    branches:
+      - "arena/**"
+    paths:
+      - "src/**"
+      - ".github/workflows/compile-check.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Compiler et capturer le journal
+        run: |
+          set +e
+          sh scripts/build-jar-with-curl.sh > /tmp/compile.log 2>&1
+          rc=$?
+          echo "code=$rc"
+          # On ne garde que ce qui aide : erreurs du compilateur et fin du log.
+          { echo "exit=$rc"; grep -nE "error:|ERREUR|cannot find symbol|symbol:|location:" /tmp/compile.log | head -200; echo "--- fin du journal ---"; tail -40 /tmp/compile.log; } > build-errors.txt
+          exit $rc
+      - name: Renvoyer le journal dans le depot
+        if: always()
+        run: |
+          if [ -f build-errors.txt ]; then
+            git config user.name "ci-compile-check"
+            git config user.email "ci@example.invalid"
+            git add build-errors.txt
+            git diff --cached --quiet || git commit -m "CI: journal de compilation (temporaire)"
+            git push
+          fi
