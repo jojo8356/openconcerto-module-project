@@ -16,6 +16,7 @@ son compte**, et pas seulement avec un compte administrateur :
 | les en-têtes de colonnes sont lisibles (`Client`, pas `ID_CLIENT`, pas de capitales) | 2 |
 | l'affaire se voit sur une **commande fournisseur** neuve | 3 |
 | l'affaire se voit quand on **modifie** une facture fournisseur (son cas d'origine) | 4 |
+| la colonne **Affaire** est présente **dans le tableau des lignes** | 4 bis |
 | le **transfert commande fournisseur → facture** ne plante plus | 5 |
 | l'affaire se voit aussi sur les documents **clients** | 6 |
 | l'historique des affaires s'ouvre et se ferme **sans erreur** | 7 |
@@ -31,7 +32,7 @@ son compte**, et pas seulement avec un compte administrateur :
 | ☐ | # | Action | Résultat attendu |
 |---|---|---|---|
 | ☐ | 0.1 | Fermer **complètement** le client OpenConcerto (pas seulement la fenêtre : quitter l'application) | le client est fermé |
-| ☐ | 0.2 | Vérifier que le fichier `org.openconcerto.modules.project-1.1.jar` fait **250 074 octets** (Aide → Informations → « Dossiers des modules ») | taille exacte ; si elle diffère, le jar n'est pas le bon → me le dire avant de continuer |
+| ☐ | 0.2 | Vérifier que le fichier `org.openconcerto.modules.project-1.1.jar` est celui de la release **`v1.1-colonne-affaire`** : même **taille** que celle affichée dans la release (Aide → Informations → « Dossiers des modules ») | taille identique ; si elle diffère, le jar n'est pas le bon → me le dire avant de continuer |
 | ☐ | 0.3 | Relancer le client et se connecter avec **`abe`** | connexion réussie |
 | ☐ | 0.4 | Ouvrir la société **KINETIC-THERM (42)** | la société s'ouvre |
 | ☐ | 0.5 | Ouvrir **Gestion → Historique des affaires** | la fenêtre s'ouvre (sert à créer l'affaire de test) |
@@ -109,6 +110,30 @@ C'est le cas d'origine : « je mets l'affaire, et elle ne s'affiche pas ».
 | ☐ | 4.7 | Colonne **Affaire** dans la liste | `RECETTE-GISELE` |
 | ☐ | 4.8 | Historique des affaires, onglet **Factures fournisseurs** | la facture **apparaît** maintenant |
 | ☐ | 4.9 | Refaire 4.5 en **changeant** l'affaire pour une autre, puis enregistrer | la liste et l'historique suivent le changement |
+
+---
+
+## 4 bis. La colonne **Affaire** dans le tableau des lignes (3 min)
+
+C'est la dernière remarque : « dans le tableau je ne vois toujours pas
+l'affaire ». Le champ Affaire de l'en-tête est bien rempli ; ce qui manquait est
+une **colonne dans le tableau des lignes**.
+
+| ☐ | # | Action | Résultat attendu |
+|---|---|---|---|
+| ☐ | 4bis.1 | Ouvrir une **commande fournisseur** déjà rattachée à une affaire (par exemple `11870-PO-007-Avt1`, ou celle créée en 3.6) | le détail de la commande s'ouvre |
+| ☐ | 4bis.2 | Regarder le tableau des lignes, **juste après la colonne « Désignation »** | une colonne **`Affaire`** est présente, texte noir sur fond blanc |
+| ☐ | 4bis.3 | Lire la valeur de cette colonne sur chaque ligne | le **numéro** de l'affaire du document, par exemple **`11870`** (ou `RECETTE-GISELE` pour l'affaire de test) |
+| ☐ | 4bis.4 | Essayer de modifier cette case (double-clic) | **impossible** : la colonne est en lecture seule (c'est voulu : l'affaire se change sur le document) |
+| ☐ | 4bis.5 | Changer l'affaire du document, enregistrer, rouvrir | la colonne affiche la **nouvelle** valeur |
+| ☐ | 4bis.6 | Retirer l'affaire du document, enregistrer, rouvrir | la colonne est **vide** (pas de texte bizarre) |
+| ☐ | 4bis.7 | Refaire 4bis.1 sur une **facture fournisseur** | même colonne `Affaire`, même valeur |
+| ☐ | 4bis.8 | Refaire 4bis.1 sur une **commande client** (ou un devis) | même colonne `Affaire` |
+
+> Si la colonne n'apparaît pas : vérifier que le jar est bien celui de la
+> release **`v1.1-colonne-affaire`** (taille indiquée dans la release), puis me
+> l'écrire — le journal du client contient une ligne `Affaire : colonne …` qui
+> dit ce que le module a fait.
 
 ---
 

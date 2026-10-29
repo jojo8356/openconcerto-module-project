@@ -128,6 +128,8 @@ public final class Module extends AbstractModule {
     /** Delai entre deux tentatives, en millisecondes. */
     private static final int MENU_RETRY_DELAY_MS = 2000;
     private static boolean deliveryNoteListActionSyncInstalled = false;
+    /** Ecouteur global d'affichage pour la colonne « Affaire » des lignes. */
+    private static boolean itemAffairColumnInstalled = false;
     /**
      * Tables qui portent directement {@code ID_AFFAIRE}. La liste vient de
      * {@link AffairLinkSupport#DIRECT_AFFAIR_TABLES}, qui est la source de
@@ -1034,6 +1036,50 @@ public final class Module extends AbstractModule {
         }.execute();
     }
 
+    /**
+     * Ajoute la colonne « Affaire » dans les tableaux de lignes des documents
+     * (commandes et factures fournisseurs, ventes...).
+     * <p>
+     * Le champ Affaire de l'en-tete est renseigne, mais OpenConcerto n'affiche
+     * nulle part l'affaire dans le tableau des lignes : c'est le « je ne vois
+     * toujours pas l'affaire » du detail d'une commande fournisseur. La colonne
+     * est ajoutee au moment de l'affichage, sur les API publiques, sans toucher
+     * au jar OpenConcerto.
+     * </p>
+     * <p>
+     * L'installation est idempotente et sans risque : seule une nouvelle fenetre
+     * (ou un nouveau composant) est examinee, et un tableau deja equipe n'est
+     * jamais retouche.
+     * </p>
+     */
+    private void installItemAffairColumn() {
+        if (itemAffairColumnInstalled) {
+            return;
+        }
+        itemAffairColumnInstalled = true;
+        if (!ItemTableAffairColumn.isEnabled()) {
+            log("colonne « Affaire » des lignes desactivee (" + ItemTableAffairColumn.ENABLED_PROPERTY + "=false)");
+            return;
+        }
+        Toolkit.getDefaultToolkit().addAWTEventListener(new java.awt.event.AWTEventListener() {
+            @Override
+            public void eventDispatched(final AWTEvent event) {
+                if (event instanceof WindowEvent) {
+                    if (((WindowEvent) event).getID() == WindowEvent.WINDOW_OPENED) {
+                        ItemTableAffairColumn.installLater(((WindowEvent) event).getWindow());
+                    }
+                } else if (event instanceof ContainerEvent) {
+                    if (((ContainerEvent) event).getID() == ContainerEvent.COMPONENT_ADDED) {
+                        ItemTableAffairColumn.installLater(((ContainerEvent) event).getChild());
+                    }
+                }
+            }
+        }, AWTEvent.WINDOW_EVENT_MASK | AWTEvent.CONTAINER_EVENT_MASK);
+        for (final Window window : Window.getWindows()) {
+            ItemTableAffairColumn.installLater(window);
+        }
+    }
+
     private static synchronized void installDeliveryNoteListActionSync() {
         if (deliveryNoteListActionSyncInstalled) {
             return;
@@ -1485,6 +1531,7 @@ public final class Module extends AbstractModule {
     @Override
     protected void start() {
         installDeliveryNoteListActionSync();
+        installItemAffairColumn();
         installColumnLabels();
         installColumnLabelMenu();
         installAffairDiagnosticMenu();

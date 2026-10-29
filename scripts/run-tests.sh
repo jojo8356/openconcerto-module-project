@@ -16,12 +16,14 @@ cd "$ROOT_DIR"
     printf '%s\n' src/org/openconcerto/modules/project/ColumnLabelRules.java
     printf '%s\n' src/org/openconcerto/modules/project/ColumnLabelStyle.java
     printf '%s\n' src/org/openconcerto/modules/project/HistoryPanelCleanup.java
+    printf '%s\n' src/org/openconcerto/modules/project/ItemAffairColumnRules.java
     printf '%s\n' src/org/openconcerto/modules/project/ProjectMenuSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/SupplierInvoiceAffairComponentSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjector.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairListSortSupportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairLinkSupportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/ColumnLabelRulesTest.java
+    printf '%s\n' tests/org/openconcerto/modules/project/ItemAffairColumnRulesTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/ProjectMenuSupportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjectorTest.java
     printf '%s\n' tests/org/openconcerto/erp/injector/CommandeFactureFournisseurSQLInjector.java
@@ -40,3 +42,4 @@ java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.AffairLinkSupportT
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.ColumnLabelRulesTest
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.ProjectMenuSupportTest
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.SupplierOrderToInvoiceSQLInjectorTest
+java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.ItemAffairColumnRulesTest

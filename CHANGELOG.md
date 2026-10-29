@@ -8,6 +8,38 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-29 — Colonne « Affaire » dans le tableau des lignes
+
+### Fixed
+
+- **« Dans le tableau je ne vois toujours pas l'affaire »** (détail d'une
+  commande fournisseur `11870-PO-007-Avt1`). Le champ Affaire de l'en-tête est
+  actif et renseigné, mais **OpenConcerto n'affiche l'affaire nulle part dans le
+  tableau des lignes** : ce n'était ni un droit ni une donnée manquante, mais une
+  fonctionnalité absente du cœur. Une colonne **Affaire**, en lecture seule, est
+  désormais ajoutée dans les tableaux de lignes des documents, **achats et
+  ventes** (commande/facture fournisseur, bon de réception, demande de prix,
+  commande client, facture de vente, devis, avoirs, bon de livraison).
+  - valeur = **numéro de l'affaire** (`11870`), jamais recasé ; à défaut le nom,
+    puis `Affaire 145` ; case vide si l'affaire n'est pas renseignée ;
+  - **la ligne d'abord** (`ID_AFFAIRE` de la ligne s'il existe), **sinon le
+    document parent** (`COMMANDE`, `FACTURE_FOURNISSEUR`, `COMMANDE_CLIENT`...) :
+    en 1.7.6 les tables de lignes n'ont pas le champ, seul l'en-tête l'a ;
+  - colonne placée **juste après « Désignation »**, titre `Affaire`, texte noir,
+    lecture seule ;
+  - aucune modification du jar OpenConcerto (API publiques
+    `AbstractArticleItemTable`, `RowValuesTableModel`, `XTableColumnModel`) ;
+  - installation idempotente à l'affichage, désactivable par
+    `-Dproject.itemAffair=false`.
+
+### Added
+
+- `ItemAffairColumnRules` : règles pures et testables (quels tableaux, d'où vient
+  la valeur, format du libellé, position de la colonne).
+- `ItemTableAffairColumn` : application à l'interface, sans Swing dans les règles.
+- `ItemAffairColumnRulesTest` : **plus de 100 vérifications**.
+- La CI vérifie désormais la présence des deux classes de la colonne dans le jar.
+
 ## 2026-10-29 — « Aide > Diagnostic affaire » : l'entrée est enfin dans le menu
 
 ### Fixed
