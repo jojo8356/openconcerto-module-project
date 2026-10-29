@@ -30,8 +30,10 @@ select u."ID" as id_user, u."LOGIN" as login, ur."ID" as id_ligne,
  order by u."ID", ur."ID";
 
 \echo ''
-\echo '=== 2. Le compte « par defaut » (heritage quand le compte n a aucune ligne) ==='
-select "ID", "LOGIN", "NOM", "PRENOM", "ADMIN", "SUPERUSER", "IS_ACTIVE"
+\echo '=== 2. Le compte « par defaut » : HERITAGE (UserRightsManager.haveRight) ==='
+\echo 'Si le compte n a aucune ligne pour un code, le coeur interroge ce compte.'
+\echo 'Ici il porte TABLE_ALL_RIGHTS = oui : abe en herite donc la lecture.'
+select "ID", "LOGIN", "NOM", "PRENOM", "ADMIN", "SUPERUSER"
   from "Common"."USER_COMMON"
  where "ID" = 1;
 

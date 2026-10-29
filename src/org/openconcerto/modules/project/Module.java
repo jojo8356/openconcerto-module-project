@@ -1168,6 +1168,38 @@ public final class Module extends AbstractModule {
      * demarrage, et tant que la decision ne peut pas etre prise on reessaie
      * (toutes les 2 s, pendant 30 s) au lieu de renoncer.
      */
+    /**
+     * Ajoute <b>Aide &gt; Diagnostic affaire</b> : un rapport en lecture seule qui
+     * dit pourquoi le champ Affaire peut être vide ou grisé pour l'utilisateur
+     * connecté (droits réels, nombre de lignes, contenu du menu déroulant).
+     * <p>
+     * Même raison que pour le menu des libellés : on l'ajoute après la session,
+     * sinon l'utilisateur courant n'est pas encore connu.
+     */
+    private void installAffairDiagnosticMenu() {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final AbstractAction action = new AbstractAction("Diagnostic affaire") {
+                        @Override
+                        public void actionPerformed(final ActionEvent e) {
+                            DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+                            if (root == null) {
+                                root = Configuration.getInstance().getRoot();
+                            }
+                            AffairDiagnostic.run(root);
+                        }
+                    };
+                    MainFrame.getInstance().addMenuItem(action, "Aide");
+                    log("menu « Diagnostic affaire » ajoute dans Aide");
+                } catch (Exception e) {
+                    log("menu « Diagnostic affaire » impossible (" + e + ")");
+                }
+            }
+        });
+    }
+
     private void installColumnLabelMenu(final int attempt) {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
@@ -1410,6 +1442,7 @@ public final class Module extends AbstractModule {
         installDeliveryNoteListActionSync();
         installColumnLabels();
         installColumnLabelMenu();
+        installAffairDiagnosticMenu();
 
         final JComponent quoteComponent = createQuotePanel();
         final JComponent orderComponent = createOrderPanel();
