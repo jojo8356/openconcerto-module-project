@@ -3,6 +3,11 @@
 **Ce jar remplace celui de `v1.1-diagnostic-affaire`.** Il répond à la dernière
 remarque : « dans le tableau je ne vois toujours pas l'affaire ».
 
+- **Jar** : `org.openconcerto.modules.project-1.1.jar` — **270 362 octets**
+  (empreinte SHA-256 dans le fichier `.sha256` joint) ;
+- **téléchargement** :
+  <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-colonne-affaire/org.openconcerto.modules.project-1.1.jar>
+
 ## Ce qui n'allait pas
 
 Sur la capture « Détail d'une commande fournisseur » (`11870-PO-007-Avt1`) :
@@ -66,7 +71,7 @@ Détails :
 
 ## Les tests
 
-`ItemAffairColumnRulesTest` : **plus de 100 vérifications** (cas réel de la capture, ordre
+`ItemAffairColumnRulesTest` : **110 vérifications** (cas réel de la capture, ordre
 de priorité ligne/document, affaire « indéfinie » ID 1, libellés, position de la
 colonne, désactivation, liens parents de chaque tableau de lignes).
 

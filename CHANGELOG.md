@@ -37,7 +37,7 @@
 - `ItemAffairColumnRules` : règles pures et testables (quels tableaux, d'où vient
   la valeur, format du libellé, position de la colonne).
 - `ItemTableAffairColumn` : application à l'interface, sans Swing dans les règles.
-- `ItemAffairColumnRulesTest` : **plus de 100 vérifications**.
+- `ItemAffairColumnRulesTest` : **110 vérifications** (toutes vertes en CI).
 - La CI vérifie désormais la présence des deux classes de la colonne dans le jar.
 
 ## 2026-10-29 — « Aide > Diagnostic affaire » : l'entrée est enfin dans le menu
