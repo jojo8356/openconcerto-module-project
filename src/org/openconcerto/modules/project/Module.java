@@ -29,10 +29,14 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -1191,13 +1195,54 @@ public final class Module extends AbstractModule {
                             AffairDiagnostic.run(root);
                         }
                     };
-                    MainFrame.getInstance().addMenuItem(action, "Aide");
-                    log("menu « Diagnostic affaire » ajoute dans Aide");
+                    addMenuEntry("Aide", action);
                 } catch (Exception e) {
                     log("menu « Diagnostic affaire » impossible (" + e + ")");
                 }
             }
         });
+    }
+
+    /**
+     * Ajoute une entree dans un menu de la barre, en reperant le menu par son
+     * <b>texte affiche</b> (« Aide »).
+     * <p>
+     * Pourquoi ne pas appeler directement {@code MainFrame.addMenuItem(action,
+     * "Aide")} : cette methode exige un chemin d'un nombre <b>pair</b>
+     * d'elements (menu puis groupe) et leve {@code IllegalArgumentException}
+     * sinon ; l'exception etait avalee et le menu n'apparaissait jamais. On
+     * cherche donc le menu dans la barre, et on n'utilise {@code addMenuItem}
+     * qu'en repli, avec un chemin valide.
+     *
+     * @return vrai si l'entree a ete ajoutee.
+     */
+    private boolean addMenuEntry(final String menuText, final Action action) {
+        final JMenuBar bar = MainFrame.getInstance().getJMenuBar();
+        if (bar != null) {
+            final List<String> texts = new ArrayList<String>();
+            for (int i = 0; i < bar.getMenuCount(); i++) {
+                final JMenu m = bar.getMenu(i);
+                texts.add(m == null ? null : m.getText());
+            }
+            final int index = ProjectMenuSupport.findMenu(texts, menuText);
+            if (index >= 0) {
+                final JMenu menu = bar.getMenu(index);
+                menu.add(new JMenuItem(action));
+                log("menu « " + action.getValue(Action.NAME) + " » ajoute dans « " + menu.getText() + " »");
+                return true;
+            }
+            log("menu « " + menuText + " » introuvable dans la barre (" + texts + ")");
+        }
+        // Repli : chemin toujours pair (menu, groupe), sinon MainFrame leve.
+        try {
+            final String[] path = ProjectMenuSupport.path(menuText, ProjectMenuSupport.DEFAULT_GROUP);
+            MainFrame.getInstance().addMenuItem(action, path);
+            log("menu « " + action.getValue(Action.NAME) + " » ajoute via addMenuItem (" + path[0] + "/" + path[1] + ")");
+            return true;
+        } catch (Exception e) {
+            log("menu « " + action.getValue(Action.NAME) + " » non ajoute (" + e + ")");
+            return false;
+        }
     }
 
     private void installColumnLabelMenu(final int attempt) {

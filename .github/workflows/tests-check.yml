@@ -1,0 +1,39 @@
+name: Tests (rapport temporaire)
+
+# Workflow TEMPORAIRE : execute les suites de tests et renvoie leur sortie dans
+# le depot (build-tests.txt). A supprimer une fois la verification faite.
+
+on:
+  push:
+    branches:
+      - "arena/**"
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Suites de tests
+        run: |
+          set +e
+          sh scripts/run-tests.sh > /tmp/tests.log 2>&1
+          rc=$?
+          { echo "exit=$rc"; cat /tmp/tests.log; } > build-tests.txt
+          exit $rc
+      - name: Renvoyer la sortie dans le depot
+        if: always()
+        run: |
+          git config user.name "ci-tests-check"
+          git config user.email "ci@example.invalid"
+          git add build-tests.txt
+          git diff --cached --quiet || git commit -m "CI: sortie des tests (temporaire)"
+          git push
