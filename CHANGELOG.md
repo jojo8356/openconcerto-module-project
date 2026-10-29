@@ -8,6 +8,29 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-29 — « Aide > Diagnostic affaire » : l'entrée est enfin dans le menu
+
+### Fixed
+
+- **L'entrée de menu n'apparaissait pas.** `MainFrame.addMenuItem` exige un
+  chemin d'un nombre **pair** d'éléments (menu puis groupe) :
+  `addMenuItem(action, "Aide")` levait `IllegalArgumentException` (« Path should
+  be of the form menu/group/menu/group/... »), exception avalée par le `catch`.
+  Le module repère désormais le menu par son **texte affiché** dans la `JMenuBar`
+  (casse, accents et espaces tolérés ; correspondance partielle pour les clients
+  traduits), puis ajoute l'élément dans ce `JMenu` ; repli sur
+  `addMenuItem(menu, groupe)` avec un chemin toujours valide.
+- Journalisation explicite de l'emplacement trouvé, ou de la liste des menus si
+  le repérage échoue.
+
+### Added
+
+- `ProjectMenuSupport` : règle pure et testable (sans Swing) du repérage de menu
+  et des chemins d'insertion valides.
+- `ProjectMenuSupportTest` : **27 tests** — casse/accents/espaces, menu absent,
+  `null`, correspondance partielle, chemins pairs, et **refus du chemin à un
+  seul élément** (la régression constatée).
+
 ## 2026-10-28 — `scripts/oc-psql.sh` : SQL sur la base Docker sans `.env`
 
 ### Added

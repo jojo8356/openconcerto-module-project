@@ -48,12 +48,42 @@ calcul tourne dans un fil de fond ; aucune exception ne remonte dans l'interface
 | `entrées sans texte : N` | affaires sans état ni nom | compléter les affaires |
 | tout en `oui`, entrées correctes | le problème est ailleurs | me transmettre le rapport |
 
+## Correctif du 29/10 — l'entrée n'apparaissait pas dans « Aide »
+
+Premier envoi : le menu était absent de la barre. Cause exacte, dans le cœur :
+
+```java
+// MainFrame.addMenuItem(action, String... path)
+if (path.size() == 0 || path.size() % 2 != 0)
+    throw new IllegalArgumentException("Path should be of the form menu/group/menu/group/... : " + path);
+```
+
+Le chemin doit comporter un nombre **pair** d'éléments (menu puis groupe).
+L'appel `addMenuItem(action, "Aide")` passait **un** seul élément : exception,
+avalée par le `catch`, donc aucune entrée — et le journal ne disait rien de
+visible pour l'utilisateur.
+
+Ce qui change :
+
+- on repère d'abord le menu dans la barre par son **texte affiché** (« Aide »),
+  en tolérant casse, accents et espaces, avec correspondance partielle pour les
+  clients traduits, puis on ajoute l'élément directement dans ce `JMenu` ;
+- en repli, on appelle `addMenuItem(menu, groupe)` avec un chemin **toujours
+  pair** (`Aide` / `Affichage`) ;
+- chaque étape est **journalisée** : `menu « Diagnostic affaire » ajoute dans
+  « Aide »`, ou la liste des menus trouvés si le repérage échoue.
+
+Règle isolée dans `ProjectMenuSupport` (sans dépendance Swing) et vérifiée par
+`ProjectMenuSupportTest` : **27 tests**, dont le refus du chemin à un seul
+élément (la régression) et le rejeu de la barre de menus réelle de l'écran
+(`Fichier … Structure, Aide`).
+
 ## Vérifications
 
 | Contrôle | Résultat |
 |---|---|
 | compilation contre `OpenConcerto.jar` 1.7.6 (bytecode Java 8) | **success** |
-| `scripts/run-tests.sh` | inchangé : `ColumnLabelRulesTest` 58, `AffairLinkSupportTest` 38, `SupplierOrderToInvoiceSQLInjectorTest` 19 |
+| `scripts/run-tests.sh` | `ColumnLabelRulesTest` 58, `AffairLinkSupportTest` 38, **`ProjectMenuSupportTest` 27**, `SupplierOrderToInvoiceSQLInjectorTest` 19 |
 | `tests/shell/test-oc-psql.sh` | 38 contrôles, 0 échec |
 
 Le diagnostic n'ajoute aucune règle métier : il ne lit que des API du cœur
