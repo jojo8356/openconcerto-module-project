@@ -1,22 +1,0 @@
-exit=1
-8:src/org/openconcerto/modules/project/AffairDiagnostic.java:110: error: cannot find symbol
-11:  symbol:   method getRights()
-12:  location: variable user of type User
---- fin du journal ---
-Téléchargement de https://www.openconcerto.org/fr/telechargement/1.7/OpenConcerto-1.7.6-multiposte.zip ...
-  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
-                                 Dload  Upload  Total   Spent   Left   Speed
-  0      0   0      0   0      0      0      0                              0  0 83.27M   0 100.8k   0      0 98.93k      0   14:21   00:01   14:20 99.00k 38 83.27M  38 32.09M   0      0 15.89M      0   00:05   00:02   00:03 15.90M100 83.27M 100 83.27M   0      0 31.56M      0   00:02   00:02         15.90M100 83.27M 100 83.27M   0      0 31.56M      0   00:02   00:02         15.90M100 83.27M 100 83.27M   0      0 31.55M      0   00:02   00:02         15.90M
-Extraction de OpenConcerto-1.7.6-multiposte.zip ...
-OpenConcerto.jar extrait : /home/runner/work/openconcerto-module-project/openconcerto-module-project/build/openconcerto-dist/extracted/OpenConcerto-1.7.6-multiposte/OpenConcerto.jar
-Build du module...
-src/org/openconcerto/modules/project/AffairDiagnostic.java:110: error: cannot find symbol
-            final UserRights rights = user.getRights();
-                                          ^
-  symbol:   method getRights()
-  location: variable user of type User
-Note: Some input files use or override a deprecated API.
-Note: Recompile with -Xlint:deprecation for details.
-Note: src/org/openconcerto/modules/project/ColumnLabelSettingsAction.java uses unchecked or unsafe operations.
-Note: Recompile with -Xlint:unchecked for details.
-1 error

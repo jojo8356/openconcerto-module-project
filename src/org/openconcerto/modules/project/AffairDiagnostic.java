@@ -39,6 +39,7 @@ import org.openconcerto.sql.sqlobject.IComboSelectionItem;
 import org.openconcerto.sql.users.User;
 import org.openconcerto.sql.users.UserManager;
 import org.openconcerto.sql.users.rights.UserRights;
+import org.openconcerto.sql.users.rights.UserRightsManager;
 
 public final class AffairDiagnostic {
 
@@ -107,7 +108,10 @@ public final class AffairDiagnostic {
             final String nom = (user.getName() + " " + user.getFirstName()).trim();
             sb.append("utilisateur : ").append(nom.length() == 0 ? "(sans nom)" : nom);
             sb.append(" (ID ").append(user.getId()).append(")\n");
-            final UserRights rights = user.getRights();
+            // UserRights d'une instance de User n'existe pas en 1.7.6 : le
+            // gestionnaire donne les droits de l'utilisateur courant, ce qui est
+            // exactement ce que le coeur utilise pour decider (canView & co).
+            final UserRights rights = UserRightsManager.getCurrentUserRights();
             sb.append("superutilisateur : ").append(rights == null ? "?" : yesNo(rights.isSuperUser())).append('\n');
             return rights;
         } catch (Throwable t) {
