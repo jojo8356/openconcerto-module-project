@@ -28,6 +28,16 @@
   table de transfert) et `joinSource` (source), chacune dans son `ON` ; `SOURCE`
   est écrite `"SAISIE_ACHAT"."SOURCE"`.
 
+### Measured
+
+- Base du client, après correctif : le menu `Aide > Reprendre les affaires des
+  documents` et `sql/attendu-reprise.sql` annoncent **37**, le même chiffre, avec
+  le détail : 8 `COMMANDE_CLIENT` depuis un devis, 1 `BON_DE_LIVRAISON` depuis
+  une commande client, 17 `SAISIE_VENTE_FACTURE` depuis un bon de livraison, 3
+  `AVOIR_CLIENT` et 8 `BON_DE_LIVRAISON` depuis une facture. Aucune facture
+  fournisseur : les 17 annoncés la veille étaient des lignes `TR_*` pointant
+  l'affaire « Indéfini ».
+
 ### Added
 
 - `tests/cli/sql_scope.py` : contrôle de portée des requêtes (les deux règles

@@ -59,6 +59,23 @@ base, accepte les deux. Les tests étaient verts, la production refusait.
 - les 6 fichiers SQL exécutés sur **PostgreSQL 16** dans la CI (run
   `41112426597`, vert).
 
+## Résultat sur votre base (30 octobre)
+
+Le menu et le SQL annoncent maintenant **le même nombre, 37** :
+
+| Reprise | Documents |
+| --- | --- |
+| `COMMANDE_CLIENT <- DEVIS` (via `TR_DEVIS`) | 8 |
+| `BON_DE_LIVRAISON <- COMMANDE_CLIENT` (via `TR_COMMANDE_CLIENT`) | 1 |
+| `SAISIE_VENTE_FACTURE <- BON_DE_LIVRAISON` (via `TR_BON_DE_LIVRAISON`) | 17 |
+| `AVOIR_CLIENT <- SAISIE_VENTE_FACTURE` (via `TR_SAISIE_VENTE_FACTURE`) | 3 |
+| `BON_DE_LIVRAISON <- SAISIE_VENTE_FACTURE` (via `TR_SAISIE_VENTE_FACTURE`) | 8 |
+| **Total** | **37** |
+
+Les 17 factures fournisseur et les 8 avoirs annoncés la veille par le diagnostic
+n'étaient donc pas réels : c'étaient des lignes de `TR_*` pointant l'affaire
+« Indéfini ». Il n'y a **aucune facture fournisseur** à reprendre.
+
 ## Le test à faire
 
 1. Installer ce jar, relancer le client.
