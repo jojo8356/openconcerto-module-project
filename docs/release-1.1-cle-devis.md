@@ -4,8 +4,8 @@ Ce jar corrige la reprise des documents issus d'un **devis**. C'est le
 troisième défaut trouvé en mesurant la base réelle, après les tableaux de lignes
 sans colonne et l'absence de colonne `ID` sur `DEVIS`.
 
-- **Jar** : `org.openconcerto.modules.project-1.1.jar` (empreinte SHA-256 dans
-  le fichier `.sha256` joint) ;
+- **Jar** : `org.openconcerto.modules.project-1.1.jar` — **287 282 octets**
+  (empreinte SHA-256 dans le fichier `.sha256` joint) ;
 - **téléchargement** :
   <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-cle-devis/org.openconcerto.modules.project-1.1.jar>
 - **installation** : remplacer le jar du module dans `lib/` d'OpenConcerto,
