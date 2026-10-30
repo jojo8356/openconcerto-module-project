@@ -4,8 +4,8 @@ Le menu annonçait « rien à reprendre » alors que 37 documents attendaient le
 affaire. La cause est maintenant connue **et corrigée** : les 19 requêtes de
 comptage étaient refusées par PostgreSQL.
 
-- **Jar** : `org.openconcerto.modules.project-1.1.jar` (empreinte SHA-256 dans
-  le fichier `.sha256` joint) ;
+- **Jar** : `org.openconcerto.modules.project-1.1.jar` — **289 989 octets**
+  (empreinte SHA-256 dans le fichier `.sha256` joint) ;
 - **téléchargement** :
   <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-sql-postgres/org.openconcerto.modules.project-1.1.jar> ;
 - **installation** : remplacer le jar du module dans `lib/` d'OpenConcerto,
