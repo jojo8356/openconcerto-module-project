@@ -201,11 +201,17 @@ echo "1 bis. La base de test reproduit-elle bien la panne ?"
 if [ "$DRY_RUN" = 1 ]; then
     echo "  $PYTHON tools/oc_sql_sqlite.py --emit-before-checks | psql ... -t -A -f -"
 else
+    attendu_avant=$("$PYTHON" "$TOOL" --emit-before-checks | grep -c '^select' || true)
     avant=$(psql_once "$TMP_DIR/before.sql" "-t -A")
     printf '%s\n' "$avant" | while IFS='|' read -r label status; do
         [ -n "$label" ] || continue
         printf '   %-5s %s\n' "$status" "$label"
     done
+    obtenu_avant=$(printf '%s\n' "$avant" | grep -c '^[^|]*|' || true)
+    if [ "$obtenu_avant" != "$attendu_avant" ]; then
+        echo "ECHEC : $obtenu_avant controle(s) rendu(s) sur $attendu_avant attendu(s)." >&2
+        exit 1
+    fi
     if printf '%s\n' "$avant" | grep -q 'ECHEC'; then
         echo "ECHEC : la base de test ne reproduit pas la panne, le reste ne prouverait rien." >&2
         exit 1
@@ -260,6 +266,11 @@ if [ -z "$FILE" ]; then
     done
     echecs=$(printf '%s\n' "$results" | grep -c 'ECHEC' || true)
     total=$(printf '%s\n' "$results" | grep -c 'OK\|ECHEC' || true)
+    attendu=$("$PYTHON" "$TOOL" --emit-checks | grep -c '^select' || true)
+    if [ "$total" != "$attendu" ]; then
+        echo "ECHEC : $total controle(s) rendu(s) sur $attendu attendu(s) : le SQL n'a pas ete execute." >&2
+        exit 1
+    fi
     echo
     echo "Controles : $total | echecs : $echecs"
     if [ "$echecs" != 0 ]; then
