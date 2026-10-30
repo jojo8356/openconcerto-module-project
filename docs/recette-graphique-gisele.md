@@ -17,6 +17,7 @@ son compte**, et pas seulement avec un compte administrateur :
 | l'affaire se voit sur une **commande fournisseur** neuve | 3 |
 | l'affaire se voit quand on **modifie** une facture fournisseur (son cas d'origine) | 4 |
 | la colonne **Affaire** est présente **dans le tableau des lignes** | 4 bis |
+| l'affaire **survit au transfert** et les documents existants sont réparés | 4 ter |
 | le **transfert commande fournisseur → facture** ne plante plus | 5 |
 | l'affaire se voit aussi sur les documents **clients** | 6 |
 | l'historique des affaires s'ouvre et se ferme **sans erreur** | 7 |
@@ -133,6 +134,26 @@ une **colonne dans le tableau des lignes**.
 > Si la colonne n'apparaît pas : vérifier que le jar fait bien **270 362
 > octets** (release **`v1.1-colonne-affaire`**), puis me l'écrire — le journal du client contient une ligne `Affaire : colonne …` qui
 > dit ce que le module a fait.
+
+---
+
+## 4 ter. L'affaire survit-elle au transfert ? (5 min)
+
+C'est le cas signalé : « je mets l'affaire sur la commande, je transfère en
+facture, et l'affaire n'est pas dans la facture ».
+
+| ☐ | # | Action | Résultat attendu |
+|---|---|---|---|
+| ☐ | 4ter.1 | **Aide → Reprendre les affaires des documents** | une fenêtre annonce le nombre de documents réparables, type par type (ou « rien à reprendre ») |
+| ☐ | 4ter.2 | Si des documents sont proposés : cliquer **OK** pour confirmer | une fenêtre indique le nombre de lignes rattachées, puis « Fermer puis rouvrir la fenêtre des documents » |
+| ☐ | 4ter.3 | **Achats → Factures fournisseurs** (et **Gestion → Saisies d'achats**), fermer puis rouvrir la liste | la colonne **Affaire** est renseignée sur les factures issues d'une commande rattachée |
+| ☐ | 4ter.4 | Clic droit sur une de ces factures → **Historique affaire** | l'action **n'est plus grisée** et ouvre l'affaire |
+| ☐ | 4ter.5 | Historique des affaires → affaire `RECETTE-GISELE` → onglet **Achats** puis **Factures fournisseurs** | les documents transférés y figurent |
+| ☐ | 4ter.6 | **Nouveau** transfert : commande fournisseur avec affaire → clic droit → **Transfert en facture** → enregistrer | la facture créée arrive **avec** l'affaire de la commande (champ Affaire rempli) |
+| ☐ | 4ter.7 | Rouvrir la liste des factures/saisies et regarder la colonne **Affaire** | le numéro de l'affaire est là, pas de case vide |
+
+> C'est le contrôle décisif : 4ter.6 prouve le correctif de transfert, 4ter.3
+> prouve la reprise des documents existants.
 
 ---
 

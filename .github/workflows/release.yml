@@ -88,7 +88,7 @@ jobs:
           echo "--- module.properties embarque ---"
           unzip -p "$JAR" META-INF/openConcertoModule.properties
           echo "--- classes attendues ---"
-          unzip -l "$JAR" | grep -E "project/(Module|AffairLinkSupport|ProjectHistory|SupplierOrderToInvoiceSQLInjector|ColumnLabel(Rules|Store|Access|Ui|SettingsAction)|ItemAffairColumnRules|ItemTableAffairColumn)\.class" \
+          unzip -l "$JAR" | grep -E "project/(Module|AffairLinkSupport|ProjectHistory|SupplierOrderToInvoiceSQLInjector|ColumnLabel(Rules|Store|Access|Ui|SettingsAction)|ItemAffairColumnRules|ItemTableAffairColumn|AffairTransferSupport|AffairBackfillSupport|AffairRepairAction)\.class" \
             || { echo "::error::classes du module absentes du jar"; exit 1; }
           unzip -l "$JAR" | grep -q "column-labels.properties" \
             || { echo "::error::reglages par defaut des libelles absents du jar"; exit 1; }

@@ -8,6 +8,46 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — L'affaire survit au transfert, et les documents existants sont réparés
+
+### Fixed
+
+- **« Quand on transfère une commande fournisseur en facture, l'affaire ne
+  s'affiche pas — et pour les existantes c'est encore pire. »** Audit de
+  **toutes** les fonctions d'affichage (`docs/audit-affichage-affaire.md`) :
+  5 familles, 12 tables de documents, 12 tables de lignes. Elles lisent toutes
+  `ID_AFFAIRE` ; or **aucun** des 26 injecteurs de transfert du cœur ne le
+  copie (`grep -rn ID_AFFAIRE org/openconcerto/erp/injector/` → 0 occurrence), et
+  `SQLInjector.merge()` ne copie que les champs déclarés. Chaque transfert perd
+  donc l'affaire : commande → saisie d'achat (le bouton « Transfert en facture »
+  d'une commande fournisseur ouvre une `SAISIE_ACHAT`), commande → bon de
+  réception, bon de réception → facture fournisseur, devis → commande,
+  commande client → facture, facture → avoir…
+- **Correctif 1, transferts** : `AffairTransferSupport` déclare les **17 paires**
+  concernées et ajoute `ID_AFFAIRE` aux champs copiés de l'injecteur **déjà
+  enregistré par le cœur**, sans le remplacer (aucune règle réécrite, une seule
+  règle testée, idempotent, seulement si les deux tables ont la colonne).
+- **Correctif 2, documents existants** : `AffairBackfillSupport` reconstruit le
+  lien perdu à partir de `SAISIE_ACHAT.SOURCE`/`IDSOURCE`, des tables `TR_*` du
+  cœur, puis des documents vers leurs lignes. Nouveau menu **Aide → Reprendre
+  les affaires des documents** : comptage, confirmation, reprise, compte rendu.
+  Rien n'est écrasé : seules les affaires vides (`NULL` ou « Indéfini » = 1) sont
+  remplies, et seulement si la source porte une vraie affaire (`> 1`).
+
+### Added
+
+- `AffairTransferSupport` + `AffairTransferSupportTest` : **87** vérifications
+  (paires, sens, idempotence, paire sans injecteur, paire sans colonne, échec
+  isolé).
+- `AffairBackfillSupport` + `AffairBackfillSupportTest` : **40** vérifications
+  (SQL produit, jointures `TR_*` et `SOURCE`/`IDSOURCE`, jamais d'écrasement,
+  ordre documents → lignes, schéma partiel).
+- `AffairRepairAction` : confirmation explicite, traitements hors EDT, aucune
+  exception remontée dans l'interface.
+- `sql/diagnostic-affaire-transfert.sql` (lecture seule) et
+  `sql/reprise-affaire-transfert.sql` (transaction, idempotent).
+- `docs/audit-affichage-affaire.md` : audit exhaustif des fonctions d'affichage.
+
 ## 2026-10-29 — Colonne « Affaire » dans le tableau des lignes
 
 ### Fixed
