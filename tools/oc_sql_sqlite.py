@@ -607,7 +607,20 @@ def scenario_transfert(checker):
 
     # ------------------------------------------------------------------ 8
     print()
-    print("8. Cas limite : base sans aucune table de transfert")
+    print("8. sql/attendu-reprise.sql (ce que le menu doit annoncer)")
+    db3 = create_database("client")
+    fixture_transfert(db3)
+    results = execute(db3, read_script(os.path.join(ROOT, "sql", "attendu-reprise.sql")))
+    attendu = {row[0]: row[-1] for _statement, _headers, rows in results for row in rows}
+    total = sum(attendu.values())
+    checker.check("10 documents reparables dans le jeu de donnees", 10, total)
+    checker.check("dont 2 factures depuis une commande", 2, attendu.get("FACTURE_FOURNISSEUR <- COMMANDE"))
+    checker.check("aucun document sans source n'est compte", 0, attendu.get("SAISIE_VENTE_FACTURE <- COMMANDE_CLIENT"))
+    db3.close()
+
+    # ------------------------------------------------------------------ 9
+    print()
+    print("9. Cas limite : base sans aucune table de transfert")
     db2 = create_database("client")
     for table in TRANSFER_TABLES:
         db2.execute('DROP TABLE "%s"."%s"' % (SCHEMA, table))
