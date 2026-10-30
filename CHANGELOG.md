@@ -40,6 +40,9 @@
 
 ### Verified
 
+- **Reprise appliquée sur la base du client (30/10)** : le menu a annoncé 37,
+  le compte rendu 37 lignes rattachées, et `sql/attendu-reprise.sql` est tombé à
+  **0**. Les 37 documents ont rejoint l'affaire de leur document d'origine.
 - Affaire 12085 : **25 factures fournisseur en base, 24 affichées**. La 25ᵉ
   (`F201240028467`, ID 27) porte `ARCHIVE = 1` : OpenConcerto ne montre pas les
   documents archivés. Ce n'est pas un défaut d'affichage ni de rattachement —

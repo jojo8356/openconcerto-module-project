@@ -76,6 +76,12 @@ Les 17 factures fournisseur et les 8 avoirs annoncés la veille par le diagnosti
 n'étaient donc pas réels : c'étaient des lignes de `TR_*` pointant l'affaire
 « Indéfini ». Il n'y a **aucune facture fournisseur** à reprendre.
 
+## Résultat final (30 octobre)
+
+La reprise a été appliquée sur la base du client : **37** annoncés par le menu,
+**37** lignes rattachées par le compte rendu, puis `sql/attendu-reprise.sql`
+retombe à **0**. Il n'y a plus aucun document transféré sans affaire.
+
 ## Le test à faire
 
 1. Installer ce jar, relancer le client.
