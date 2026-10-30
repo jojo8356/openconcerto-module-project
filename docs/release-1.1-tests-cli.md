@@ -21,7 +21,9 @@ interface**, chez vous, en une commande.
 sh scripts/test-affaire-cli.sh
 ```
 
-Quatre étages, sortie **OK / ÉCHEC**, code 1 au premier échec :
+Quatre étages, sortie **OK / ÉCHEC**, code 1 au premier échec. Si votre machine
+n'a pas de JDK, les deux étages Java tournent seuls dans un conteneur
+`eclipse-temurin:8-jdk` (Docker) ; `--dry-run` affiche les commandes :
 
 1. **le transfert** : le programme reproduit le scénario (commande fournisseur
    avec affaire → facture) avec les règles du cœur, **constate la perte de
