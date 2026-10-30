@@ -8,6 +8,40 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — Toute la chaîne de l'affaire se teste en ligne de commande
+
+### Added
+
+- **`sh scripts/test-affaire-cli.sh`** : une commande, quatre étages, aucune
+  interface. Compile les règles, **reproduit la perte de l'affaire** au transfert
+  commande fournisseur → facture avec les mêmes règles que le cœur, applique le
+  correctif, rejoue le transfert, puis exécute le plan de reprise **écrit par le
+  module lui-même** dans SQLite (49 contrôles) et les vrais fichiers `sql/*.sql`
+  (63 contrôles). Sortie OK / ÉCHEC, code 1 au premier échec.
+- `tests/org/.../AffairTransferScenario.java` : scénario de transfert (bug
+  reproduit, correctif, idempotence, affaire « Indéfini », paire hors schéma).
+- `tests/org/.../AffairBackfillSqlDump.java` : fait écrire par le module son plan
+  de reprise (`TABLE` / `COUNT` / `UPDATE`), au lieu d'une copie écrite à la main.
+- `tests/cli/test-affaire-transfert.py` : exécute ce plan et vérifie les cas
+  limites (affaire déjà remplie, « Indéfini », source supprimée, absence de
+  `TR_*`, idempotence).
+- `tools/oc_sql_sqlite.py` : exécute les **vrais** `sql/*.sql` dans SQLite
+  (schéma `OpenConcerto42`, `INFORMATION_SCHEMA` minimale, `current_schema()`),
+  et sait produire le jeu de données et les vérifications pour PostgreSQL.
+- `scripts/oc-sql-file.sh` : `--sqlite`, `--docker` (PostgreSQL 16 jetable),
+  `--postgres` (serveur existant, base jetable), `--dry-run`, `--file`.
+- Job CI **`cli-affaire`** : rejoue tout à chaque PR, puis les mêmes fichiers SQL
+  sur un PostgreSQL 16 réel.
+
+### Fixed
+
+- `sql/reprise-affaire-transfert.sql` ne couvrait que **10** des 17 transferts du
+  module et 3 des 12 tableaux de lignes : il couvre désormais les 17 paires et
+  les 12 tableaux, comme `AffairTransferSupport.TRANSFER_PAIRS` et
+  `ItemAffairColumnRules.LINE_TABLES`. Même correction pour le diagnostic.
+- `sql/diagnostic-affaire-transfert.sql` : `LIKE 'TR\_%'` (barre oblique inverse
+  doublée) ne listait aucune table de transfert.
+
 ## 2026-10-30 — L'affaire survit au transfert, et les documents existants sont réparés
 
 ### Fixed

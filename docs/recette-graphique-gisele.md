@@ -155,6 +155,12 @@ facture, et l'affaire n'est pas dans la facture ».
 > C'est le contrôle décisif : 4ter.6 prouve le correctif de transfert, 4ter.3
 > prouve la reprise des documents existants.
 
+**Avant de faire cette partie à la main**, l'essentiel est déjà vérifié par la
+machine : `sh scripts/test-affaire-cli.sh` (transfert, reprise, cas limites,
+idempotence) et `sh scripts/oc-sql-file.sh --sqlite` (les fichiers SQL du
+module). Si ces deux commandes sont vertes, il ne reste ici que l'affichage :
+`4ter.6`, `4ter.7` et le fait que le menu `4ter.1` s'ouvre.
+
 ---
 
 ## 5. Transfert commande fournisseur → facture (3 min)

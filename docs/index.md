@@ -51,6 +51,7 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Passer du SQL quand OpenConcerto tourne sous Docker](./psql-docker.md)
 - [Diagnostic SQL — affaire invisible ou non sélectionnable](../sql/diagnostic-affaire-visible.sql)
 - [Aide > Diagnostic affaire (dans le client)](./diagnostic-affaire.md)
+- [Tester l'affaire en ligne de commande, sans interface](./tests-cli-affaire.md)
 - [Release 1.1 — le menu Paramètres est visible](./release-1.1-menu-parametres.md)
 - [Release 1.1 — édition directe des libellés](./release-1.1-edition-libelles.md)
 
