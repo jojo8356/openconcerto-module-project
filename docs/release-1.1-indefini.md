@@ -3,8 +3,8 @@
 Ce jar corrige le **quatrième** défaut trouvé en mesurant votre base, et de loin
 le plus trompeur : la reprise comptait la ligne « Indéfini » de chaque table.
 
-- **Jar** : `org.openconcerto.modules.project-1.1.jar` (empreinte SHA-256 dans
-  le fichier `.sha256` joint) ;
+- **Jar** : `org.openconcerto.modules.project-1.1.jar` — **287 478 octets**
+  (empreinte SHA-256 dans le fichier `.sha256` joint) ;
 - **téléchargement** :
   <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-indefini/org.openconcerto.modules.project-1.1.jar>
 - **installation** : remplacer le jar du module dans `lib/` d'OpenConcerto,
