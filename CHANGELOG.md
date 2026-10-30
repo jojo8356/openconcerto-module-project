@@ -8,6 +8,28 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — Une table sans colonne `ID` ne bloque plus la reprise
+
+### Fixed
+
+- **Sur la base du client, `DEVIS` n'a pas de colonne `ID`.** Les quatre
+  transferts partant d'un devis (`DEVIS → COMMANDE`, `→ COMMANDE_CLIENT`,
+  `→ SAISIE_VENTE_FACTURE`, `→ BON_DE_LIVRAISON`) produisaient une jointure
+  impossible. Comme tout le fichier de reprise était dans **une seule**
+  transaction, l'erreur annulait aussi la reprise des **factures fournisseur**,
+  des saisies d'achat et des bons de réception.
+- `AffairBackfillSupport.hasKey()` : une paire dont une table n'a pas la clé
+  `ID` est désormais ignorée, exactement comme une paire dont une table n'a pas
+  la colonne d'affaire. Test dédié (`DEVIS` sans `ID`).
+- `sql/reprise-affaire-transfert.sql` : **un `BEGIN`/`COMMIT` par bloc** (19).
+  Une table absente ou sans colonne n'annule plus les autres.
+- `sql/diagnostic-affaire-transfert.sql` : **une requête par cas** au lieu d'un
+  `union all` par section — un tableau manquant ne fait plus perdre tous les
+  compteurs d'une section.
+- Outils de test : schéma variante « sans `DEVIS.ID` », **82 contrôles**, dont
+  l'application partielle (les blocs valides passent, les quatre blocs du devis
+  échouent seuls).
+
 ## 2026-10-30 — Les fichiers SQL s'adaptent au schéma réel du client
 
 ### Fixed

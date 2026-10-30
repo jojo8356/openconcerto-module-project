@@ -99,6 +99,12 @@ parce que, sur la base du client, seuls `FACTURE_FOURNISSEUR_ELEMENT` et
 | `sql/diagnostic-affaire-lignes.sql` | 12 tableaux de lignes | seulement là où la colonne existe |
 | `sql/reprise-affaire-lignes.sql` | 12 tableaux, **un bloc = une transaction** | idem |
 
+**Une table sans colonne `ID` ne bloque rien.** Mesuré sur la base du client :
+`DEVIS` n'a pas de colonne `ID`. Le module ignore désormais les paires dont une
+table n'a pas la clé, et chaque bloc SQL est dans sa propre transaction : les
+factures fournisseur, saisies d'achat et bons de réception sont repris même si
+les quatre transferts du devis échouent. Le test le vérifie (étape 9).
+
 Les anciens fichiers touchaient les 12 tableaux de lignes en une seule
 transaction : sur la base du client, `column ... does not exist` annulait
 **aussi** la reprise des en-têtes. C'est ce que la mesure d'`information_schema`
