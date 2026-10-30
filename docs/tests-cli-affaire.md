@@ -185,6 +185,15 @@ Comparaison : si un onglet est vide alors que la table correspondante a des
 lignes dans cette sortie, c'est un défaut d'affichage ou de lien, pas une
 absence de données.
 
+### Deux pièges de cette fenêtre
+
+- **« Masquer dossiers clos »** est coché par défaut : une affaire clôturée
+  n'apparaît **pas** dans la liste de gauche, même si elle a des documents.
+  Décochez-le avant de conclure.
+- la liste de gauche affiche `date + NUMERO + NOM`, **pas** l'`ID`. Pour
+  l'affaire d'identifiant `190`, le numéro est `12085` : c'est `12085` qu'il faut
+  chercher, et si `NOM` est vide la ligne est courte et facile à manquer.
+
 ### Les contrôles à faire dans la fenêtre, dans cet ordre
 
 | # | Action | Résultat attendu |
