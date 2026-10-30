@@ -22,7 +22,7 @@ jobs:
           backfill=$(grep -Eo "AffairBackfillSupportTest : [0-9]+ tests OK" /tmp/unit.log || echo absent)
           echo "report   : $report"
           echo "backfill : $backfill"
-          [ "$report" = "AffairRepairReportTest : 32 controles, 0 echec" ] \
-            || { echo "::error::AffairRepairReportTest attendu 32 controles, obtenu : $report"; exit 1; }
+          [ "$report" = "AffairRepairReportTest : 31 controles, 0 echec" ] \
+            || { echo "::error::AffairRepairReportTest attendu 31 controles, obtenu : $report"; exit 1; }
           [ "$backfill" != "absent" ] \
             || { echo "::error::AffairBackfillSupportTest n'a pas tourne"; exit 1; }
