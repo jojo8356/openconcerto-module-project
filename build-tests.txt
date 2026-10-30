@@ -1,9 +1,0 @@
-AffairListSortSupportTest OK
-AffairBackfillSupportTest : 40 tests OK
-AffairLinkSupportTest : 38 tests OK
-AffairTransferSupportTest : 87 tests OK
-ColumnLabelRulesTest : 58 tests OK
-ProjectMenuSupportTest : 27 tests OK
-SupplierOrderToInvoiceSQLInjectorTest OK (19 tests)
-ItemAffairColumnRulesTest : 110 tests OK
-exit=0
