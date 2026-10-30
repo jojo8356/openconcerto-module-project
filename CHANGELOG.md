@@ -31,6 +31,8 @@
   tableaux de lignes avec la colonne), variante `--line-columns all`, et
   **70 contrôles** qui exécutent les quatre fichiers.
 - `scripts/oc-sql-file.sh` exécute les quatre fichiers sur PostgreSQL.
+- `sql/attendu-reprise.sql` : le nombre de documents que le menu doit annoncer,
+  à comparer avec la fenêtre de confirmation ; vérifié par le test (73 contrôles).
 
 ## 2026-10-30 — Toute la chaîne de l'affaire se teste en ligne de commande
 

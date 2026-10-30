@@ -57,6 +57,26 @@ sh scripts/oc-psql.sh -f sql/diagnostic-affaire-transfert.sql
 sh scripts/oc-psql.sh -f sql/reprise-affaire-transfert.sql   # écrit, transactionnel
 ```
 
+## Corrigé depuis (même jar, SQL re-générés)
+
+Les fichiers SQL ont été réécrits après une mesure sur la base du client : sur
+les 12 tableaux de lignes, **seuls deux** (`FACTURE_FOURNISSEUR_ELEMENT`,
+`DEMANDE_ACHAT_ELEMENT`) portent la colonne `ID_AFFAIRE`. Les fichiers
+« reprise » et « diagnostic » touchaient les 12 en une seule transaction : le
+`column ... does not exist` annulait **aussi** la reprise des en-têtes. Ils sont
+maintenant quatre, **générés depuis le code**, et séparés :
+
+| Fichier | Contenu | Sûr sur |
+| --- | --- | --- |
+| `sql/diagnostic-affaire-transfert.sql` | en-têtes | toute base |
+| `sql/reprise-affaire-transfert.sql` | en-têtes, une transaction | toute base |
+| `sql/diagnostic-affaire-lignes.sql` | tableaux de lignes | là où la colonne existe |
+| `sql/reprise-affaire-lignes.sql` | un bloc = une transaction | là où la colonne existe |
+
+`sql/attendu-reprise.sql` (nouveau) donne le nombre de documents que
+**Aide → Reprendre les affaires** doit annoncer : à comparer avec ce que la
+fenêtre affiche. Le test CLI exécute les cinq fichiers (73 contrôles).
+
 ## Corrigé dans cette version
 
 - `sql/reprise-affaire-transfert.sql` ne traitait que **10** des **17** transferts
