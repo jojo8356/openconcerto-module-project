@@ -313,7 +313,7 @@ def all_tables(line_columns="client"):
 
 
 #: Colonnes qui ne sont pas des identifiants.
-TEXT_COLUMNS = ("SOURCE", "NUMERO")
+TEXT_COLUMNS = ("SOURCE", "NUMERO", "NOM")
 
 
 def column_type(name):
