@@ -1,15 +1,17 @@
 # Module project 1.1 — tout se teste en ligne de commande
 
-**Ce jar est identique à celui de `v1.1-transfert-affaire`** (même code, même
-empreinte) : cette version n'ajoute pas de règle, elle rend la précédente
-**vérifiable sans interface**, chez vous, en une commande.
+**Aucune règle n'a changé depuis `v1.1-transfert-affaire`** : le jar est
+recompilé à partir des mêmes sources (même taille, 287 085 octets). Cette
+version ne corrige pas le module, elle rend la précédente **vérifiable sans
+interface**, chez vous, en une commande.
 
 - **Jar** : `org.openconcerto.modules.project-1.1.jar` — **287 085 octets**
   (empreinte SHA-256 dans le fichier `.sha256` joint) ;
 - **téléchargement** :
   <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-tests-cli/org.openconcerto.modules.project-1.1.jar>
-- **fichiers SQL joints** (les mêmes que dans le dépôt) :
-  `diagnostic-affaire-transfert.sql`, `reprise-affaire-transfert.sql`.
+- **fichiers SQL** (dans le dépôt, à ce tag) :
+  [diagnostic-affaire-transfert.sql](https://github.com/jojo8356/openconcerto-module-project/blob/v1.1-tests-cli/sql/diagnostic-affaire-transfert.sql),
+  [reprise-affaire-transfert.sql](https://github.com/jojo8356/openconcerto-module-project/blob/v1.1-tests-cli/sql/reprise-affaire-transfert.sql).
 
 ## Ce que vous pouvez lancer vous-même
 
