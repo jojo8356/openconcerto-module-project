@@ -139,11 +139,14 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 psql_once() {
-    # $1 = fichier a executer, $2 = options supplementaires de psql
+    # $1 = fichier a executer, $2 = options supplementaires de psql (facultatif)
+    extra=${2:-}
     if [ "$MODE" = docker ]; then
-        docker exec -i "$CONTAINER" psql -U postgres -v ON_ERROR_STOP=1 -q $2 -f - <"$1"
+        # shellcheck disable=SC2086
+        docker exec -i "$CONTAINER" psql -U postgres -v ON_ERROR_STOP=1 -q $extra -f - <"$1"
     else
-        psql -v ON_ERROR_STOP=1 -q $2 -f "$1"
+        # shellcheck disable=SC2086
+        psql -v ON_ERROR_STOP=1 -q $extra -f "$1"
     fi
 }
 
