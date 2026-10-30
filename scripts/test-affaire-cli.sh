@@ -165,10 +165,12 @@ echo
 echo "=== 6. sql/historique-affaire.sql (fenetre « Historique affaires ») ==="
 # Le fichier porte un numero d'affaire en clair ; on le remplace par une affaire
 # du jeu de donnees pour verifier qu'il liste bien les documents.
-if python3 tools/oc_sql_sqlite.py --file sql/historique-affaire.sql --affaire 11870 | grep -qF 'COMMANDE | 1'; then
-    echo "   OK    liste les documents de l'affaire 11870 (commande + 3 lignes)"
+historique=$(python3 tools/oc_sql_sqlite.py --file sql/historique-affaire.sql --affaire 11870)
+if printf '%s\n' "$historique" | grep -qE '^COMMANDE \| 5$' && printf '%s\n' "$historique" | grep -qE '^SAISIE_ACHAT \| 7$'; then
+    echo "   OK    liste les documents de l'affaire 11870 (5 commandes, 7 saisies d'achat)"
 else
-    echo "   ECHEC le fichier n'a pas liste la commande de l'affaire 11870"
+    echo "   ECHEC le fichier ne liste pas les documents de l'affaire 11870"
+    printf '%s\n' "$historique" | head -10
     exit 1
 fi
 

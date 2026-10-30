@@ -33,6 +33,7 @@ public final class AffairBackfillSupportTest {
         testNeverOverwritesExistingAffair();
         testOrderOfRepairs();
         testRealClientSchema();
+        testDevisWithOwnKey();
         testTableWithoutKeyIsSkipped();
         testEmptyAndRealAffairPredicates();
         testNullSchema();
@@ -223,10 +224,41 @@ public final class AffairBackfillSupportTest {
     }
 
     /**
-     * Base reelle : {@code DEVIS} n'a pas de colonne {@code ID}. Les quatre
-     * transferts partant d'un devis ne doivent pas produire de requete : elles
-     * echoueraient, et dans une transaction unique elles annuleraient les
-     * autres reprises.
+     * Base reelle : {@code DEVIS} n'a pas de colonne {@code ID} mais
+     * {@code ID_DEVIS}. Les quatre transferts partant d'un devis doivent utiliser
+     * cette cle, sinon ils echouent et les documents issus d'un devis ne sont
+     * jamais repris.
+     */
+    private static void testDevisWithOwnKey() {
+        final String[] doc = cols("ID", "ID_AFFAIRE");
+        final Map<String, String[]> t = tables(
+                "DEVIS", cols("ID_DEVIS", "ID_AFFAIRE", "NUMERO"),
+                "COMMANDE", doc,
+                "COMMANDE_CLIENT", doc,
+                "SAISIE_VENTE_FACTURE", doc,
+                "BON_DE_LIVRAISON", doc,
+                "TR_DEVIS", cols("ID", "ID_DEVIS", "ID_COMMANDE", "ID_COMMANDE_CLIENT", "ID_SAISIE_VENTE_FACTURE", "ID_BON_DE_LIVRAISON"));
+        final AffairLinkSupport.Schema schema = schema(t);
+        assertEquals("cle du devis", "ID_DEVIS", AffairBackfillSupport.keyOf(schema, "DEVIS"));
+        assertEquals("cle d'une table standard", "ID", AffairBackfillSupport.keyOf(schema, "COMMANDE"));
+        assertEquals("table inconnue", null, AffairBackfillSupport.keyOf(schema, "INCONNUE"));
+        final List<AffairBackfillSupport.Repair> plan = AffairBackfillSupport.plan(schema, Q);
+        final AffairBackfillSupport.Repair commande = find(plan, "COMMANDE", "TR_DEVIS");
+        assertEquals("reprise commande depuis devis", Boolean.TRUE, Boolean.valueOf(commande != null));
+        assertEquals("jointure sur ID_DEVIS", Boolean.TRUE, Boolean.valueOf(commande.getUpdateSql().contains("\"DEVIS\".\"ID_DEVIS\"")));
+        assertEquals("aucune jointure sur DEVIS.ID", Boolean.FALSE, Boolean.valueOf(commande.getUpdateSql().contains("\"DEVIS\".\"ID\"")));
+        int depuisDevis = 0;
+        for (final AffairBackfillSupport.Repair repair : plan) {
+            if (repair.getDescription().contains("TR_DEVIS")) {
+                depuisDevis++;
+            }
+        }
+        assertEquals("quatre reprises depuis le devis", Integer.valueOf(4), Integer.valueOf(depuisDevis));
+    }
+
+    /**
+     * Table de documents sans aucune colonne de cle : la paire est ignoree, elle
+     * produirait une jointure impossible.
      */
     private static void testTableWithoutKeyIsSkipped() {
         final String[] doc = cols("ID", "ID_AFFAIRE");

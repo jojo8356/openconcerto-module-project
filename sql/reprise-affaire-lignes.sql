@@ -154,7 +154,7 @@ BEGIN;
 UPDATE "OpenConcerto42"."DEVIS_ELEMENT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
   FROM "OpenConcerto42"."DEVIS"
- WHERE "OpenConcerto42"."DEVIS_ELEMENT"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID"
+ WHERE "OpenConcerto42"."DEVIS_ELEMENT"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID_DEVIS"
    AND ("OpenConcerto42"."DEVIS_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."DEVIS_ELEMENT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 

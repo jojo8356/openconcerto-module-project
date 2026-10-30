@@ -83,7 +83,7 @@ TRANSFER_TABLES = {
 # --------------------------------------------------------------------------
 # Base
 # --------------------------------------------------------------------------
-def create_database(line_columns="client", devis_key=True):
+def create_database(line_columns="client", devis_key="ID_DEVIS"):
     """Cree la base jetable avec le schema du client et ses tables.
 
     @param line_columns "client" : seuls les tableaux mesures portent
@@ -102,9 +102,10 @@ def create_database(line_columns="client", devis_key=True):
 
     _create(db, "AFFAIRE", AFFAIR_COLUMNS)
     for table, columns in DOCUMENT_COLUMNS.items():
-        if table == "DEVIS" and not devis_key:
-            # cas reel mesure : la table DEVIS du client n'a pas de colonne ID
-            columns = [column for column in columns if column != "ID"]
+        if table == "DEVIS":
+            # cas reel mesure : la table DEVIS du client porte ID_DEVIS, pas ID
+            columns = [devis_key] + [column for column in columns if column not in ("ID", "ID_DEVIS")] if devis_key else \
+                [column for column in columns if column not in ("ID", "ID_DEVIS")]
         _create(db, table, columns)
     for table, link in LINE_TABLES.items():
         columns = ["ID", link]
@@ -131,6 +132,8 @@ def insert(db, table, **values):
         existing = {row[1] for row in db.execute('PRAGMA "%s".table_info("%s")' % (SCHEMA, table)).fetchall()}
     except sqlite3.Error:
         existing = set(values)
+    if "ID" in values and "ID" not in existing and ("ID_" + table) in existing:
+        values["ID_" + table] = values.pop("ID")
     values = {key: value for key, value in values.items() if key in existing}
     columns = ", ".join('"%s"' % key for key in values)
     marks = ", ".join("?" for _ in values)
@@ -529,7 +532,7 @@ def scenario_transfert(checker):
     print()
 
     # ------------------------------------------------------------------ 1
-    print("1. Schema du client : deux tableaux de lignes avec la colonne")
+    print("1. Schema du client : DEVIS porte ID_DEVIS, deux tableaux de lignes avec la colonne")
     db = create_database("client")
     fixture_transfert(db)
     print()
@@ -552,6 +555,9 @@ def scenario_transfert(checker):
     checker.check("§2 : deux factures depuis une commande", 2, cas.get("FACTURE_FOURNISSEUR <- COMMANDE (via TR_COMMANDE)"))
     checker.check("§2 : une facture depuis un bon de reception", 1, cas.get("FACTURE_FOURNISSEUR <- BON_RECEPTION (via TR_BON_RECEPTION)"))
     checker.check("§2 : une commande depuis un devis", 1, cas.get("COMMANDE <- DEVIS (via TR_DEVIS)"))
+    checker.check("§2 : la jointure du devis utilise ID_DEVIS", True,
+                  any("DEVIS\".\"ID_DEVIS\"" in statement
+                      for statement in read_script(diagnostic)))
     checker.check("§2 : dix-sept transferts testes", 17, len(cas) - 2)
     checker.check("§3 : tableaux de lignes avec la colonne",
                   ["DEMANDE_ACHAT_ELEMENT", "FACTURE_FOURNISSEUR_ELEMENT"],
@@ -626,18 +632,17 @@ def scenario_transfert(checker):
     db = create_database("client")
     fixture_transfert(db)
     results = execute(db, read_script(attendu))
-    attendu_dict = {row[0]: row[-1] for _s, _h, rows in results for row in rows}
-    checker.check("10 documents reparables dans le jeu de donnees", 10, sum(attendu_dict.values()))
-    checker.check("dont 2 factures depuis une commande", 2,
-                  attendu_dict.get("FACTURE_FOURNISSEUR <- COMMANDE"))
-    checker.check("aucun document sans source n'est compte", 0,
-                  attendu_dict.get("SAISIE_VENTE_FACTURE <- COMMANDE_CLIENT"))
+    total = [row[0] for _s, _h, rows in results for row in rows][0]
+    # detail : 2 saisies d'achat depuis une commande + 2 factures + 1 bon de
+    # reception + 4 transferts du devis + 2 depuis la commande client + 2 depuis
+    # la facture de vente + 1 avoir = 13 (dont 10 hors devis)
+    checker.check("13 documents reparables, devis compris", 13, total)
     db.close()
 
     # ------------------------------------------------------------------ 9
     print()
-    print("9. Base ou DEVIS n'a pas de colonne ID (cas reel mesure)")
-    db = create_database("client", devis_key=False)
+    print("9. Base ou DEVIS n'a aucune colonne de cle")
+    db = create_database("client", devis_key=None)
     fixture_transfert(db)
     execute.errors = []
     results = execute(db, read_script(diagnostic), skip_errors=True)
@@ -652,7 +657,21 @@ def scenario_transfert(checker):
     checker.check("les factures sont reprises malgre l'erreur sur DEVIS", 11870,
                   affair_of(db, "FACTURE_FOURNISSEUR", 900))
     checker.check("la saisie d'achat est reprise", 11870, affair_of(db, "SAISIE_ACHAT", 700))
-    checker.check("aucune erreur sur les autres blocs", 4, len(execute.errors))
+    db.close()
+
+    print()
+    print("9 bis. La cle du devis est bien celle de la base mesuree")
+    contenu = "\n".join(read_script(reprise))
+    # 4 blocs du devis, chacun citant DEVIS.ID_DEVIS dans le JOIN et dans le WHERE
+    checker.check("les blocs du devis joignent ID_DEVIS", 8, contenu.count('"DEVIS"."ID_DEVIS"'))
+    checker.check("aucun bloc ne joint DEVIS.ID", 0, contenu.count('"DEVIS"."ID" ='))
+    db = create_database("client", devis_key="ID_DEVIS")
+    fixture_transfert(db)
+    execute.errors = []
+    execute(db, read_script(reprise), skip_errors=True)
+    checker.check("aucune erreur sur la base du client", 0, len(execute.errors))
+    checker.check("la commande issue du devis est reprise", 777, affair_of(db, "COMMANDE", 255))
+    checker.check("la commande client issue du devis est reprise", 777, affair_of(db, "COMMANDE_CLIENT", 800))
     db.close()
 
     # ------------------------------------------------------------------ 10

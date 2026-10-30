@@ -33,7 +33,7 @@ public final class AffairBackfillSupport {
     /** Champ de l'affaire. */
     public static final String AFFAIR_FIELD = AffairLinkSupport.AFFAIR_FIELD;
 
-    /** Cle primaire des tables OpenConcerto. */
+    /** Cle primaire habituelle des tables OpenConcerto. */
     public static final String KEY_FIELD = "ID";
 
     /**
@@ -140,7 +140,7 @@ public final class AffairBackfillSupport {
                 continue;
             }
             final String sourceValue = q.column("SOURCE") + " = '" + source + "'";
-            final String join = a(q, target, "IDSOURCE") + " = " + a(q, source, KEY_FIELD);
+            final String join = a(q, target, "IDSOURCE") + " = " + a(q, source, keyOf(schema, source));
             final String empty = emptyAffair(q, target);
             final String real = realAffair(q, source);
             final String description = target + " <- " + source + " (SOURCE / IDSOURCE)";
@@ -174,15 +174,15 @@ public final class AffairBackfillSupport {
             }
             final String empty = emptyAffair(q, target);
             final String real = realAffair(q, source);
-            final String join = a(q, transferTable, destKey) + " = " + a(q, target, KEY_FIELD)
-                    + " AND " + a(q, transferTable, srcKey) + " = " + a(q, source, KEY_FIELD);
+            final String join = a(q, transferTable, destKey) + " = " + a(q, target, keyOf(schema, target))
+                    + " AND " + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source));
             repairs.add(new Repair(target, target + " <- " + source + " (via " + transferTable + ")",
                     "SELECT count(*) FROM " + q.table(target) + " INNER JOIN " + q.table(transferTable) + " ON " + join
-                            + " INNER JOIN " + q.table(source) + " ON " + a(q, transferTable, srcKey) + " = " + a(q, source, KEY_FIELD)
+                            + " INNER JOIN " + q.table(source) + " ON " + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source))
                             + " WHERE " + empty + " AND " + real,
                     "UPDATE " + q.table(target) + " SET " + q.column(AFFAIR_FIELD) + " = " + a(q, source, AFFAIR_FIELD)
                             + " FROM " + q.table(transferTable) + " INNER JOIN " + q.table(source) + " ON "
-                            + a(q, transferTable, srcKey) + " = " + a(q, source, KEY_FIELD)
+                            + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source))
                             + " WHERE " + join + " AND " + empty + " AND " + real));
         }
     }
@@ -203,7 +203,7 @@ public final class AffairBackfillSupport {
             }
             final String empty = emptyAffair(q, lineTable);
             final String real = realAffair(q, document);
-            final String join = a(q, lineTable, link) + " = " + a(q, document, KEY_FIELD);
+            final String join = a(q, lineTable, link) + " = " + a(q, document, keyOf(schema, document));
             repairs.add(new Repair(lineTable, lineTable + " <- " + document + " (lignes)",
                     "SELECT count(*) FROM " + q.table(lineTable) + " INNER JOIN " + q.table(document) + " ON " + join + " WHERE " + empty + " AND " + real,
                     "UPDATE " + q.table(lineTable) + " SET " + q.column(AFFAIR_FIELD) + " = " + a(q, document, AFFAIR_FIELD)
@@ -225,7 +225,35 @@ public final class AffairBackfillSupport {
      * </p>
      */
     private static boolean hasKey(final AffairLinkSupport.Schema schema, final String table) {
-        return schema.hasField(table, KEY_FIELD);
+        return keyOf(schema, table) != null;
+    }
+
+    /**
+     * Nom de la colonne qui identifie une ligne de cette table.
+     * <p>
+     * La plupart des tables OpenConcerto ont une colonne {@code ID}, mais pas
+     * toutes : sur la base du client, {@code DEVIS} porte {@code ID_DEVIS} (381
+     * devis, 291 lignes de {@code TR_DEVIS}). Un {@code join ... on
+     * "DEVIS"."ID" = ...} y echoue, et comme la reprise s'execute bloc par
+     * bloc, c'est ce bloc — donc les documents issus d'un devis — qui serait
+     * perdu.
+     * </p>
+     *
+     * @return {@code ID} si elle existe, sinon {@code ID_<TABLE>}, sinon
+     *         <code>null</code> (la paire est alors ignoree).
+     */
+    public static String keyOf(final AffairLinkSupport.Schema schema, final String table) {
+        if (schema == null || table == null || !schema.hasTable(table)) {
+            return null;
+        }
+        if (schema.hasField(table, KEY_FIELD)) {
+            return KEY_FIELD;
+        }
+        final String own = KEY_FIELD + "_" + table;
+        if (schema.hasField(table, own)) {
+            return own;
+        }
+        return null;
     }
 
     /** {@code <table>.<colonne>}, tel qu'ecrit dans le SQL produit. */

@@ -93,12 +93,28 @@ def a(table, column):
     return "%s.%s" % (t(table), c(column))
 
 
+#: Colonnes de cle connues hors de la base : DEVIS porte ID_DEVIS chez le client.
+#: Le generateur ne lit pas la base ; il applique la meme regle que le module
+#: (ID, sinon ID_<TABLE>) avec cette table de correspondance explicite.
+OWN_KEYS = {"DEVIS": "ID_DEVIS"}
+
+
+def key(table):
+    """Colonne d'identification utilisee dans les jointures."""
+    return OWN_KEYS.get(table, "ID")
+
+
 def empty(table):
     return "(%s IS NULL OR %s = %d)" % (a(table, AFFAIR), a(table, AFFAIR), UNDEFINED)
 
 
 def real(table):
     return "%s > %d" % (a(table, AFFAIR), UNDEFINED)
+
+
+def empty_on(alias):
+    """Affaire vide, ecrite avec un alias de table (jointures de lignes)."""
+    return "(%s.%s IS NULL OR %s.%s = %d)" % (alias, c(AFFAIR), alias, c(AFFAIR), UNDEFINED)
 
 
 ROOT_NOTE = """\\echo 'Chaque bloc est independant : une table absente n empeche pas les autres.'
@@ -165,14 +181,14 @@ def reprise_entetes(pairs):
         transfer = "TR_" + source
         src_key = "ID_" + source
         dest_key = "ID_" + destination
-        join = "%s = %s AND %s = %s" % (a(transfer, dest_key), a(destination, "ID"), a(transfer, src_key), a(source, "ID"))
+        join = "%s = %s AND %s = %s" % (a(transfer, dest_key), a(destination, key(destination)), a(transfer, src_key), a(source, key(source)))
         out.append("-- %s -> %s\n" % (source, destination))
         out.append("BEGIN;\n")
         out.append("\n".join([
             "UPDATE %s" % t(destination),
             "   SET %s = %s" % (c(AFFAIR), a(source, AFFAIR)),
             "  FROM %s" % t(transfer),
-            "  JOIN %s ON %s = %s" % (t(source), a(source, "ID"), a(transfer, src_key)),
+            "  JOIN %s ON %s = %s" % (t(source), a(source, key(source)), a(transfer, src_key)),
             " WHERE %s" % join,
             "   AND %s" % empty(destination),
             "   AND %s;" % real(source),
@@ -217,7 +233,7 @@ select table_name
             "UPDATE %s" % t(line),
             "   SET %s = %s" % (c(AFFAIR), a(parent, AFFAIR)),
             "  FROM %s" % t(parent),
-            " WHERE %s = %s" % (a(line, link), a(parent, "ID")),
+            " WHERE %s = %s" % (a(line, link), a(parent, key(parent))),
             "   AND %s" % empty(line),
             "   AND %s;" % real(parent),
         ]) + "\n")
@@ -268,7 +284,7 @@ select current_schema() as schema_courant;
         out.append("\n".join([
             "select '%s' as cas, count(*) as documents" % ("SAISIE_ACHAT <- %s (SOURCE / IDSOURCE)" % source),
             "  from %s" % t("SAISIE_ACHAT"),
-            "  join %s on %s = %s" % (t(source), a(source, "ID"), a("SAISIE_ACHAT", "IDSOURCE")),
+            "  join %s on %s = %s" % (t(source), a(source, key(source)), a("SAISIE_ACHAT", "IDSOURCE")),
             " where %s = '%s'" % (a("SAISIE_ACHAT", "SOURCE"), source),
             "   and %s" % empty("SAISIE_ACHAT"),
             "   and %s;" % real(source),
@@ -281,8 +297,8 @@ select current_schema() as schema_courant;
         out.append("\n".join([
             "select '%s' as cas, count(*) as documents" % ("%s <- %s (via %s)" % (destination, source, transfer)),
             "  from %s" % t(destination),
-            "  join %s on %s = %s" % (t(transfer), a(transfer, "ID_" + destination), a(destination, "ID")),
-            "  join %s on %s = %s" % (t(source), a(source, "ID"), a(transfer, "ID_" + source)),
+            "  join %s on %s = %s" % (t(transfer), a(transfer, "ID_" + destination), a(destination, key(destination))),
+            "  join %s on %s = %s" % (t(source), a(source, key(source)), a(transfer, "ID_" + source)),
             " where %s" % empty(destination),
             "   and %s;" % real(source),
         ]) + "\n")
@@ -336,12 +352,109 @@ select table_name
         parts.append("\n".join([
             "select '%s' as table_lignes, count(*) as lignes" % line,
             "  from %s" % t(line),
-            "  join %s on %s = %s" % (t(parent), a(parent, "ID"), a(line, link)),
+            "  join %s on %s = %s" % (t(parent), a(parent, key(parent)), a(line, link)),
             " where %s" % empty(line),
             "   and %s" % real(parent),
         ]))
     out.append(" union all\n".join(parts) + ";")
     return "\n".join(out) + "\n"
+
+
+def attendu(pairs):
+    """Un seul chiffre : ce que le menu doit annoncer avant de confirmer."""
+    cases = []
+    for source in ("COMMANDE", "BON_RECEPTION"):
+        cases.append("\n".join([
+            "  select count(*) as documents from %s" % t("SAISIE_ACHAT"),
+            "    join %s on %s = %s" % (t(source), a(source, key(source)), a("SAISIE_ACHAT", "IDSOURCE")),
+            "   where %s = '%s' and %s and %s" % (a("SAISIE_ACHAT", "SOURCE"), source, empty("SAISIE_ACHAT"), real(source)),
+        ]))
+    for source, destination in pairs:
+        transfer = "TR_" + source
+        cases.append("\n".join([
+            "  select count(*) as documents from %s" % t(destination),
+            "    join %s on %s = %s" % (t(transfer), a(transfer, "ID_" + destination), a(destination, key(destination))),
+            "    join %s on %s = %s" % (t(source), a(source, key(source)), a(transfer, "ID_" + source)),
+            "   where %s and %s" % (empty(destination), real(source)),
+        ]))
+    return """-- Le nombre que « Aide > Reprendre les affaires des documents » doit annoncer.
+--
+-- Lecture seule. A executer AVANT la reprise, puis a comparer avec le nombre
+-- affiche par la fenetre de confirmation. Les deux doivent etre egaux : s'ils
+-- different, c'est la lecture du schema par le module qui est en cause.
+--
+-- Ne sont comptes que les documents dont l'affaire est VIDE (NULL ou
+-- « Indefini » = 1) alors que leur source porte une VRAIE affaire (> 1).
+-- Un document saisi a la main, sans document d'origine, n'est jamais compte.
+--
+--   sh scripts/oc-psql.sh -f sql/attendu-reprise.sql
+--   docker exec -i NOM_DU_CONTENEUR sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < sql/attendu-reprise.sql
+--
+-- Le detail, cas par cas, est dans sql/diagnostic-affaire-transfert.sql.
+
+select sum(documents) as total_a_reprendre from (
+%s
+) x;
+""" % "\n  union all\n".join(cases)
+
+
+def historique(pairs, lines):
+    """Ce que la fenetre « Historique affaires » devrait afficher pour une affaire."""
+    documents = ["DEVIS", "COMMANDE", "BON_RECEPTION", "SAISIE_ACHAT", "FACTURE_FOURNISSEUR",
+                 "AVOIR_FOURNISSEUR", "DEMANDE_PRIX", "DEMANDE_ACHAT",
+                 "COMMANDE_CLIENT", "BON_DE_LIVRAISON", "SAISIE_VENTE_FACTURE", "AVOIR_CLIENT"]
+    counts = []
+    for document in documents:
+        counts.append("select '%s' as tableau, count(*) as documents from %s where %s"
+                      % (document, t(document), empty(document)))
+    for line, link, parent in lines:
+        counts.append("select '%s' as tableau, count(*) as documents\n  from %s d join %s l on d.%s = l.%s\n where %s"
+                      % (line, t(parent), t(line), c(key(parent)), c(link), empty_on("d")))
+
+    details = []
+    for document in documents:
+        details.append("select '%s' as tableau, cast(%s as text) as id, cast(coalesce(\"NUMERO\", '') as text) as numero\n  from %s\n where %s"
+                       % (document, c(key(document)), t(document), empty(document)))
+    for line, link, parent in lines:
+        details.append("select '%s' as tableau, cast(l.\"ID\" as text) as id, cast(d.%s as text) as numero\n  from %s d join %s l on d.%s = l.%s\n where %s"
+                       % (line, c(key(parent)), t(parent), t(line), c(key(parent)), c(link), empty_on("d")))
+
+    return """-- Historique affaires : ce que la fenetre DEVRAIT afficher pour une affaire.
+--
+-- Lecture seule. Sert a comparer, onglet par onglet, ce que montre
+-- « Historique affaires » avec ce que contient la base. Si un onglet est vide
+-- alors que la table correspondante a des lignes ici, c'est un defaut
+-- d'affichage ou de lien, pas une absence de donnees.
+--
+--   sh scripts/oc-psql.sh -f sql/historique-affaire.sql
+--
+-- >>> Remplacez le numero d'affaire ci-dessous (une seule ligne a changer). <<<
+--
+-- Les deux requetes ci-dessous regroupent 24 tableaux. Si votre base n'a pas
+-- l'une de ces tables, psql nomme la table en erreur : retirez la ligne
+-- correspondante, le reste s'affiche quand meme. La cle utilisee est %s,
+-- sauf pour DEVIS (%s), mesure sur la base du client.
+
+drop table if exists cible;
+create temp table cible as select 11874 as numero;
+
+\\echo '=== 0. Affaire visee ==='
+select a."ID" as id_affaire, a."NUMERO", a."NOM"
+  from %s a
+ where a."ID" = (select numero from cible);
+
+\\echo ''
+\\echo '=== 1. Nombre de documents par tableau (les onglets de la fenetre) ==='
+%s
+ order by 2 desc, 1;
+
+\\echo ''
+\\echo '=== 2. Detail des documents de l affaire ==='
+%s
+ order by 1, 3;
+""" % (c("ID"), c(key("DEVIS")), t("AFFAIRE"),
+       " union all\n".join(counts),
+       " union all\n".join(details))
 
 
 # --------------------------------------------------------------------------
@@ -353,6 +466,8 @@ def build():
         "sql/reprise-affaire-lignes.sql": reprise_lignes(lines),
         "sql/diagnostic-affaire-transfert.sql": diagnostic_entetes(pairs),
         "sql/diagnostic-affaire-lignes.sql": diagnostic_lignes(lines),
+        "sql/historique-affaire.sql": historique(pairs, lines),
+        "sql/attendu-reprise.sql": attendu(pairs),
     }
 
 

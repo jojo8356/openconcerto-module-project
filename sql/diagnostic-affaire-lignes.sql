@@ -62,7 +62,7 @@ select 'SAISIE_VENTE_FACTURE_ELEMENT' as table_lignes, count(*) as lignes
    and "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" > 1 union all
 select 'DEVIS_ELEMENT' as table_lignes, count(*) as lignes
   from "OpenConcerto42"."DEVIS_ELEMENT"
-  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."DEVIS_ELEMENT"."ID_DEVIS"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS_ELEMENT"."ID_DEVIS"
  where ("OpenConcerto42"."DEVIS_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."DEVIS_ELEMENT"."ID_AFFAIRE" = 1)
    and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1 union all
 select 'AVOIR_CLIENT_ELEMENT' as table_lignes, count(*) as lignes

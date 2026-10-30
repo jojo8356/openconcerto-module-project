@@ -84,7 +84,7 @@ select 'FACTURE_FOURNISSEUR <- BON_RECEPTION (via TR_BON_RECEPTION)' as cas, cou
 select 'COMMANDE <- DEVIS (via TR_DEVIS)' as cas, count(*) as documents
   from "OpenConcerto42"."COMMANDE"
   join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE" = "OpenConcerto42"."COMMANDE"."ID"
-  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
  where ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1)
    and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
@@ -100,7 +100,7 @@ select 'AVOIR_FOURNISSEUR <- SAISIE_ACHAT (via TR_SAISIE_ACHAT)' as cas, count(*
 select 'COMMANDE_CLIENT <- DEVIS (via TR_DEVIS)' as cas, count(*) as documents
   from "OpenConcerto42"."COMMANDE_CLIENT"
   join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE_CLIENT" = "OpenConcerto42"."COMMANDE_CLIENT"."ID"
-  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
  where ("OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" = 1)
    and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
@@ -108,7 +108,7 @@ select 'COMMANDE_CLIENT <- DEVIS (via TR_DEVIS)' as cas, count(*) as documents
 select 'SAISIE_VENTE_FACTURE <- DEVIS (via TR_DEVIS)' as cas, count(*) as documents
   from "OpenConcerto42"."SAISIE_VENTE_FACTURE"
   join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_SAISIE_VENTE_FACTURE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID"
-  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
  where ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
    and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
@@ -116,7 +116,7 @@ select 'SAISIE_VENTE_FACTURE <- DEVIS (via TR_DEVIS)' as cas, count(*) as docume
 select 'BON_DE_LIVRAISON <- DEVIS (via TR_DEVIS)' as cas, count(*) as documents
   from "OpenConcerto42"."BON_DE_LIVRAISON"
   join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_BON_DE_LIVRAISON" = "OpenConcerto42"."BON_DE_LIVRAISON"."ID"
-  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
  where ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
    and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 

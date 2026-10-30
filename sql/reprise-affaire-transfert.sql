@@ -135,8 +135,8 @@ BEGIN;
 UPDATE "OpenConcerto42"."COMMANDE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
   FROM "OpenConcerto42"."TR_DEVIS"
-  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
- WHERE "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE" = "OpenConcerto42"."COMMANDE"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID"
+  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ WHERE "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE" = "OpenConcerto42"."COMMANDE"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID_DEVIS"
    AND ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
@@ -163,8 +163,8 @@ BEGIN;
 UPDATE "OpenConcerto42"."COMMANDE_CLIENT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
   FROM "OpenConcerto42"."TR_DEVIS"
-  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
- WHERE "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE_CLIENT" = "OpenConcerto42"."COMMANDE_CLIENT"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID"
+  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ WHERE "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE_CLIENT" = "OpenConcerto42"."COMMANDE_CLIENT"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID_DEVIS"
    AND ("OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
@@ -177,8 +177,8 @@ BEGIN;
 UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
   FROM "OpenConcerto42"."TR_DEVIS"
-  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
- WHERE "OpenConcerto42"."TR_DEVIS"."ID_SAISIE_VENTE_FACTURE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID"
+  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ WHERE "OpenConcerto42"."TR_DEVIS"."ID_SAISIE_VENTE_FACTURE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID_DEVIS"
    AND ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
@@ -191,8 +191,8 @@ BEGIN;
 UPDATE "OpenConcerto42"."BON_DE_LIVRAISON"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
   FROM "OpenConcerto42"."TR_DEVIS"
-  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
- WHERE "OpenConcerto42"."TR_DEVIS"."ID_BON_DE_LIVRAISON" = "OpenConcerto42"."BON_DE_LIVRAISON"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID"
+  JOIN "OpenConcerto42"."DEVIS" ON "OpenConcerto42"."DEVIS"."ID_DEVIS" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ WHERE "OpenConcerto42"."TR_DEVIS"."ID_BON_DE_LIVRAISON" = "OpenConcerto42"."BON_DE_LIVRAISON"."ID" AND "OpenConcerto42"."TR_DEVIS"."ID_DEVIS" = "OpenConcerto42"."DEVIS"."ID_DEVIS"
    AND ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
