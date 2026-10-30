@@ -85,8 +85,11 @@ n'étaient donc pas réels : c'étaient des lignes de `TR_*` pointant l'affaire
    docker exec -i openconcerto176-db-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /tmp/attendu.sql
    ```
    doit afficher **0**.
-4. Affaire **12085** → onglet **Factures fournisseurs** : **25 lignes**, colonne
-   **Affaire** = `190`.
+4. Affaire **12085** → onglet **Factures fournisseurs** : **24 lignes**, colonne
+   **Affaire** = `12085`. La base en compte **25** : la 25ᵉ
+   (`F201240028467`, ID 27) est **archivée** (`ARCHIVE = 1`), et OpenConcerto ne
+   montre pas les documents archivés. Vérifié le 30/10 : ce n'est pas un défaut,
+   les 25 sont bien rattachées à l'affaire.
 
 Si un comptage échoue encore, la fenêtre affiche désormais la cause exacte et
 `~/openconcerto-reprise-affaires.log` contient les 19 requêtes avec leur erreur.

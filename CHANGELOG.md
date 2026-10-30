@@ -38,6 +38,13 @@
   fournisseur : les 17 annoncés la veille étaient des lignes `TR_*` pointant
   l'affaire « Indéfini ».
 
+### Verified
+
+- Affaire 12085 : **25 factures fournisseur en base, 24 affichées**. La 25ᵉ
+  (`F201240028467`, ID 27) porte `ARCHIVE = 1` : OpenConcerto ne montre pas les
+  documents archivés. Ce n'est pas un défaut d'affichage ni de rattachement —
+  les 25 ont bien `ID_AFFAIRE = 190`.
+
 ### Added
 
 - `tests/cli/sql_scope.py` : contrôle de portée des requêtes (les deux règles

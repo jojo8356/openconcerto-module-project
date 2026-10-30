@@ -101,5 +101,7 @@ c'est le seul écart que je ne peux pas voir d'ici (et il viendrait de la lectur
 du schéma par le module, pas des données).
 
 Après la reprise, l'onglet **Factures fournisseurs** de l'affaire **12085** doit
-afficher ses **25 lignes** : c'est le contrôle visuel qui prouve que les
-documents ont bien retrouvé leur affaire.
+afficher ses lignes, avec la colonne **Affaire** renseignée : c'est le contrôle
+visuel qui prouve que les documents ont bien retrouvé leur affaire. Mesure du
+30/10 : 25 factures en base, 24 affichées — la 25ᵉ (`F201240028467`) est
+archivée (`ARCHIVE = 1`) et OpenConcerto masque les archives.
