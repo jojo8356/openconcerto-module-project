@@ -65,42 +65,56 @@ public final class AffairRepairAction extends AbstractAction {
         }
 
         // 1. Diagnostic (aucune ecriture), hors de l'EDT.
-        new SwingWorker<String, Void>() {
+        new SwingWorker<AffairRepairReport, Void>() {
 
             @Override
-            protected String doInBackground() {
-                final StringBuilder detail = new StringBuilder();
-                long total = 0;
+            protected AffairRepairReport doInBackground() {
+                final AffairRepairReport report = new AffairRepairReport();
+                final StringBuilder trace = new StringBuilder();
+                trace.append("Reprise des affaires : diagnostic du ").append(new java.util.Date()).append('\n');
                 for (final AffairBackfillSupport.Repair repair : plan) {
-                    final long count = count(dbRoot, repair);
-                    if (count > 0) {
-                        detail.append("  - ").append(repair.getDescription()).append(" : ").append(count).append('\n');
-                        total += count;
+                    try {
+                        final long value = count(dbRoot, repair);
+                        report.add(repair.getDescription(), value);
+                        trace.append(value).append(" | ").append(repair.getDescription()).append('\n');
+                        trace.append("        ").append(repair.getCountSql()).append('\n');
+                    } catch (Exception ex) {
+                        trace.append("ECHEC | ").append(repair.getDescription()).append('\n');
+                        trace.append("        cause : ").append(ex).append('\n');
+                        trace.append("        requete : ").append(repair.getCountSql()).append('\n');
+                        // Un comptage en echec ne doit jamais passer pour « rien
+                        // a reprendre » : on garde la requete et la cause, qui
+                        // seront affichees.
+                        report.addError(repair.getDescription(), String.valueOf(ex.getMessage()), repair.getCountSql());
+                        Module.log("comptage impossible (" + repair.getDescription() + ") : " + ex);
                     }
                 }
-                return total + "\n" + detail;
+                writeTrace(trace);
+                return report;
             }
 
             @Override
             protected void done() {
-                final String result;
+                final AffairRepairReport report;
                 try {
-                    result = get();
+                    report = get();
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(null, "Diagnostic impossible : " + ex.getMessage(), "Reprise des affaires", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
-                final int newline = result.indexOf('\n');
-                final long total = Long.parseLong(result.substring(0, newline));
-                final String detail = result.substring(newline + 1);
-                if (total == 0) {
-                    JOptionPane.showMessageDialog(null, "Tous les documents transferes ont deja leur affaire : rien a reprendre.",
+                if (report.isNothingToDo()) {
+                    JOptionPane.showMessageDialog(null, AffairRepairReport.NOTHING_TO_DO,
                             "Reprise des affaires", JOptionPane.INFORMATION_MESSAGE);
                     return;
                 }
-                final int answer = JOptionPane.showConfirmDialog(null,
-                        total + " document(s) ou ligne(s) sans affaire peuvent etre rattaches a leur affaire d'origine :\n\n" + detail
-                                + "\nAucune affaire deja renseignee ne sera modifiee.\nReprendre maintenant ?",
+                if (report.getTotal() == 0) {
+                    // Aucun comptage n'a abouti : c'est une erreur, pas un
+                    // « rien a reprendre ».
+                    JOptionPane.showMessageDialog(null, report.message() + "\n\nDetail ecrit dans :\n" + traceFile().getAbsolutePath(),
+                            "Reprise des affaires", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                final int answer = JOptionPane.showConfirmDialog(null, report.message(),
                         "Reprise des affaires", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
                 if (answer == JOptionPane.OK_OPTION) {
                     apply(dbRoot, plan);
@@ -181,14 +195,49 @@ public final class AffairRepairAction extends AbstractAction {
         return AffairBackfillSupport.plan(schema, quoter);
     }
 
-    /** Nombre de lignes que cette reprise changerait. */
-    static long count(final DBRoot root, final AffairBackfillSupport.Repair repair) {
+    /**
+     * Fichier ou le diagnostic est ecrit, pour le support.
+     * <p>
+     * Un message d'erreur tronque dans une capture d'ecran ne suffit pas : le
+     * fichier contient chaque comptage, sa requete et la cause complete de
+     * l'echec.
+     * </p>
+     */
+    public static java.io.File traceFile() {
+        return new java.io.File(System.getProperty("user.home", "."), "openconcerto-reprise-affaires.log");
+    }
+
+    /** Ecrit le detail du diagnostic ; une erreur d'ecriture ne bloque rien. */
+    static void writeTrace(final CharSequence trace) {
+        java.io.Writer writer = null;
         try {
-            final Object value = root.getDBSystemRoot().getDataSource().executeScalar(repair.getCountSql());
-            return value instanceof Number ? ((Number) value).longValue() : 0;
+            final java.io.File file = traceFile();
+            writer = new java.io.OutputStreamWriter(new java.io.FileOutputStream(file, true), "UTF-8");
+            writer.write(trace.toString());
+            writer.write('\n');
         } catch (Exception e) {
-            Module.log("comptage impossible (" + repair.getDescription() + ") : " + e);
-            return 0;
+            Module.log("journal du diagnostic non ecrit : " + e);
+        } finally {
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (Exception ignored) {
+                    // rien a faire : le fichier est un secours, pas une condition.
+                }
+            }
         }
+    }
+
+    /**
+     * Nombre de lignes que cette reprise changerait.
+     * <p>
+     * Les erreurs sont <b>propages</b> : les avaler revenait a annoncer « rien a
+     * reprendre » alors que le comptage avait echoue (constate sur la base du
+     * client, ou les 19 comptages echouaient et le menu annoncait 0).
+     * </p>
+     */
+    static long count(final DBRoot root, final AffairBackfillSupport.Repair repair) {
+        final Object value = root.getDBSystemRoot().getDataSource().executeScalar(repair.getCountSql());
+        return value instanceof Number ? ((Number) value).longValue() : 0;
     }
 }

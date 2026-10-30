@@ -105,9 +105,11 @@ if [ "$have_java" = 1 ]; then
         printf '%s\n' src/org/openconcerto/modules/project/AffairLinkSupport.java
         printf '%s\n' src/org/openconcerto/modules/project/AffairTransferSupport.java
         printf '%s\n' src/org/openconcerto/modules/project/AffairBackfillSupport.java
+        printf '%s\n' src/org/openconcerto/modules/project/AffairRepairReport.java
         printf '%s\n' src/org/openconcerto/modules/project/ItemAffairColumnRules.java
         printf '%s\n' tests/org/openconcerto/modules/project/AffairTransferScenario.java
         printf '%s\n' tests/org/openconcerto/modules/project/AffairBackfillSqlDump.java
+        printf '%s\n' tests/org/openconcerto/modules/project/AffairRepairReportTest.java
         printf '%s\n' tests/org/openconcerto/sql/Configuration.java
         printf '%s\n' tests/org/openconcerto/sql/model/DBRoot.java
         printf '%s\n' tests/org/openconcerto/sql/model/SQLField.java
@@ -120,6 +122,10 @@ if [ "$have_java" = 1 ]; then
     echo "=== 0. Compilation des tests en ligne de commande ==="
     run_javac -proc:none -encoding UTF-8 -cp src -d "$CLI_DIR" @"$SOURCES_FILE"
     echo "   OK    compilation"
+
+    echo
+    echo "=== 0bis. Compte rendu de la reprise : une erreur n'est jamais « rien a reprendre » ==="
+    run_java -cp "$CLI_DIR" org.openconcerto.modules.project.AffairRepairReportTest
 
     echo
     echo "=== 1. Transfert commande fournisseur -> facture ==="

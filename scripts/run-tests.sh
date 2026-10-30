@@ -13,6 +13,7 @@ cd "$ROOT_DIR"
 {
     printf '%s\n' src/org/openconcerto/modules/project/AffairListSortSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/AffairBackfillSupport.java
+    printf '%s\n' src/org/openconcerto/modules/project/AffairRepairReport.java
     printf '%s\n' src/org/openconcerto/modules/project/AffairLinkSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/AffairTransferSupport.java
     printf '%s\n' src/org/openconcerto/modules/project/ItemAffairColumnRules.java
@@ -24,6 +25,7 @@ cd "$ROOT_DIR"
     printf '%s\n' src/org/openconcerto/modules/project/SupplierOrderToInvoiceSQLInjector.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairListSortSupportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairBackfillSupportTest.java
+    printf '%s\n' tests/org/openconcerto/modules/project/AffairRepairReportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairLinkSupportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/AffairTransferSupportTest.java
     printf '%s\n' tests/org/openconcerto/modules/project/ColumnLabelRulesTest.java
@@ -43,6 +45,7 @@ cd "$ROOT_DIR"
 javac -J-XX:-UsePerfData -proc:none -encoding UTF-8 -cp src -d "$TEST_CLASSES_DIR" @"$SOURCES_FILE"
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.AffairListSortSupportTest
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.AffairBackfillSupportTest
+java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.AffairRepairReportTest
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.AffairLinkSupportTest
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.AffairTransferSupportTest
 java -cp "$TEST_CLASSES_DIR" org.openconcerto.modules.project.ColumnLabelRulesTest

@@ -1,0 +1,16 @@
+name: Verification temporaire (branche de travail)
+on:
+  push:
+    branches: [arena/ff79607f-openconcerto-module-project]
+jobs:
+  cli-affaire:
+    name: Tests en ligne de commande
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "8" }
+      - name: Tests en ligne de commande (sans base)
+        run: sh scripts/test-affaire-cli.sh
+      - name: Suites unitaires existantes
+        run: sh scripts/run-tests.sh
