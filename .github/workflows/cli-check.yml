@@ -18,7 +18,11 @@ jobs:
           sh scripts/run-tests.sh 2>&1 | tee /tmp/unit.log
           echo "--- compte rendu ---"
           grep -E "Test : [0-9]+ controles" /tmp/unit.log || true
-          grep -Eq "AffairRepairReportTest : [0-9]+ controles, 0 echec" /tmp/unit.log \
-            || { echo "::error::AffairRepairReportTest n'a pas tourne"; tail -n 30 /tmp/unit.log; exit 1; }
-          grep -Eq "AffairBackfillSupportTest : [0-9]+ controles, 0 echec" /tmp/unit.log \
+          report=$(grep -Eo "AffairRepairReportTest : [0-9]+ controles, 0 echec" /tmp/unit.log || echo absent)
+          backfill=$(grep -Eo "AffairBackfillSupportTest : [0-9]+ tests OK" /tmp/unit.log || echo absent)
+          echo "report   : $report"
+          echo "backfill : $backfill"
+          [ "$report" = "AffairRepairReportTest : 32 controles, 0 echec" ] \
+            || { echo "::error::AffairRepairReportTest attendu 32 controles, obtenu : $report"; exit 1; }
+          [ "$backfill" != "absent" ] \
             || { echo "::error::AffairBackfillSupportTest n'a pas tourne"; exit 1; }
