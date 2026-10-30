@@ -149,7 +149,7 @@ public final class AffairTransferSupportTest {
     private static void testInstallAddsMapping() {
         final FakeAccess access = new FakeAccess("COMMANDE->SAISIE_ACHAT");
         final AffairTransferSupport.Report report = AffairTransferSupport.install(schema(ALL_TABLES), access);
-        assertEquals("paire corrigee", Arrays.asList("COMMANDE->SAISIE_ACHAT"), report.getAdded());
+        assertEquals("paire corrigee", Arrays.asList("COMMANDE -> SAISIE_ACHAT"), report.getAdded());
         assertEquals("mapping pose", Boolean.TRUE, Boolean.valueOf(access.isMapped("COMMANDE", "SAISIE_ACHAT")));
         assertEquals("compte rendu complet", Boolean.TRUE, Boolean.valueOf(report.isComplete()));
         assertEquals("resume mentionne la paire", Boolean.TRUE, Boolean.valueOf(report.getSummary().contains("COMMANDE -> SAISIE_ACHAT")));
@@ -159,7 +159,7 @@ public final class AffairTransferSupportTest {
         final FakeAccess access = new FakeAccess("COMMANDE->SAISIE_ACHAT");
         access.mapped.add("COMMANDE->SAISIE_ACHAT");
         final AffairTransferSupport.Report report = AffairTransferSupport.install(schema(ALL_TABLES), access);
-        assertEquals("deja en place", Arrays.asList("COMMANDE->SAISIE_ACHAT"), report.getAlreadyMapped());
+        assertEquals("deja en place", Arrays.asList("COMMANDE -> SAISIE_ACHAT"), report.getAlreadyMapped());
         assertEquals("aucun ajout", Integer.valueOf(0), Integer.valueOf(report.getAdded().size()));
         assertEquals("aucune ecriture", Integer.valueOf(0), Integer.valueOf(access.added.size()));
     }
@@ -187,7 +187,7 @@ public final class AffairTransferSupportTest {
         access.failing.add("COMMANDE->SAISIE_ACHAT");
         final AffairTransferSupport.Report report = AffairTransferSupport.install(schema(ALL_TABLES), access);
         assertEquals("un echec", Integer.valueOf(1), Integer.valueOf(report.getFailed().size()));
-        assertEquals("le suivant est traite", Boolean.TRUE, Boolean.valueOf(report.getAdded().contains("COMMANDE->BON_RECEPTION")));
+        assertEquals("le suivant est traite", Boolean.TRUE, Boolean.valueOf(report.getAdded().contains("COMMANDE -> BON_RECEPTION")));
         assertEquals("compte rendu incomplet", Boolean.FALSE, Boolean.valueOf(report.isComplete()));
         assertEquals("message d'echec", Boolean.TRUE, Boolean.valueOf(report.getFailed().get(0).contains("boom")));
     }
