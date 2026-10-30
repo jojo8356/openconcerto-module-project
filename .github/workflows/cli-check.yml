@@ -24,5 +24,5 @@ jobs:
           echo "backfill : $backfill"
           [ "$report" = "AffairRepairReportTest : 31 controles, 0 echec" ] \
             || { echo "::error::AffairRepairReportTest attendu 31 controles, obtenu : $report"; exit 1; }
-          [ "$backfill" != "absent" ] \
-            || { echo "::error::AffairBackfillSupportTest n'a pas tourne"; exit 1; }
+          [ "$backfill" = "AffairBackfillSupportTest : 54 tests OK" ] \
+            || { echo "::error::AffairBackfillSupportTest attendu 54, obtenu : $backfill"; exit 1; }
