@@ -75,6 +75,7 @@ import org.openconcerto.sql.element.SQLElement;
 import org.openconcerto.sql.element.SQLElementDirectory;
 import org.openconcerto.sql.model.DBRoot;
 import org.openconcerto.sql.model.FieldPath;
+import org.openconcerto.sql.model.SQLField;
 import org.openconcerto.sql.model.SQLInjector;
 import org.openconcerto.sql.model.SQLRow;
 import org.openconcerto.sql.model.SQLRowAccessor;
@@ -911,6 +912,12 @@ public final class Module extends AbstractModule {
         // deja installe, restauration, nouvelle table), on verifie a chaque demarrage.
         ensureAffairColumns(root);
 
+        // Les transferts du coeur ne recopient pas l'affaire (aucun injecteur de
+        // 1.7.6 ne mentionne ID_AFFAIRE) : on la fait transporter par toutes les
+        // paires de documents, sinon une commande fournisseur transferee en
+        // facture perd son affaire.
+        installAffairTransferMapping(root);
+
         // Enregistrer l'injecteur après l'ajout éventuel de
         // FACTURE_FOURNISSEUR.ID_AFFAIRE ci-dessus, afin que la colonne soit
         // toujours visible lors de la création du mapping.
@@ -1052,6 +1059,109 @@ public final class Module extends AbstractModule {
      * jamais retouche.
      * </p>
      */
+    /**
+     * Fait transporter l'affaire par tous les transferts de documents.
+     * <p>
+     * Mesure a l'origine du correctif : {@code grep -rn ID_AFFAIRE
+     * org/openconcerto/erp/injector/} ne renvoie <b>rien</b> dans OpenConcerto
+     * 1.7.6. Les injecteurs du c&oelig;ur enumerent champ par champ ce qu'ils
+     * transferent ; un champ absent de cette liste n'est jamais copie. C'est
+     * pourquoi une commande fournisseur rattachee a une affaire donnait une
+     * facture sans affaire.
+     * </p>
+     * <p>
+     * Le mapping est ajoute a l'injecteur <b>deja enregistre</b> par le
+     * c&oelig;ur, sans le remplacer : ses regles (numerotation, transfert des
+     * lignes, table {@code TR_*}) restent intactes, on ajoute seulement
+     * {@code ID_AFFAIRE} a la liste des champs copies.
+     * </p>
+     * <p>
+     * Idempotent et sans exception : appelable a chaque demarrage.
+     * </p>
+     */
+    static AffairTransferSupport.Report installAffairTransferMapping(final DBRoot root) {
+        final AffairTransferSupport.Report report;
+        try {
+            final AffairLinkSupport.Schema schema = schemaOf(root);
+            report = AffairTransferSupport.install(schema, new AffairTransferSupport.InjectorAccess() {
+
+                @Override
+                public boolean isRegistered(final String src, final String dest) {
+                    return injector(root, src, dest) != null;
+                }
+
+                @Override
+                public boolean isMapped(final String src, final String dest) {
+                    final SQLInjector injector = injector(root, src, dest);
+                    if (injector == null) {
+                        return false;
+                    }
+                    try {
+                        return injector.getFrom().contains(root.getTable(src).getField(AffairLinkSupport.AFFAIR_FIELD));
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+
+                @Override
+                public boolean addMapping(final String src, final String dest) {
+                    final SQLInjector injector = injector(root, src, dest);
+                    if (injector == null) {
+                        return false;
+                    }
+                    final SQLField from = root.getTable(src).getField(AffairLinkSupport.AFFAIR_FIELD);
+                    final SQLField to = root.getTable(dest).getField(AffairLinkSupport.AFFAIR_FIELD);
+                    if (injector.getFrom().contains(from)) {
+                        return false;
+                    }
+                    // Les deux listes de SQLInjector.merge() doivent rester de
+                    // meme longueur : on ajoute la source et la destination
+                    // ensemble, en verrouillant l'injecteur (createRowValuesFrom()
+                    // est synchronized sur le meme objet).
+                    synchronized (injector) {
+                        injector.getFrom().add(from);
+                        injector.getTo().add(to);
+                    }
+                    return true;
+                }
+            });
+        } catch (Exception e) {
+            log("reprise de l'affaire dans les transferts impossible : " + e);
+            return new AffairTransferSupport.Report();
+        }
+        log("transferts : " + report.getSummary());
+        return report;
+    }
+
+    /** Injecteur enregistre pour cette paire, ou <code>null</code>. */
+    private static SQLInjector injector(final DBRoot root, final String src, final String dest) {
+        try {
+            if (root == null || !root.contains(src) || !root.contains(dest)) {
+                return null;
+            }
+            return SQLInjector.getRegistrereddInjector(root.getTable(src), root.getTable(dest));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Base de la societe ouverte, pour les actions de menu. */
+    static DBRoot affairRootForMenu() {
+        try {
+            final DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+            if (root != null) {
+                return root;
+            }
+        } catch (Exception e) {
+            // pas de base societe ouverte : on essaie la base globale
+        }
+        try {
+            return Configuration.getInstance().getRoot();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void installItemAffairColumn() {
         if (itemAffairColumnInstalled) {
             return;
@@ -1242,6 +1352,7 @@ public final class Module extends AbstractModule {
                         }
                     };
                     addMenuEntry("Aide", action);
+                    addMenuEntry("Aide", new AffairRepairAction(affairRootForMenu()));
                 } catch (Exception e) {
                     log("menu « Diagnostic affaire » impossible (" + e + ")");
                 }
@@ -1532,6 +1643,13 @@ public final class Module extends AbstractModule {
     protected void start() {
         installDeliveryNoteListActionSync();
         installItemAffairColumn();
+        // Deuxieme passage : certains injecteurs du coeur sont enregistres
+        // apres la mise en place des composants du module.
+        try {
+            installAffairTransferMapping(ComptaPropsConfiguration.getInstanceCompta().getRootSociete());
+        } catch (Exception e) {
+            log("reprise de l'affaire dans les transferts (2e passage) impossible : " + e);
+        }
         installColumnLabels();
         installColumnLabelMenu();
         installAffairDiagnosticMenu();
