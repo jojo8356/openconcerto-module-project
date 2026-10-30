@@ -8,6 +8,30 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — Les fichiers SQL s'adaptent au schéma réel du client
+
+### Fixed
+
+- **Les fichiers `sql/reprise-affaire-transfert.sql` et
+  `sql/diagnostic-affaire-transfert.sql` échouaient sur la base du client.**
+  Mesure sur `information_schema.columns` : sur les 12 tableaux de lignes, seuls
+  `FACTURE_FOURNISSEUR_ELEMENT` et `DEMANDE_ACHAT_ELEMENT` portent
+  `ID_AFFAIRE`. Un `UPDATE` sur un tableau sans la colonne fait échouer toute la
+  transaction, donc la reprise des **en-têtes** était annulée avec elle.
+- Le SQL est désormais **généré depuis le code**
+  (`tools/genere_sql_affaire.py` lit `TRANSFER_PAIRS` et `PARENTS`,
+  `--check` échoue en cas de dérive) et **séparé en quatre fichiers** :
+  `diagnostic`/`reprise` pour les en-têtes (sûrs partout), `diagnostic`/`reprise`
+  `-lignes` pour les tableaux de lignes, avec **un bloc par transaction** et la
+  requête qui dit quelles tables portent la colonne.
+
+### Added
+
+- `tools/oc_sql_sqlite.py` : le schéma de test suit la base du client (deux
+  tableaux de lignes avec la colonne), variante `--line-columns all`, et
+  **70 contrôles** qui exécutent les quatre fichiers.
+- `scripts/oc-sql-file.sh` exécute les quatre fichiers sur PostgreSQL.
+
 ## 2026-10-30 — Toute la chaîne de l'affaire se teste en ligne de commande
 
 ### Added

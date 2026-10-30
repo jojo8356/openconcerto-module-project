@@ -84,7 +84,26 @@ Sur les 49 contrôles, ceux qui comptent :
 L'ordre compte et il est vérifié : les documents sont repris **avant** les
 lignes, sinon une ligne dont le document était vide ne serait jamais remplie.
 
-### 4. Les vrais fichiers SQL (`tools/oc_sql_sqlite.py`)
+### 4. Les quatre fichiers SQL (`tools/oc_sql_sqlite.py`)
+
+Ils sont **générés depuis le code** : `tools/genere_sql_affaire.py` lit
+`AffairTransferSupport.TRANSFER_PAIRS` et `ItemAffairColumnRules.PARENTS`, écrit
+les fichiers, et `--check` échoue si le SQL a dérivé du code. Il y en a quatre
+parce que, sur la base du client, seuls `FACTURE_FOURNISSEUR_ELEMENT` et
+`DEMANDE_ACHAT_ELEMENT` portent la colonne `ID_AFFAIRE` :
+
+| Fichier | Contenu | Sûr sur |
+| --- | --- | --- |
+| `sql/diagnostic-affaire-transfert.sql` | en-têtes (17 transferts, 2 saisies) | toute base |
+| `sql/reprise-affaire-transfert.sql` | en-têtes, une transaction | toute base |
+| `sql/diagnostic-affaire-lignes.sql` | 12 tableaux de lignes | seulement là où la colonne existe |
+| `sql/reprise-affaire-lignes.sql` | 12 tableaux, **un bloc = une transaction** | idem |
+
+Les anciens fichiers touchaient les 12 tableaux de lignes en une seule
+transaction : sur la base du client, `column ... does not exist` annulait
+**aussi** la reprise des en-têtes. C'est ce que la mesure d'`information_schema`
+a révélé, et c'est désormais reproduit dans le test (schéma « client » à deux
+tableaux, puis variante à douze).
 
 `sql/diagnostic-affaire-transfert.sql` et `sql/reprise-affaire-transfert.sql`
 sont exécutés **tels quels** (seules les commandes `\echo` de psql sont
