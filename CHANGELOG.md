@@ -8,6 +8,24 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — La clé du devis est `ID_DEVIS`
+
+### Fixed
+
+- **Sur la base du client, `DEVIS` n'a pas de colonne `ID` : sa clé est
+  `ID_DEVIS`** (46 colonnes vérifiées, 381 devis, 291 lignes de `TR_DEVIS`).
+  Toutes les jointures sur `"DEVIS"."ID"` échouaient, donc les **4 transferts
+  partant d'un devis** n'étaient jamais réparés : `DEVIS → COMMANDE`,
+  `→ COMMANDE_CLIENT`, `→ SAISIE_VENTE_FACTURE`, `→ BON_DE_LIVRAISON`.
+- `AffairBackfillSupport.keyOf(schema, table)` : `ID` si elle existe, sinon
+  `ID_<TABLE>`, sinon la paire est ignorée. Appliqué aux trois étapes de la
+  reprise (sources, tables de transfert, lignes).
+- Les fichiers SQL appliquent la même règle ; `sql/historique-affaire.sql` et
+  `sql/attendu-reprise.sql` sont désormais **générés** eux aussi (6 fichiers).
+- Outils de test : schéma par défaut fidèle à la mesure (`ID_DEVIS`), variante
+  « aucune clé », **85 contrôles**, et vérification que les 4 blocs du devis
+  joignent bien `ID_DEVIS` — jamais `ID`.
+
 ## 2026-10-30 — Une table sans colonne `ID` ne bloque plus la reprise
 
 ### Fixed
