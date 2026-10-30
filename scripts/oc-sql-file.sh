@@ -194,9 +194,9 @@ echo "1. Base de test (schema OpenConcerto42, jeu de donnees du module)"
 # Base de test : tous les tableaux de lignes portent la colonne, afin que les
 # quatre fichiers SQL puissent etre executes. Le schema exact du client (deux
 # tableaux seulement) est teste par sh scripts/test-affaire-cli.sh.
-"$PYTHON" "$TOOL" --emit-fixture --line-columns all >"$TMP_DIR/fixture.sql"
+"$PYTHON" "$TOOL" --emit-fixture --line-columns all --devis-key ID_DEVIS >"$TMP_DIR/fixture.sql"
 if [ "$DRY_RUN" = 1 ]; then
-    echo "  $PYTHON tools/oc_sql_sqlite.py --emit-fixture --line-columns all | psql ... -f -"
+    echo "  $PYTHON tools/oc_sql_sqlite.py --emit-fixture --line-columns all --devis-key ID_DEVIS | psql ... -f -"
 else
     psql_once "$TMP_DIR/fixture.sql"
 fi

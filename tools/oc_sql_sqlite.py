@@ -304,10 +304,12 @@ AFTER_REPRISE_LIGNES = [
 # --------------------------------------------------------------------------
 # Sortie pour PostgreSQL (mode --docker / CI)
 # --------------------------------------------------------------------------
-def all_tables(line_columns="client"):
+def all_tables(line_columns="client", devis_key="ID_DEVIS"):
     """(nom, colonnes) de toutes les tables du schema de test."""
     tables = [("AFFAIRE", AFFAIR_COLUMNS)]
     for table, columns in DOCUMENT_COLUMNS.items():
+        if table == "DEVIS":
+            columns = ([devis_key] if devis_key else []) + [column for column in columns if column not in ("ID", "ID_DEVIS")]
         tables.append((table, columns))
     for table, link in LINE_TABLES.items():
         if line_columns == "all" or table in LINE_TABLES_WITH_AFFAIR:
@@ -327,14 +329,17 @@ def column_type(name):
     return "text" if name in TEXT_COLUMNS else "integer"
 
 
-def emit_fixture(line_columns="client"):
+def emit_fixture(line_columns="client", devis_key="ID_DEVIS"):
     """DDL + donnees, en PostgreSQL : cree la base de test de toutes pieces."""
     print("-- Base de test jetable pour sql/*.sql (PostgreSQL).")
     print('CREATE SCHEMA IF NOT EXISTS "%s";' % SCHEMA)
-    for table, columns in all_tables(line_columns):
+    for table, columns in all_tables(line_columns, devis_key):
         ddl = ", ".join('"%s" %s' % (column, column_type(column)) for column in columns)
         print('CREATE TABLE "%s"."%s" (%s);' % (SCHEMA, table, ddl))
     for table, values in transfert_rows():
+        values = dict(values)
+        if "ID" in values and table == "DEVIS" and devis_key != "ID":
+            values[devis_key] = values.pop("ID")
         columns = ", ".join('"%s"' % key for key in values)
         rendered = []
         for value in values.values():
@@ -709,6 +714,7 @@ def main():
     parser.add_argument("--fixture", default="affaire-transfert", help="jeu de donnees a charger")
     parser.add_argument("--keep", action="store_true", help="affiche toutes les lignes produites")
     parser.add_argument("--affaire", type=int, help="numero d'affaire a substituer dans le fichier (--file)")
+    parser.add_argument("--devis-key", default="ID_DEVIS", help="colonne de cle de DEVIS (ID_DEVIS sur la base du client)")
     parser.add_argument("--line-columns", choices=("client", "all"), default="client",
                         help="colonnes ID_AFFAIRE des tableaux de lignes (defaut : comme la base du client)")
     parser.add_argument("--emit-fixture", action="store_true", help="ecrit le jeu de donnees en SQL PostgreSQL")
@@ -717,7 +723,7 @@ def main():
     args = parser.parse_args()
 
     if args.emit_fixture:
-        emit_fixture(args.line_columns)
+        emit_fixture(args.line_columns, args.devis_key)
         return 0
     if args.emit_checks:
         emit_checks()
