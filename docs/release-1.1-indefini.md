@@ -69,8 +69,8 @@ ligne ne compte que si sa clé est strictement supérieure à 1.**
 
 ## Le test à faire, sur votre base
 
-Le total va **baisser fortement**, c'est normal : une grande partie des 462
-n'était pas réelle.
+Le total est passé de **462 à 37** sur votre base : les 425 documents d'écart
+n'étaient pas réels, ils venaient de la ligne « Indéfini ».
 
 ```sh
 # 1. ce que le menu doit annoncer (lecture seule)
@@ -80,19 +80,26 @@ docker exec -i openconcerto176-db-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRE
 docker exec -i openconcerto176-db-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < sql/diagnostic-affaire-transfert.sql
 ```
 
-D'après les compteurs déjà mesurés (§5 « documents sans affaire »), le total
-attendu tourne autour de **62** : 17 factures fournisseur + 8 commandes client +
-1 bon de livraison + 17 factures client + 11 avoirs client + 8 bons de livraison
-(tous issus d'un transfert). Les 3 saisies d'achat, les 10 bons de réception et
-les 104 devis sans affaire n'ont pas de document d'origine : ils resteront à 0,
-c'est normal.
+**Mesuré sur votre base le 30 octobre, avec ce fichier corrigé : 37.** Le
+fichier d'avant correctif annonçait 462 sur la même base, et le diagnostic
+annonçait 200 saisies d'achat là où il n'y en a que 3 — c'est bien la ligne
+« Indéfini » qui gonflait tout.
+
+Les deux « 200 » ont disparu ; ce qui reste (37) est réel et réparable. Ce qui
+n'a pas de document d'origine — 3 saisies d'achat, 10 bons de réception, 104
+devis sans affaire — n'est pas compté, c'est normal.
 
 ```sh
-# 3. le menu doit annoncer ce meme nombre, puis :
+# 3. le menu doit annoncer 37, puis :
 docker exec -i openconcerto176-db-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < sql/reprise-affaire-transfert.sql
 
-# 4. relancer la commande 1 : le total doit tomber a 0
+# 4. relancer la commande 1 : le total doit tomber a 0 (37 documents repris)
 ```
 
-Si le menu annonce encore autre chose que le total mesuré, envoyez les deux
-chiffres : c'est le seul écart que je ne peux pas voir d'ici.
+Si le menu annonce autre chose que **37**, envoyez-moi les deux chiffres :
+c'est le seul écart que je ne peux pas voir d'ici (et il viendrait de la lecture
+du schéma par le module, pas des données).
+
+Après la reprise, l'onglet **Factures fournisseurs** de l'affaire **12085** doit
+afficher ses **25 lignes** : c'est le contrôle visuel qui prouve que les
+documents ont bien retrouvé leur affaire.
