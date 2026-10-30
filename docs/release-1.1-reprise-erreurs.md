@@ -3,8 +3,8 @@
 Ce jar corrige un défaut grave de la fenêtre `Aide > Reprendre les affaires des
 documents` : **un comptage en échec était affiché comme « rien à reprendre »**.
 
-- **Jar** : `org.openconcerto.modules.project-1.1.jar` (empreinte SHA-256 dans
-  le fichier `.sha256` joint) ;
+- **Jar** : `org.openconcerto.modules.project-1.1.jar` — **289 964 octets**
+  (empreinte SHA-256 dans le fichier `.sha256` joint) ;
 - **téléchargement** :
   <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-reprise-erreurs/org.openconcerto.modules.project-1.1.jar> ;
 - **installation** : remplacer le jar du module dans `lib/` d'OpenConcerto,
