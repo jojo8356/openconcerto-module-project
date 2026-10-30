@@ -11,7 +11,9 @@
 #   3. tests/cli/test-affaire-transfert.py
 #                               : execute ce plan dans SQLite et verifie le
 #                                 resultat, y compris les cas limites.
-#   4. tools/oc_sql_sqlite.py   : execute les VRAIS fichiers sql/*.sql du module.
+#   4. genere_sql_affaire.py    : verifie que sql/*.sql n'ont pas derive du code.
+#   5. tools/oc_sql_sqlite.py   : execute les VRAIS fichiers sql/*.sql du module,
+#                                 au schema exact de la base du client.
 #
 # Aucun serveur, aucune base reelle, aucune interface graphique : tout est
 # jetable et rejouable. Sortie : OK / ECHEC par controle, code 1 en cas d'echec.
@@ -152,11 +154,15 @@ else
 fi
 
 echo
-echo "=== 4. Fichiers SQL du module (sql/*.sql) ==="
+echo "=== 4. Fichiers SQL du module : sont-ils toujours ceux du code ? ==="
+python3 tools/genere_sql_affaire.py --check
+
+echo
+echo "=== 5. Fichiers SQL du module (sql/*.sql) ==="
 python3 tools/oc_sql_sqlite.py
 
 echo
-echo "=== 5. sql/historique-affaire.sql (fenetre « Historique affaires ») ==="
+echo "=== 6. sql/historique-affaire.sql (fenetre « Historique affaires ») ==="
 # Le fichier porte un numero d'affaire en clair ; on le remplace par une affaire
 # du jeu de donnees pour verifier qu'il liste bien les documents.
 if python3 tools/oc_sql_sqlite.py --file sql/historique-affaire.sql --affaire 11870 | grep -qF 'COMMANDE | 1'; then
@@ -170,6 +176,8 @@ echo
 echo "=== Termine : tous les controles sont verts. ==="
 echo
 echo "Pour un essai sur la vraie base (lecture seule d'abord) :"
-echo "  sh scripts/oc-psql.sh -f sql/diagnostic-affaire-transfert.sql"
-echo "  sh scripts/oc-psql.sh -f sql/reprise-affaire-transfert.sql   # ecrit (transactionnel)"
+echo "  sh scripts/oc-psql.sh -f sql/diagnostic-affaire-transfert.sql   # en-tetes"
+echo "  sh scripts/oc-psql.sh -f sql/diagnostic-affaire-lignes.sql      # lignes"
+echo "  sh scripts/oc-psql.sh -f sql/reprise-affaire-transfert.sql      # ecrit (transactionnel)"
+echo "  sh scripts/oc-psql.sh -f sql/reprise-affaire-lignes.sql         # ecrit, bloc par bloc"
 echo "Sur PostgreSQL, sans toucher a votre base :  sh scripts/oc-sql-file.sh --docker"

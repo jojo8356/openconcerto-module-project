@@ -70,6 +70,8 @@ PYTHON=${PYTHON:-python3}
 TOOL="$ROOT_DIR/tools/oc_sql_sqlite.py"
 DIAGNOSTIC="$ROOT_DIR/sql/diagnostic-affaire-transfert.sql"
 REPRISE="$ROOT_DIR/sql/reprise-affaire-transfert.sql"
+DIAGNOSTIC_LIGNES="$ROOT_DIR/sql/diagnostic-affaire-lignes.sql"
+REPRISE_LIGNES="$ROOT_DIR/sql/reprise-affaire-lignes.sql"
 CONTAINER=oc-sql-affaire-$$
 
 command -v "$PYTHON" >/dev/null 2>&1 || {
@@ -189,9 +191,12 @@ fi
 
 echo
 echo "1. Base de test (schema OpenConcerto42, jeu de donnees du module)"
-"$PYTHON" "$TOOL" --emit-fixture >"$TMP_DIR/fixture.sql"
+# Base de test : tous les tableaux de lignes portent la colonne, afin que les
+# quatre fichiers SQL puissent etre executes. Le schema exact du client (deux
+# tableaux seulement) est teste par sh scripts/test-affaire-cli.sh.
+"$PYTHON" "$TOOL" --emit-fixture --line-columns all >"$TMP_DIR/fixture.sql"
 if [ "$DRY_RUN" = 1 ]; then
-    echo "  $PYTHON tools/oc_sql_sqlite.py --emit-fixture | psql ... -f -"
+    echo "  $PYTHON tools/oc_sql_sqlite.py --emit-fixture --line-columns all | psql ... -f -"
 else
     psql_once "$TMP_DIR/fixture.sql"
 fi
@@ -240,13 +245,21 @@ if [ -z "$FILE" ]; then
     if [ "$DRY_RUN" = 1 ]; then
         echo "  psql ... -f - < sql/reprise-affaire-transfert.sql"
         echo
+        echo "3 bis. Reprise des tableaux de lignes"
+        echo "  psql ... -f - < sql/reprise-affaire-lignes.sql"
+        echo
         echo "4. Rejeu (idempotence)"
         echo "  psql ... -f - < sql/reprise-affaire-transfert.sql   # une seconde fois"
+        echo "  psql ... -f - < sql/reprise-affaire-lignes.sql      # une seconde fois"
     else
         psql_once "$REPRISE"
         echo
+        echo "3 bis. Reprise des tableaux de lignes"
+        psql_once "$REPRISE_LIGNES"
+        echo
         echo "4. Rejeu (idempotence)"
         psql_once "$REPRISE" >/dev/null
+        psql_once "$REPRISE_LIGNES" >/dev/null
     fi
 
     echo
