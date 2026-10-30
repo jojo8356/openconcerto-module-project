@@ -26,6 +26,12 @@
   « aucune clé », **85 contrôles**, et vérification que les 4 blocs du devis
   joignent bien `ID_DEVIS` — jamais `ID`.
 
+### Measured
+
+- Base du client, `sql/attendu-reprise.sql` : **462** documents réparables au
+  total, dont **244 issus d'un devis** (218 sans les devis). Sans ce correctif,
+  plus de la moitié du travail de reprise était ignorée, sans message d'erreur.
+
 ## 2026-10-30 — Une table sans colonne `ID` ne bloque plus la reprise
 
 ### Fixed
