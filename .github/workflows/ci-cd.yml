@@ -55,3 +55,72 @@ jobs:
             exit 0
           fi
           ./scripts/build-java8-compatible.sh
+
+  affaire-fournisseur:
+    name: Tests « affaire » des documents fournisseurs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Installer pglite
+        run: npm install --no-audit --no-fund --silent
+
+      # Java (regles de rattachement) + PostgreSQL embarque (pglite) :
+      # aucun OpenConcerto.jar n'est necessaire.
+      - name: Suite complete (Java + SQL + scenario + mutations)
+        run: sh scripts/test-affaire-fournisseur.sh
+
+  cli-affaire:
+    name: Tests en ligne de commande (rattachement d'affaire)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: openconcerto
+          POSTGRES_DB: openconcerto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "8"
+
+      # 1 a 4 : compilation des tests, scenario de transfert, plan de reprise
+      # execute dans SQLite, puis les vrais fichiers sql/*.sql.
+      - name: Tests en ligne de commande (sans base)
+        run: sh scripts/test-affaire-cli.sh
+
+      - name: Installer le client PostgreSQL
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      # 5 : les memes fichiers SQL, mais sur un vrai PostgreSQL.
+      - name: Fichiers SQL sur PostgreSQL
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: openconcerto
+          PGDATABASE: openconcerto
+        run: sh scripts/oc-sql-file.sh --postgres

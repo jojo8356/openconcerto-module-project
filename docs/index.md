@@ -38,6 +38,22 @@ Le scan courant est un **Quick Scan**. Il fournit une cartographie exploitable p
 - [Modeles de donnees](./data-models.md)
 - [Synthese d'architecture publique](./public-architecture-summary.md)
 - [Revision report - Release 1.1](./patch-integration-revision-report.md)
+- [Audit — affaire sur les documents fournisseurs](./audit-affaire-fournisseur.md)
+- [Release 1.1 — notes de version du jar](./release-1.1-affaire-fournisseur.md)
+- [Recette graphique — affaire des documents fournisseurs](./recette-graphique-affaire-fournisseur.md)
+- [Installation du jar — où mettre le module](./installation-du-jar.md)
+- [Paramètres — libellés des colonnes](./parametres-colonnes.md)
+- [Correctif — le module ne démarrait plus (Already added ID_AFFAIRE)](./correctif-demarrage-already-added.md)
+- [Correctif — fermeture de l'historique (UncaughtException)](./correctif-fermeture-historique.md)
+- [Cloner et construire le jar](./construire-le-jar.md)
+- [Recette graphique — libellés des colonnes](./recette-graphique-colonnes.md)
+- [Recette graphique — avec le compte de Gisèle (`abe`), tout ce qui a été corrigé](./recette-graphique-gisele.md)
+- [Passer du SQL quand OpenConcerto tourne sous Docker](./psql-docker.md)
+- [Diagnostic SQL — affaire invisible ou non sélectionnable](../sql/diagnostic-affaire-visible.sql)
+- [Aide > Diagnostic affaire (dans le client)](./diagnostic-affaire.md)
+- [Tester l'affaire en ligne de commande, sans interface](./tests-cli-affaire.md)
+- [Release 1.1 — le menu Paramètres est visible](./release-1.1-menu-parametres.md)
+- [Release 1.1 — édition directe des libellés](./release-1.1-edition-libelles.md)
 
 ## Documentation existante
 

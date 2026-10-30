@@ -35,6 +35,9 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
         testMissingAffairColumnsDegradeSafely();
         testSourceOrderIsNeverModified();
         testInvoiceHeaderExposesAffairField();
+        testAffairFieldDeclaredOncePerTable();
+        testModuleStartupSurvivesAlreadyDeclaredField();
+        testModuleStartupSurvivesFieldNotCreatedByModule();
         testUndefinedLineAffairsUseOrderAffair();
         testDefinedLineAffairIsPreserved();
         testNoOrderAffairLeavesLineAffairsUndefined();
@@ -191,13 +194,81 @@ public final class SupplierOrderToInvoiceSQLInjectorTest {
 
     private static void testInvoiceHeaderExposesAffairField() {
         final ComponentsContext ctxt = new ComponentsContext();
+        final AffairLinkSupport.Schema schema = AffairLinkSupport.schemaOf(
+                new java.util.LinkedHashSet<String>(Arrays.asList("FACTURE_FOURNISSEUR")),
+                java.util.Collections.<String, java.util.Set<String>> singletonMap("FACTURE_FOURNISSEUR",
+                        new java.util.LinkedHashSet<String>(Arrays.asList("ID_AFFAIRE"))));
 
-        SupplierInvoiceAffairComponentSupport.register(ctxt);
+        final AffairLinkSupport.RegistrationReport report = SupplierInvoiceAffairComponentSupport.register(ctxt, schema);
 
         assertEquals("affair field registered on supplier invoice header", "FACTURE_FOURNISSEUR", ctxt.getTableName());
         assertEquals("registered header field", "ID_AFFAIRE", ctxt.getFieldName());
         assertEquals("single component registration", 1, ctxt.getRegistrationCount());
+        assertEquals("report lists the addition", Arrays.asList("FACTURE_FOURNISSEUR"), report.getAdded());
+        assertTrue("report is complete", report.isComplete());
         pass();
+    }
+
+    /**
+     * Regression du plantage « Already added ID_AFFAIRE in
+     * FactureFournisseurSQLElement » : chaque table ne doit etre declaree
+     * qu'une fois, meme quand plusieurs documents la concernent.
+     */
+    private static void testAffairFieldDeclaredOncePerTable() {
+        final ComponentsContext ctxt = new ComponentsContext();
+        final AffairLinkSupport.Schema schema = AffairLinkSupport.schemaOf(
+                new java.util.LinkedHashSet<String>(Arrays.asList("COMMANDE", "FACTURE_FOURNISSEUR", "SAISIE_ACHAT")),
+                fieldsMap("COMMANDE", "FACTURE_FOURNISSEUR", "SAISIE_ACHAT"));
+
+        final AffairLinkSupport.RegistrationReport report = SupplierInvoiceAffairComponentSupport.register(ctxt, schema);
+
+        assertEquals("three distinct declarations", 3, ctxt.getRegistrationCount());
+        assertEquals("no duplicate", new java.util.LinkedHashSet<String>(ctxt.getRegistrations()).size(), ctxt.getRegistrations().size());
+        assertTrue("supplier invoice declared", ctxt.getRegistrations().contains("FACTURE_FOURNISSEUR.ID_AFFAIRE"));
+        assertEquals("nothing already present", 0, report.getAlreadyPresent().size());
+        pass();
+    }
+
+    private static void testModuleStartupSurvivesAlreadyDeclaredField() {
+        final ComponentsContext ctxt = new ComponentsContext();
+        final AffairLinkSupport.Schema schema = AffairLinkSupport.schemaOf(
+                new java.util.LinkedHashSet<String>(Arrays.asList("COMMANDE", "FACTURE_FOURNISSEUR")),
+                fieldsMap("COMMANDE", "FACTURE_FOURNISSEUR"));
+
+        final AffairLinkSupport.RegistrationReport first = SupplierInvoiceAffairComponentSupport.register(ctxt, schema);
+        // Deuxieme declaration : le contexte reel leve IllegalStateException.
+        final AffairLinkSupport.RegistrationReport second = SupplierInvoiceAffairComponentSupport.register(ctxt, schema);
+
+        assertEquals("first call adds everything", 2, first.getAdded().size());
+        assertEquals("second call adds nothing", 0, second.getAdded().size());
+        assertEquals("second call reports the existing fields", 2, second.getAlreadyPresent().size());
+        assertTrue("second call is not an error", second.isComplete());
+        assertEquals("each table declared once", 2, ctxt.getRegistrationCount());
+        pass();
+    }
+
+    private static void testModuleStartupSurvivesFieldNotCreatedByModule() {
+        final ComponentsContext ctxt = new ComponentsContext();
+        ctxt.refuseFieldOf("SAISIE_ACHAT.ID_AFFAIRE");
+        final AffairLinkSupport.Schema schema = AffairLinkSupport.schemaOf(
+                new java.util.LinkedHashSet<String>(Arrays.asList("COMMANDE", "SAISIE_ACHAT")),
+                fieldsMap("COMMANDE", "SAISIE_ACHAT"));
+
+        final AffairLinkSupport.RegistrationReport report = SupplierInvoiceAffairComponentSupport.register(ctxt, schema);
+
+        assertEquals("refused table is reported, not thrown", 1, report.getRefused().size());
+        assertTrue("refusal names the table", report.getRefused().get(0).startsWith("SAISIE_ACHAT"));
+        assertEquals("other tables are still declared", Arrays.asList("COMMANDE"), report.getAdded());
+        pass();
+    }
+
+    /** Schema de test : les tables donnees portent toutes ID_AFFAIRE. */
+    private static java.util.Map<String, java.util.Set<String>> fieldsMap(final String... tables) {
+        final java.util.Map<String, java.util.Set<String>> fields = new java.util.HashMap<String, java.util.Set<String>>();
+        for (final String table : tables) {
+            fields.put(table, new java.util.LinkedHashSet<String>(Arrays.asList("ID_AFFAIRE")));
+        }
+        return fields;
     }
 
     private static void testUndefinedLineAffairsUseOrderAffair() {
