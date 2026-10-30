@@ -10,20 +10,24 @@
 -- saisies d'achat. Les tableaux de lignes sont dans
 -- `sql/reprise-affaire-lignes.sql`, parce que la colonne n'existe pas sur tous.
 --
+-- Chaque bloc est dans SA PROPRE transaction : sur une base ou une table n'a pas
+-- la colonne attendue (constate : DEVIS n'a pas de colonne ID), le bloc
+-- concerne signale l'erreur et les autres sont quand meme appliques.
+--
 --   sh scripts/oc-psql.sh -f sql/reprise-affaire-transfert.sql
 --
--- Tout est dans une transaction : en cas de doute, remplacer COMMIT par
--- ROLLBACK a la fin.
+-- En cas de doute, remplacer un COMMIT par ROLLBACK.
 --
 -- Idempotent : rejouable autant de fois que voulu.
 --
 -- Verifie automatiquement, sans base :  sh scripts/test-affaire-cli.sh
 
-BEGIN;
 
 \echo '=== 1. Saisies d achat : SOURCE / IDSOURCE ==='
 
 -- Commande -> saisie d'achat
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."COMMANDE"."ID_AFFAIRE"
@@ -33,7 +37,11 @@ UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    AND ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- Bon_reception -> saisie d'achat
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE"
@@ -43,9 +51,16 @@ UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    AND ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 \echo '=== 2. Documents : via les tables de transfert du coeur ==='
 
+\echo 'Chaque bloc est independant : une table absente n empeche pas les autres.'
+\echo ''
+
 -- COMMANDE -> SAISIE_ACHAT
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."COMMANDE"."ID_AFFAIRE"
@@ -55,7 +70,11 @@ UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    AND ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- COMMANDE -> BON_RECEPTION
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."BON_RECEPTION"
    SET "ID_AFFAIRE" = "OpenConcerto42"."COMMANDE"."ID_AFFAIRE"
@@ -65,7 +84,11 @@ UPDATE "OpenConcerto42"."BON_RECEPTION"
    AND ("OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- COMMANDE -> FACTURE_FOURNISSEUR
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."FACTURE_FOURNISSEUR"
    SET "ID_AFFAIRE" = "OpenConcerto42"."COMMANDE"."ID_AFFAIRE"
@@ -75,7 +98,11 @@ UPDATE "OpenConcerto42"."FACTURE_FOURNISSEUR"
    AND ("OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- BON_RECEPTION -> SAISIE_ACHAT
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE"
@@ -85,7 +112,11 @@ UPDATE "OpenConcerto42"."SAISIE_ACHAT"
    AND ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- BON_RECEPTION -> FACTURE_FOURNISSEUR
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."FACTURE_FOURNISSEUR"
    SET "ID_AFFAIRE" = "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE"
@@ -95,7 +126,11 @@ UPDATE "OpenConcerto42"."FACTURE_FOURNISSEUR"
    AND ("OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- DEVIS -> COMMANDE
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."COMMANDE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
@@ -105,7 +140,11 @@ UPDATE "OpenConcerto42"."COMMANDE"
    AND ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- SAISIE_ACHAT -> AVOIR_FOURNISSEUR
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."AVOIR_FOURNISSEUR"
    SET "ID_AFFAIRE" = "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE"
@@ -115,7 +154,11 @@ UPDATE "OpenConcerto42"."AVOIR_FOURNISSEUR"
    AND ("OpenConcerto42"."AVOIR_FOURNISSEUR"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."AVOIR_FOURNISSEUR"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- DEVIS -> COMMANDE_CLIENT
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."COMMANDE_CLIENT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
@@ -125,7 +168,11 @@ UPDATE "OpenConcerto42"."COMMANDE_CLIENT"
    AND ("OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- DEVIS -> SAISIE_VENTE_FACTURE
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
@@ -135,7 +182,11 @@ UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE"
    AND ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- DEVIS -> BON_DE_LIVRAISON
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."BON_DE_LIVRAISON"
    SET "ID_AFFAIRE" = "OpenConcerto42"."DEVIS"."ID_AFFAIRE"
@@ -145,7 +196,11 @@ UPDATE "OpenConcerto42"."BON_DE_LIVRAISON"
    AND ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- COMMANDE_CLIENT -> SAISIE_VENTE_FACTURE
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE"
@@ -155,7 +210,11 @@ UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE"
    AND ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- COMMANDE_CLIENT -> BON_DE_LIVRAISON
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."BON_DE_LIVRAISON"
    SET "ID_AFFAIRE" = "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE"
@@ -165,7 +224,11 @@ UPDATE "OpenConcerto42"."BON_DE_LIVRAISON"
    AND ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- COMMANDE_CLIENT -> COMMANDE
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."COMMANDE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE"
@@ -175,7 +238,11 @@ UPDATE "OpenConcerto42"."COMMANDE"
    AND ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- BON_DE_LIVRAISON -> SAISIE_VENTE_FACTURE
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE"
@@ -185,7 +252,11 @@ UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE"
    AND ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- SAISIE_VENTE_FACTURE -> AVOIR_CLIENT
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."AVOIR_CLIENT"
    SET "ID_AFFAIRE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE"
@@ -195,7 +266,11 @@ UPDATE "OpenConcerto42"."AVOIR_CLIENT"
    AND ("OpenConcerto42"."AVOIR_CLIENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."AVOIR_CLIENT"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- SAISIE_VENTE_FACTURE -> BON_DE_LIVRAISON
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."BON_DE_LIVRAISON"
    SET "ID_AFFAIRE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE"
@@ -205,7 +280,11 @@ UPDATE "OpenConcerto42"."BON_DE_LIVRAISON"
    AND ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
    AND "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" > 1;
 
+COMMIT;
+
 -- SAISIE_VENTE_FACTURE -> COMMANDE
+
+BEGIN;
 
 UPDATE "OpenConcerto42"."COMMANDE"
    SET "ID_AFFAIRE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE"

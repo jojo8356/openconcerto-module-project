@@ -101,6 +101,10 @@ def real(table):
     return "%s > %d" % (a(table, AFFAIR), UNDEFINED)
 
 
+ROOT_NOTE = """\\echo 'Chaque bloc est independant : une table absente n empeche pas les autres.'
+\\echo ''
+"""
+
 HEADER = """-- {title}
 --
 -- {purpose}
@@ -126,21 +130,24 @@ def reprise_entetes(pairs):
 -- saisies d'achat. Les tableaux de lignes sont dans
 -- `sql/reprise-affaire-lignes.sql`, parce que la colonne n'existe pas sur tous.
 --
+-- Chaque bloc est dans SA PROPRE transaction : sur une base ou une table n'a pas
+-- la colonne attendue (constate : DEVIS n'a pas de colonne ID), le bloc
+-- concerne signale l'erreur et les autres sont quand meme appliques.
+--
 --   sh scripts/oc-psql.sh -f sql/reprise-affaire-transfert.sql
 --
--- Tout est dans une transaction : en cas de doute, remplacer COMMIT par
--- ROLLBACK a la fin.
+-- En cas de doute, remplacer un COMMIT par ROLLBACK.
 --
 -- Idempotent : rejouable autant de fois que voulu.
 --
 -- Verifie automatiquement, sans base :  sh scripts/test-affaire-cli.sh
 
-BEGIN;
 """ % len(pairs)]
 
     out.append("\\echo '=== 1. Saisies d achat : SOURCE / IDSOURCE ==='\n")
     for source in ("COMMANDE", "BON_RECEPTION"):
         out.append("-- %s -> saisie d'achat\n" % source.capitalize())
+        out.append("BEGIN;\n")
         out.append("\n".join([
             "UPDATE %s" % t("SAISIE_ACHAT"),
             "   SET %s = %s" % (c(AFFAIR), a(source, AFFAIR)),
@@ -150,14 +157,17 @@ BEGIN;
             "   AND %s" % empty("SAISIE_ACHAT"),
             "   AND %s;" % real(source),
         ]) + "\n")
+        out.append("COMMIT;\n")
 
     out.append("\\echo '=== 2. Documents : via les tables de transfert du coeur ==='\n")
+    out.append(ROOT_NOTE)
     for source, destination in pairs:
         transfer = "TR_" + source
         src_key = "ID_" + source
         dest_key = "ID_" + destination
         join = "%s = %s AND %s = %s" % (a(transfer, dest_key), a(destination, "ID"), a(transfer, src_key), a(source, "ID"))
         out.append("-- %s -> %s\n" % (source, destination))
+        out.append("BEGIN;\n")
         out.append("\n".join([
             "UPDATE %s" % t(destination),
             "   SET %s = %s" % (c(AFFAIR), a(source, AFFAIR)),
@@ -167,10 +177,9 @@ BEGIN;
             "   AND %s" % empty(destination),
             "   AND %s;" % real(source),
         ]) + "\n")
+        out.append("COMMIT;\n")
 
-    out.append("""COMMIT;
-
-\\echo ''
+    out.append("""\\echo ''
 \\echo '=== Termine. Pour les lignes, voir sql/reprise-affaire-lignes.sql ==='
 \\echo 'Verifier avec sql/diagnostic-affaire-transfert.sql : les compteurs doivent etre a 0.'
 """)
@@ -222,79 +231,84 @@ select table_name
 
 
 def diagnostic_entetes(pairs):
+    """Une requete par cas, jamais de UNION.
+
+    Une grande requete `union all` echoue en entier des qu'une table manque (cas
+    reel : `DEVIS` sans colonne `ID`) et l'on perd tous les compteurs. Ici,
+    chaque cas est une requete independante : psql signale celui qui echoue et
+    affiche les autres.
+    """
+    documents = sorted({pair[0] for pair in pairs} | {pair[1] for pair in pairs} | {"SAISIE_ACHAT"})
     out = ["""-- Diagnostic : combien de documents ont perdu leur affaire en transfert ?
 --
 -- Lecture seule. Aucune ecriture.
 --
--- Ce fichier ne regarde que les EN-TETES de documents : il est donc sur sur
--- toute base installee par le module. Les tableaux de lignes sont dans
--- `sql/diagnostic-affaire-lignes.sql`.
+-- Une requete par cas : si une table n'existe pas ou n'a pas la colonne
+-- attendue, psql signale CE cas et affiche les autres. Aucun compteur n'est
+-- perdu a cause d'une table.
+--
+-- Ce fichier ne regarde que les EN-TETES de documents. Les tableaux de lignes
+-- sont dans `sql/diagnostic-affaire-lignes.sql`.
 --
 --   sh scripts/oc-psql.sh -f sql/diagnostic-affaire-transfert.sql
 --
 -- Les requetes reprennent exactement les regles de AffairBackfillSupport :
 -- seules les affaires VIDES (NULL) ou « Indefini » (ID 1) sont comptees, et
 -- seulement quand le document source porte une vraie affaire.
---
--- Verifie automatiquement, sans base :  sh scripts/test-affaire-cli.sh
 
 \\echo '=== 0. Schema utilise (adapter si votre societe porte un autre nom) ==='
 select current_schema() as schema_courant;
+
+\\echo ''
+\\echo '=== 1. Saisies d achat sans affaire, alors que leur source en a une ==='
 """]
 
-    out.append("\\echo ''\n\\echo '=== 1. Saisies d achat sans affaire, alors que leur source en a une ==='")
-    parts = []
     for source in ("COMMANDE", "BON_RECEPTION"):
-        parts.append("\n".join([
-            "select '%s' as source, count(*) as documents" % source,
+        out.append("\\echo '-- %s'" % source)
+        out.append("\n".join([
+            "select '%s' as cas, count(*) as documents" % ("SAISIE_ACHAT <- %s (SOURCE / IDSOURCE)" % source),
             "  from %s" % t("SAISIE_ACHAT"),
             "  join %s on %s = %s" % (t(source), a(source, "ID"), a("SAISIE_ACHAT", "IDSOURCE")),
             " where %s = '%s'" % (a("SAISIE_ACHAT", "SOURCE"), source),
             "   and %s" % empty("SAISIE_ACHAT"),
-            "   and %s" % real(source),
-        ]))
-    out.append(" union all\n".join(parts) + ";")
+            "   and %s;" % real(source),
+        ]) + "\n")
 
-    out.append("\n\\echo ''\n\\echo '=== 2. Documents sans affaire, mais leur source (table TR_*) en a une ==='")
-    parts = []
+    out.append("\\echo ''\n\\echo '=== 2. Documents sans affaire, mais leur source (table TR_*) en a une ==='\n")
     for source, destination in pairs:
         transfer = "TR_" + source
-        parts.append("\n".join([
-            "select '%s <- %s' as transfert, count(*) as documents" % (destination, source),
+        out.append("\\echo '-- %s <- %s'" % (destination, source))
+        out.append("\n".join([
+            "select '%s' as cas, count(*) as documents" % ("%s <- %s (via %s)" % (destination, source, transfer)),
             "  from %s" % t(destination),
             "  join %s on %s = %s" % (t(transfer), a(transfer, "ID_" + destination), a(destination, "ID")),
             "  join %s on %s = %s" % (t(source), a(source, "ID"), a(transfer, "ID_" + source)),
             " where %s" % empty(destination),
-            "   and %s" % real(source),
-        ]))
-    out.append(" union all\n".join(parts) + ";")
+            "   and %s;" % real(source),
+        ]) + "\n")
 
     out.append("""
 \\echo ''
 \\echo '=== 3. Tableaux de lignes qui portent la colonne ID_AFFAIRE ==='
-\\echo '(les autres lisent l''affaire de leur document : rien a reprendre chez eux)'
+\\echo '(les autres lisent l affaire de leur document : rien a reprendre chez eux)'
 select table_name as table_lignes
   from information_schema.columns
  where table_schema = '%s' and column_name = '%s'
    and table_name like '%%_ELEMENT'
  order by 1;
-""" % (SCHEMA, AFFAIR))
 
-    out.append("""
 \\echo ''
 \\echo '=== 4. Les tables de transfert presentes dans cette base ==='
 select table_name
   from information_schema.tables
  where table_schema = '%s' and table_name like 'TR%%'
  order by 1;
-""" % SCHEMA)
+""" % (SCHEMA, AFFAIR, SCHEMA))
 
-    out.append("\\echo ''\n\\echo '=== 5. Rappel : documents sans affaire, tous cas confondus ==='")
-    documents = sorted({pair[0] for pair in pairs} | {pair[1] for pair in pairs} | {"SAISIE_ACHAT"})
-    parts = []
+    out.append("\\echo ''\n\\echo '=== 5. Rappel : documents sans affaire, tous cas confondus ==='\n")
     for document in documents:
-        parts.append("select '%s' as document, count(*) as sans_affaire from %s where %s" % (document, t(document), empty(document)))
-    out.append(" union all\n".join(parts) + "\n order by 2 desc;")
+        out.append("select '%s' as document, count(*) as sans_affaire from %s where %s;"
+                   % (document, t(document), empty(document)))
     return "\n".join(out) + "\n"
 
 

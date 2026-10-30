@@ -33,6 +33,7 @@ public final class AffairBackfillSupportTest {
         testNeverOverwritesExistingAffair();
         testOrderOfRepairs();
         testRealClientSchema();
+        testTableWithoutKeyIsSkipped();
         testEmptyAndRealAffairPredicates();
         testNullSchema();
         testDescriptions();
@@ -219,6 +220,39 @@ public final class AffairBackfillSupportTest {
         assertEquals("avoir client depuis facture", Boolean.TRUE, Boolean.valueOf(find(plan, "AVOIR_CLIENT", "TR_SAISIE_VENTE_FACTURE") != null));
         assertEquals("bon de livraison depuis commande client", Boolean.TRUE, Boolean.valueOf(find(plan, "BON_DE_LIVRAISON", "TR_COMMANDE_CLIENT") != null));
         assertEquals("plan consequent", Boolean.TRUE, Boolean.valueOf(plan.size() >= 8));
+    }
+
+    /**
+     * Base reelle : {@code DEVIS} n'a pas de colonne {@code ID}. Les quatre
+     * transferts partant d'un devis ne doivent pas produire de requete : elles
+     * echoueraient, et dans une transaction unique elles annuleraient les
+     * autres reprises.
+     */
+    private static void testTableWithoutKeyIsSkipped() {
+        final String[] doc = cols("ID", "ID_AFFAIRE");
+        final Map<String, String[]> t = tables(
+                "COMMANDE", doc,
+                "COMMANDE_CLIENT", doc,
+                "SAISIE_VENTE_FACTURE", doc,
+                "BON_DE_LIVRAISON", doc,
+                "DEVIS", cols("ID_AFFAIRE", "NUMERO"),
+                "TR_DEVIS", cols("ID", "ID_DEVIS", "ID_COMMANDE", "ID_COMMANDE_CLIENT", "ID_SAISIE_VENTE_FACTURE", "ID_BON_DE_LIVRAISON"),
+                "TR_COMMANDE_CLIENT", cols("ID", "ID_COMMANDE_CLIENT", "ID_SAISIE_VENTE_FACTURE", "ID_BON_DE_LIVRAISON", "ID_COMMANDE"));
+        final List<AffairBackfillSupport.Repair> plan = AffairBackfillSupport.plan(schema(t), Q);
+        assertEquals("devis sans cle : aucune reprise depuis le devis", null, find(plan, "COMMANDE", "TR_DEVIS"));
+        assertEquals("devis sans cle : aucune reprise vers la commande client", null, find(plan, "COMMANDE_CLIENT", "TR_DEVIS"));
+        assertEquals("devis sans cle : aucune reprise vers la facture de vente", null, find(plan, "SAISIE_VENTE_FACTURE", "TR_DEVIS"));
+        assertEquals("devis sans cle : aucune reprise vers le bon de livraison", null, find(plan, "BON_DE_LIVRAISON", "TR_DEVIS"));
+        // les transferts sans devis restent generes
+        assertEquals("reprise commande client -> facture conservee", Boolean.TRUE,
+                Boolean.valueOf(find(plan, "SAISIE_VENTE_FACTURE", "TR_COMMANDE_CLIENT") != null));
+        assertEquals("reprise commande client -> bon de livraison conservee", Boolean.TRUE,
+                Boolean.valueOf(find(plan, "BON_DE_LIVRAISON", "TR_COMMANDE_CLIENT") != null));
+        // et aucune requete ne parle du devis
+        for (final AffairBackfillSupport.Repair repair : plan) {
+            assertEquals("aucune requete sur DEVIS : " + repair.getDescription(),
+                    Boolean.FALSE, Boolean.valueOf(repair.getUpdateSql().contains("\"DEVIS\"")));
+        }
     }
 
     private static void testEmptyAndRealAffairPredicates() {

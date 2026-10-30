@@ -136,7 +136,7 @@ public final class AffairBackfillSupport {
         // Les valeurs possibles de SOURCE sont les tables sources des
         // injecteurs : COMMANDE et BON_RECEPTION.
         for (final String source : new String[] { "COMMANDE", "BON_RECEPTION" }) {
-            if (!hasAffair(schema, source)) {
+            if (!hasAffair(schema, source) || !hasKey(schema, source)) {
                 continue;
             }
             final String sourceValue = q.column("SOURCE") + " = '" + source + "'";
@@ -159,6 +159,12 @@ public final class AffairBackfillSupport {
             final String target = pair[1];
             final String transferTable = "TR_" + source;
             if (!hasAffair(schema, source) || !hasAffair(schema, target) || !schema.hasTable(transferTable)) {
+                continue;
+            }
+            // Certaines bases n'ont pas de colonne ID sur toutes les tables
+            // (constate sur DEVIS) : sans elle, la jointure est impossible et la
+            // reprise doit etre ignoree, pas produire une requete en echec.
+            if (!hasKey(schema, source) || !hasKey(schema, target)) {
                 continue;
             }
             final String srcKey = "ID_" + source;
@@ -192,6 +198,9 @@ public final class AffairBackfillSupport {
             if (!hasAffair(schema, lineTable) || !hasAffair(schema, document) || !schema.hasField(lineTable, link)) {
                 continue;
             }
+            if (!hasKey(schema, document)) {
+                continue;
+            }
             final String empty = emptyAffair(q, lineTable);
             final String real = realAffair(q, document);
             final String join = a(q, lineTable, link) + " = " + a(q, document, KEY_FIELD);
@@ -204,6 +213,19 @@ public final class AffairBackfillSupport {
 
     private static boolean hasAffair(final AffairLinkSupport.Schema schema, final String table) {
         return schema.hasTable(table) && schema.hasField(table, AFFAIR_FIELD);
+    }
+
+    /**
+     * Vrai si la table porte la cle primaire utilisee par les jointures.
+     * <p>
+     * Toutes les installations n'ont pas {@code ID} partout : sur la base du
+     * client, {@code DEVIS} n'a pas cette colonne. Sans ce controle, la reprise
+     * produirait un {@code join ... on "DEVIS"."ID" = ...} qui echoue et, dans
+     * une transaction unique, annulerait toutes les autres reprises.
+     * </p>
+     */
+    private static boolean hasKey(final AffairLinkSupport.Schema schema, final String table) {
+        return schema.hasField(table, KEY_FIELD);
     }
 
     /** {@code <table>.<colonne>}, tel qu'ecrit dans le SQL produit. */

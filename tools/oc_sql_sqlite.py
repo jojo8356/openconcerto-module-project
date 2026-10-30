@@ -83,7 +83,7 @@ TRANSFER_TABLES = {
 # --------------------------------------------------------------------------
 # Base
 # --------------------------------------------------------------------------
-def create_database(line_columns="client"):
+def create_database(line_columns="client", devis_key=True):
     """Cree la base jetable avec le schema du client et ses tables.
 
     @param line_columns "client" : seuls les tableaux mesures portent
@@ -102,6 +102,9 @@ def create_database(line_columns="client"):
 
     _create(db, "AFFAIRE", AFFAIR_COLUMNS)
     for table, columns in DOCUMENT_COLUMNS.items():
+        if table == "DEVIS" and not devis_key:
+            # cas reel mesure : la table DEVIS du client n'a pas de colonne ID
+            columns = [column for column in columns if column != "ID"]
         _create(db, table, columns)
     for table, link in LINE_TABLES.items():
         columns = ["ID", link]
@@ -159,6 +162,7 @@ def transfert_rows():
     ("COMMANDE", dict(ID=255, ID_AFFAIRE=None)),
     ("COMMANDE", dict(ID=256, ID_AFFAIRE=None)),
     ("COMMANDE", dict(ID=257, ID_AFFAIRE=None)),
+    ("AFFAIRE", dict(ID=777, NUMERO="777", NOM="AFFAIRE 777")),
     ("DEVIS", dict(ID=600, ID_AFFAIRE=777)),
     ("BON_RECEPTION", dict(ID=400, ID_AFFAIRE=300)),
     ("BON_RECEPTION", dict(ID=401, ID_AFFAIRE=1)),
@@ -428,18 +432,31 @@ def normalize(statement):
     return statement.replace(needle, "like 'TR!_%' escape '!'").replace(needle.upper(), "like 'TR!_%' escape '!'")
 
 
-def execute(db, statements, verbose=False):
-    """Execute une suite d'ordres ; renvoie les resultats des SELECT."""
+def execute(db, statements, verbose=False, skip_errors=False):
+    """Execute une suite d'ordres ; renvoie les resultats des SELECT.
+
+    @param skip_errors continue apres une erreur (comme psql sans
+                       ON_ERROR_STOP) et la renvoie dans la liste des erreurs.
+    """
     results = []
     for statement in statements:
         upper = statement.lstrip().upper()
-        cursor = db.execute(normalize(statement))
+        try:
+            cursor = db.execute(normalize(statement))
+        except sqlite3.Error as error:
+            if not skip_errors:
+                raise
+            execute.errors.append("%s : %s" % (upper.split()[0], error))
+            continue
         if upper.startswith("SELECT") or upper.startswith("WITH"):
             headers = [column[0] for column in cursor.description]
             results.append((statement, headers, cursor.fetchall()))
         elif verbose:
             print("   %s ... %s ligne(s)" % (upper.split()[0], cursor.rowcount if cursor.rowcount >= 0 else "?"))
     return results
+
+
+execute.errors = []
 
 
 def snapshot(db):
@@ -487,75 +504,73 @@ def as_dict(result):
     return {row[0]: row[-1] for row in result[2]}
 
 
+def collect(results, header):
+    """Fusionne les lignes de toutes les requetes dont la 1re colonne est `header`."""
+    merged = {}
+    for _statement, headers, rows in results:
+        if headers[0] != header:
+            continue
+        for row in rows:
+            merged[row[0]] = row[-1]
+    return merged
+
+
 def scenario_transfert(checker):
-    """Les fichiers SQL en-tetes, puis les fichiers SQL lignes."""
+    """Les fichiers SQL du module, executes sur deux schemas."""
     diagnostic = os.path.join(ROOT, "sql", "diagnostic-affaire-transfert.sql")
     reprise = os.path.join(ROOT, "sql", "reprise-affaire-transfert.sql")
     diagnostic_lignes = os.path.join(ROOT, "sql", "diagnostic-affaire-lignes.sql")
     reprise_lignes = os.path.join(ROOT, "sql", "reprise-affaire-lignes.sql")
+    attendu = os.path.join(ROOT, "sql", "attendu-reprise.sql")
 
     print("=== Fichiers SQL du module, executes dans SQLite ===")
-    for path in (diagnostic, reprise, diagnostic_lignes, reprise_lignes):
+    for path in (diagnostic, reprise, diagnostic_lignes, reprise_lignes, attendu):
         print("    %s" % os.path.relpath(path, ROOT))
     print()
 
     # ------------------------------------------------------------------ 1
-    print("1. Base de test au schema du client (2 tableaux de lignes avec colonne)")
+    print("1. Schema du client : deux tableaux de lignes avec la colonne")
     db = create_database("client")
     fixture_transfert(db)
-
     print()
     print("2. Le jeu de donnees reproduit bien la panne")
     for table, row_id, affair, label in BEFORE_REPRISE:
         checker.check(label, affair, affair_of(db, table, row_id))
 
     print()
-    print("3. Diagnostic AVANT reprise (lecture seule, en-tetes)")
-    diagnostic_statements = read_script(diagnostic)
-    checker.check("le fichier de diagnostic contient des requetes", True, len(diagnostic_statements) >= 5)
-    results = execute(db, diagnostic_statements)
-    checker.check("toutes les requetes de diagnostic s'executent", len(diagnostic_statements), len(results))
-    sections = {}
-    for _statement, headers, rows in results:
-        sections[headers[0]] = rows
-        for row in rows:
-            print("   %-40s %s" % (row[0], row[-1]))
-
-    checker.check("§0 : schema courant", SCHEMA, sections.get("schema_courant", [[None]])[0][0])
-    checker.check("§1 : saisies d'achat a reparer", {"COMMANDE": 2, "BON_RECEPTION": 1},
-                  {row[0]: row[-1] for row in sections.get("source", [])})
-    checker.check("§2 : documents via TR_* a reparer (17 transferts)",
-                  {"SAISIE_ACHAT <- COMMANDE": 1, "BON_RECEPTION <- COMMANDE": 1,
-                   "FACTURE_FOURNISSEUR <- COMMANDE": 2, "SAISIE_ACHAT <- BON_RECEPTION": 1,
-                   "FACTURE_FOURNISSEUR <- BON_RECEPTION": 1, "COMMANDE <- DEVIS": 1,
-                   "AVOIR_FOURNISSEUR <- SAISIE_ACHAT": 0, "COMMANDE_CLIENT <- DEVIS": 1,
-                   "SAISIE_VENTE_FACTURE <- DEVIS": 1, "BON_DE_LIVRAISON <- DEVIS": 1,
-                   "SAISIE_VENTE_FACTURE <- COMMANDE_CLIENT": 0, "BON_DE_LIVRAISON <- COMMANDE_CLIENT": 0,
-                   "COMMANDE <- COMMANDE_CLIENT": 0, "SAISIE_VENTE_FACTURE <- BON_DE_LIVRAISON": 0,
-                   "AVOIR_CLIENT <- SAISIE_VENTE_FACTURE": 0, "BON_DE_LIVRAISON <- SAISIE_VENTE_FACTURE": 0,
-                   "COMMANDE <- SAISIE_VENTE_FACTURE": 0},
-                  {row[0]: row[-1] for row in sections.get("transfert", [])})
-    checker.check("§3 : tableaux de lignes qui portent la colonne",
-                  {"DEMANDE_ACHAT_ELEMENT", "FACTURE_FOURNISSEUR_ELEMENT"},
-                  {row[0] for row in sections.get("table_lignes", [])})
-    checker.check("§4 : tables de transfert listees", 7, len(sections.get("table_name", [])))
-    checker.check("§5 : compteur global des documents sans affaire",
-                  {"COMMANDE": 5, "BON_RECEPTION": 3, "SAISIE_ACHAT": 7, "FACTURE_FOURNISSEUR": 4,
-                   "AVOIR_FOURNISSEUR": 1, "DEVIS": 0, "COMMANDE_CLIENT": 1,
-                   "SAISIE_VENTE_FACTURE": 3, "AVOIR_CLIENT": 1, "BON_DE_LIVRAISON": 3},
-                  {row[0]: row[-1] for row in sections.get("document", [])})
+    print("3. Diagnostic AVANT reprise (lecture seule)")
+    statements = read_script(diagnostic)
+    results = execute(db, statements)
+    checker.check("une requete par cas : aucune requete en echec", len(statements), len(results))
+    cas = collect(results, "cas")
+    for label, nombre in sorted(cas.items()):
+        print("   %-58s %d" % (label, nombre))
+    checker.check("§1 : deux saisies d'achat a reparer", 2,
+                  cas.get("SAISIE_ACHAT <- COMMANDE (SOURCE / IDSOURCE)"))
+    checker.check("§1 : une saisie depuis un bon de reception", 1,
+                  cas.get("SAISIE_ACHAT <- BON_RECEPTION (SOURCE / IDSOURCE)"))
+    checker.check("§2 : deux factures depuis une commande", 2, cas.get("FACTURE_FOURNISSEUR <- COMMANDE (via TR_COMMANDE)"))
+    checker.check("§2 : une facture depuis un bon de reception", 1, cas.get("FACTURE_FOURNISSEUR <- BON_RECEPTION (via TR_BON_RECEPTION)"))
+    checker.check("§2 : une commande depuis un devis", 1, cas.get("COMMANDE <- DEVIS (via TR_DEVIS)"))
+    checker.check("§2 : dix-sept transferts testes", 17, len(cas) - 2)
+    checker.check("§3 : tableaux de lignes avec la colonne",
+                  ["DEMANDE_ACHAT_ELEMENT", "FACTURE_FOURNISSEUR_ELEMENT"],
+                  [row[0] for _s, h, rows in results if h[0] == "table_lignes" for row in rows])
+    checker.check("§4 : sept tables de transfert", 7,
+                  len([row for _s, h, rows in results if h[0] == "table_name" for row in rows]))
+    documents = collect(results, "document")
+    checker.check("§5 : factures fournisseur sans affaire", 4, documents.get("FACTURE_FOURNISSEUR"))
+    checker.check("§5 : commandes sans affaire", 5, documents.get("COMMANDE"))
     checker.check("le diagnostic n'a rien ecrit", None, affair_of(db, "FACTURE_FOURNISSEUR", 900))
 
     print()
     print("4. Reprise des en-tetes")
-    reprise_statements = read_script(reprise)
-    checker.check("le fichier de reprise est transactionnel", True,
-                  any(s.upper().startswith("BEGIN") for s in reprise_statements)
-                  and any(s.upper().startswith("COMMIT") for s in reprise_statements))
+    statements = read_script(reprise)
+    checker.check("une transaction par bloc", 19,
+                  len([statement for statement in statements if statement.upper().startswith("BEGIN")]))
     checker.check("la reprise ne touche aucun tableau de lignes", 0,
-                  len([s for s in reprise_statements if "_ELEMENT" in s]))
-    execute(db, reprise_statements)
-
+                  len([statement for statement in statements if "_ELEMENT" in statement]))
+    execute(db, statements)
     print()
     print("5. Resultat")
     for table, row_id, affair, label in AFTER_REPRISE:
@@ -569,14 +584,15 @@ def scenario_transfert(checker):
     execute(db, read_script(reprise))
     checker.check("aucune valeur modifiee au second passage", state, snapshot(db))
     results = execute(db, read_script(diagnostic))
-    sections = {headers[0]: rows for _statement, headers, rows in results}
-    check_zero(checker, "§1", sections.get("source", []))
-    check_zero(checker, "§2", sections.get("transfert", []))
-    checker.check("§5 : il ne reste que les documents sans source",
+    cas = collect(results, "cas")
+    restant = {label: nombre for label, nombre in cas.items() if nombre}
+    checker.check("plus aucun document a reprendre", {}, restant)
+    documents = collect(results, "document")
+    checker.check("il ne reste que les documents sans source",
                   {"COMMANDE": 2, "BON_RECEPTION": 2, "SAISIE_ACHAT": 2, "FACTURE_FOURNISSEUR": 1,
                    "AVOIR_FOURNISSEUR": 0, "DEVIS": 0, "COMMANDE_CLIENT": 0,
                    "SAISIE_VENTE_FACTURE": 0, "AVOIR_CLIENT": 0, "BON_DE_LIVRAISON": 0},
-                  {row[0]: row[-1] for row in sections.get("document", [])})
+                  documents)
     db.close()
 
     # ------------------------------------------------------------------ 7
@@ -586,14 +602,13 @@ def scenario_transfert(checker):
     fixture_transfert(db)
     execute(db, read_script(reprise))
     results = execute(db, read_script(diagnostic_lignes))
-    sections = {headers[0]: rows for _statement, headers, rows in results}
-    checker.check("diagnostic lignes : 12 tableaux listes", 12, len(sections.get("table_name", [])))
-    a_reprendre = {row[0]: row[-1] for row in sections.get("table_lignes", [])}
+    checker.check("diagnostic lignes : 12 tableaux listes", 12,
+                  len([row for _s, h, rows in results if h[0] == "table_name" for row in rows]))
+    a_reprendre = collect(results, "table_lignes")
     checker.check("lignes a reprendre : 12 tableaux", 12, len(a_reprendre))
     checker.check("la ligne de commande 251 est a reprendre", 2, a_reprendre.get("COMMANDE_ELEMENT"))
-    # 5100 est vide (a reprendre), 5101 porte deja 777 (a ne pas toucher)
-    checker.check("une ligne deja rattachee n'est pas comptee", 1, a_reprendre.get("FACTURE_FOURNISSEUR_ELEMENT"))
-
+    checker.check("une seule ligne de facture a reprendre (5100)", 1,
+                  a_reprendre.get("FACTURE_FOURNISSEUR_ELEMENT"))
     execute(db, read_script(reprise_lignes))
     for table, row_id, affair, label in AFTER_REPRISE_LIGNES:
         checker.check(label, affair, affair_of(db, table, row_id))
@@ -601,51 +616,68 @@ def scenario_transfert(checker):
     execute(db, read_script(reprise_lignes))
     checker.check("reprise des lignes idempotente", state, snapshot(db))
     results = execute(db, read_script(diagnostic_lignes))
-    sections = {headers[0]: rows for _statement, headers, rows in results}
-    check_zero(checker, "§1 lignes", sections.get("table_lignes", []))
+    checker.check("plus une seule ligne a reprendre", {},
+                  {label: nombre for label, nombre in collect(results, "table_lignes").items() if nombre})
     db.close()
 
     # ------------------------------------------------------------------ 8
     print()
     print("8. sql/attendu-reprise.sql (ce que le menu doit annoncer)")
-    db3 = create_database("client")
-    fixture_transfert(db3)
-    results = execute(db3, read_script(os.path.join(ROOT, "sql", "attendu-reprise.sql")))
-    attendu = {row[0]: row[-1] for _statement, _headers, rows in results for row in rows}
-    total = sum(attendu.values())
-    checker.check("10 documents reparables dans le jeu de donnees", 10, total)
-    checker.check("dont 2 factures depuis une commande", 2, attendu.get("FACTURE_FOURNISSEUR <- COMMANDE"))
-    checker.check("aucun document sans source n'est compte", 0, attendu.get("SAISIE_VENTE_FACTURE <- COMMANDE_CLIENT"))
-    db3.close()
+    db = create_database("client")
+    fixture_transfert(db)
+    results = execute(db, read_script(attendu))
+    attendu_dict = {row[0]: row[-1] for _s, _h, rows in results for row in rows}
+    checker.check("10 documents reparables dans le jeu de donnees", 10, sum(attendu_dict.values()))
+    checker.check("dont 2 factures depuis une commande", 2,
+                  attendu_dict.get("FACTURE_FOURNISSEUR <- COMMANDE"))
+    checker.check("aucun document sans source n'est compte", 0,
+                  attendu_dict.get("SAISIE_VENTE_FACTURE <- COMMANDE_CLIENT"))
+    db.close()
 
     # ------------------------------------------------------------------ 9
     print()
-    print("9. Cas limite : base sans aucune table de transfert")
-    db2 = create_database("client")
+    print("9. Base ou DEVIS n'a pas de colonne ID (cas reel mesure)")
+    db = create_database("client", devis_key=False)
+    fixture_transfert(db)
+    execute.errors = []
+    results = execute(db, read_script(diagnostic), skip_errors=True)
+    cas = collect(results, "cas")
+    checker.check("quatre cas en echec (les quatre transferts du devis)", 4, len(execute.errors))
+    checker.check("tous les autres cas sont affiches", 15, len(cas))
+    checker.check("les factures depuis une commande restent diagnostiquees", 2,
+                  cas.get("FACTURE_FOURNISSEUR <- COMMANDE (via TR_COMMANDE)"))
+    execute.errors = []
+    execute(db, read_script(reprise), skip_errors=True)
+    checker.check("seuls les blocs du devis echouent", 4, len(execute.errors))
+    checker.check("les factures sont reprises malgre l'erreur sur DEVIS", 11870,
+                  affair_of(db, "FACTURE_FOURNISSEUR", 900))
+    checker.check("la saisie d'achat est reprise", 11870, affair_of(db, "SAISIE_ACHAT", 700))
+    checker.check("aucune erreur sur les autres blocs", 4, len(execute.errors))
+    db.close()
+
+    # ------------------------------------------------------------------ 10
+    print()
+    print("10. Cas limite : base sans aucune table de transfert")
+    db = create_database("client")
     for table in TRANSFER_TABLES:
-        db2.execute('DROP TABLE "%s"."%s"' % (SCHEMA, table))
-        db2.execute("DELETE FROM information_schema.tables WHERE table_name = ?", (table,))
-        db2.execute("DELETE FROM information_schema.columns WHERE table_name = ?", (table,))
-    fixture_sans_transfert(db2)
-    # Sans table TR_*, la reprise echoue. Le fichier etant transactionnel, rien
-    # ne doit rester ecrit : c'est le comportement de PostgreSQL, et c'est ce que
-    # protege le BEGIN / COMMIT du fichier.
-    try:
-        execute(db2, read_script(reprise))
-        checker.check("reprise sans TR_* refusee", "erreur", "aucune erreur")
-    except sqlite3.Error as error:
-        checker.check("reprise sans TR_* refusee avec un message clair", True, "no such table" in str(error))
-        db2.execute("ROLLBACK")
-    checker.check("reprise sans TR_* : transaction annulee, rien d'ecrit", None, affair_of(db2, "SAISIE_ACHAT", 700))
-    db2.close()
+        db.execute('DROP TABLE "%s"."%s"' % (SCHEMA, table))
+        db.execute("DELETE FROM information_schema.tables WHERE table_name = ?", (table,))
+        db.execute("DELETE FROM information_schema.columns WHERE table_name = ?", (table,))
+    fixture_sans_transfert(db)
+    execute.errors = []
+    execute(db, read_script(reprise), skip_errors=True)
+    checker.check("seuls les blocs des tables de transfert echouent", 17, len(execute.errors))
+    checker.check("la saisie d'achat (SOURCE / IDSOURCE) est quand meme reprise", 11870,
+                  affair_of(db, "SAISIE_ACHAT", 700))
+    db.close()
 
     return checker.report()
 
 
 def fixture_sans_transfert(db):
-    ("COMMANDE", dict(ID=251, ID_AFFAIRE=11870)),
-    ("SAISIE_ACHAT", dict(ID=700, ID_AFFAIRE=None, SOURCE="COMMANDE", IDSOURCE=251)),
-    ("COMMANDE_ELEMENT", dict(ID=5000, ID_AFFAIRE=None, ID_COMMANDE=251)),
+    """Base minimale : une commande, une saisie d'achat nee de cette commande."""
+    insert(db, "COMMANDE", ID=251, ID_AFFAIRE=11870)
+    insert(db, "SAISIE_ACHAT", ID=700, ID_AFFAIRE=None, SOURCE="COMMANDE", IDSOURCE=251)
 def check_zero(checker, section, rows):
     remaining = {row[0]: row[-1] for row in rows if row[-1] != 0}
     checker.check("%s : plus rien a reprendre" % section, {}, remaining)
