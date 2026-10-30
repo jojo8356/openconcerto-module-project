@@ -1,0 +1,29 @@
+name: Sonde SQL (temporaire)
+on:
+  push:
+    branches: [arena/ff79607f-openconcerto-module-project]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_PASSWORD: pw, POSTGRES_DB: openconcerto }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 3s --health-timeout 3s --health-retries 20
+    steps:
+      - name: Sonder PostgreSQL comme le fait le module
+        env: { PGHOST: localhost, PGUSER: postgres, PGPASSWORD: pw, PGDATABASE: openconcerto }
+        run: |
+          psql -q -c "create table t (id int primary key, \"SOURCE\" varchar, \"ID_AFFAIRE\" int, \"IDSOURCE\" int);"
+          psql -q -c "create table c (id int primary key, \"SOURCE\" varchar, \"ID_AFFAIRE\" int);"
+          psql -q -c "insert into t values (2,'COMMANDE',1,2); insert into c values (2,'COMMANDE',5);"
+          trois=$(psql -tAc 'select count(*) from "openconcerto"."public"."t";' 2>&1 || true)
+          ambigu=$(psql -tAc 'select count(*) from "openconcerto"."public"."t" inner join "openconcerto"."public"."c" on "openconcerto"."public"."t"."IDSOURCE" = "openconcerto"."public"."c"."id" where "SOURCE" = '"'"'COMMANDE'"'"';' 2>&1 || true)
+          qualifie=$(psql -tAc 'select count(*) from "openconcerto"."public"."t" inner join "openconcerto"."public"."c" on "openconcerto"."public"."t"."IDSOURCE" = "openconcerto"."public"."c"."id" where "openconcerto"."public"."t"."SOURCE" = '"'"'COMMANDE'"'"';' 2>&1 || true)
+          echo "trois parties : $trois"
+          echo "SOURCE non qualifie : $ambigu"
+          echo "SOURCE qualifie : $qualifie"
+          echo "::error::RESULTAT | 3parties=${trois} | nonqualifie=${ambigu} | qualifie=${qualifie}"
+          exit 1
