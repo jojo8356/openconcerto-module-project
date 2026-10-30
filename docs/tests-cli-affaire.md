@@ -154,6 +154,25 @@ documents.
 ```sh
 # 1. éditer le numéro d'affaire dans le fichier (une seule ligne), puis :
 sh scripts/oc-psql.sh -f sql/historique-affaire.sql
+
+# si scripts/oc-psql.sh n'existe pas dans votre copie, ou si la base tourne
+# dans un conteneur dont le nom n'est pas « postgres » :
+docker ps --format '{{.Names}} | {{.Image}} | {{.Ports}}'   # repérer le conteneur de la base
+docker exec -i NOM_DU_CONTENEUR sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < fichier.sql
+```
+
+Le conteneur connaît son rôle et sa base : `psql -U "$POSTGRES_USER" -d
+"$POSTGRES_DB"` évite de deviner. Cas rencontré : conteneur
+`openconcerto176-db-1`, image `openconcerto176-db` (un `grep postgres` ne le
+trouve pas), port 5433.
+
+Pour choisir une affaire qui a réellement des documents :
+
+```sql
+select "ID_AFFAIRE", count(*) as factures
+  from "OpenConcerto42"."FACTURE_FOURNISSEUR"
+ where "ID_AFFAIRE" > 1
+ group by 1 order by 2 desc limit 10;
 ```
 
 Le fichier est en **lecture seule** et donne, pour cette affaire :
