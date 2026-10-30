@@ -35,4 +35,7 @@ jobs:
           sh scripts/oc-sql-file.sh --postgres > /tmp/pg.log 2>&1
           code=$?
           cat /tmp/pg.log
-          if [ "$code" -ne 0 ]; then grep -v "^   OK" /tmp/pg.log | tail -n 15 | sed 's/^/::error::/' || true; exit "$code"; fi
+          if [ "$code" -ne 0 ]; then
+            grep -nE "ECHEC|ERROR|ERREUR|Controles|psql:" /tmp/pg.log | tail -n 25 | sed 's/^/::error::/' || true
+            exit "$code"
+          fi
