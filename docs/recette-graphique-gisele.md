@@ -33,7 +33,7 @@ son compte**, et pas seulement avec un compte administrateur :
 | ☐ | # | Action | Résultat attendu |
 |---|---|---|---|
 | ☐ | 0.1 | Fermer **complètement** le client OpenConcerto (pas seulement la fenêtre : quitter l'application) | le client est fermé |
-| ☐ | 0.2 | Vérifier que le fichier `org.openconcerto.modules.project-1.1.jar` fait **270 362 octets** (release `v1.1-colonne-affaire`) — Aide → Informations → « Dossiers des modules » | taille exacte ; si elle diffère, le jar n'est pas le bon → me le dire avant de continuer |
+| ☐ | 0.2 | Vérifier que le fichier `org.openconcerto.modules.project-1.1.jar` fait **287 085 octets** (release `v1.1-transfert-affaire`) — Aide → Informations → « Dossiers des modules » | taille exacte ; si elle diffère, le jar n'est pas le bon → me le dire avant de continuer |
 | ☐ | 0.3 | Relancer le client et se connecter avec **`abe`** | connexion réussie |
 | ☐ | 0.4 | Ouvrir la société **KINETIC-THERM (42)** | la société s'ouvre |
 | ☐ | 0.5 | Ouvrir **Gestion → Historique des affaires** | la fenêtre s'ouvre (sert à créer l'affaire de test) |
@@ -131,8 +131,8 @@ une **colonne dans le tableau des lignes**.
 | ☐ | 4bis.7 | Refaire 4bis.1 sur une **facture fournisseur** | même colonne `Affaire`, même valeur |
 | ☐ | 4bis.8 | Refaire 4bis.1 sur une **commande client** (ou un devis) | même colonne `Affaire` |
 
-> Si la colonne n'apparaît pas : vérifier que le jar fait bien **270 362
-> octets** (release **`v1.1-colonne-affaire`**), puis me l'écrire — le journal du client contient une ligne `Affaire : colonne …` qui
+> Si la colonne n'apparaît pas : vérifier que le jar fait bien **287 085
+> octets** (release **`v1.1-transfert-affaire`**), puis me l'écrire — le journal du client contient une ligne `Affaire : colonne …` qui
 > dit ce que le module a fait.
 
 ---

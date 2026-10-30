@@ -5,6 +5,11 @@ modifie une affaire dans une commande fournisseur et qu'on la transfère en
 facture, ça ne s'affiche pas dans les factures ; même pour les existantes c'est
 encore pire ».
 
+- **Jar** : `org.openconcerto.modules.project-1.1.jar` — **287 085 octets**
+  (empreinte SHA-256 dans le fichier `.sha256` joint) ;
+- **téléchargement** :
+  <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-transfert-affaire/org.openconcerto.modules.project-1.1.jar>
+
 ## La cause unique, mesurée
 
 L'audit de **toutes** les fonctions d'affichage (5 familles, 12 tables de
