@@ -156,6 +156,17 @@ echo "=== 4. Fichiers SQL du module (sql/*.sql) ==="
 python3 tools/oc_sql_sqlite.py
 
 echo
+echo "=== 5. sql/historique-affaire.sql (fenetre « Historique affaires ») ==="
+# Le fichier porte un numero d'affaire en clair ; on le remplace par une affaire
+# du jeu de donnees pour verifier qu'il liste bien les documents.
+if python3 tools/oc_sql_sqlite.py --file sql/historique-affaire.sql --affaire 11870 | grep -qF 'COMMANDE | 1'; then
+    echo "   OK    liste les documents de l'affaire 11870 (commande + 3 lignes)"
+else
+    echo "   ECHEC le fichier n'a pas liste la commande de l'affaire 11870"
+    exit 1
+fi
+
+echo
 echo "=== Termine : tous les controles sont verts. ==="
 echo
 echo "Pour un essai sur la vraie base (lecture seule d'abord) :"

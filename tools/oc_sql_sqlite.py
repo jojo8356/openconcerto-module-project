@@ -31,19 +31,22 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # --------------------------------------------------------------------------
 # Schema minimal : uniquement les colonnes utilisees par les scripts SQL.
 # --------------------------------------------------------------------------
+
+#: Table des affaires elle-meme (jamais mise a jour par la reprise).
+AFFAIR_COLUMNS = ["ID", "NUMERO", "NOM"]
 DOCUMENT_COLUMNS = {
-    "COMMANDE": ["ID", "ID_AFFAIRE"],
-    "BON_RECEPTION": ["ID", "ID_AFFAIRE"],
-    "SAISIE_ACHAT": ["ID", "ID_AFFAIRE", "SOURCE", "IDSOURCE"],
-    "FACTURE_FOURNISSEUR": ["ID", "ID_AFFAIRE"],
-    "AVOIR_FOURNISSEUR": ["ID", "ID_AFFAIRE"],
-    "DEVIS": ["ID", "ID_AFFAIRE"],
-    "COMMANDE_CLIENT": ["ID", "ID_AFFAIRE"],
-    "SAISIE_VENTE_FACTURE": ["ID", "ID_AFFAIRE"],
-    "AVOIR_CLIENT": ["ID", "ID_AFFAIRE"],
-    "BON_DE_LIVRAISON": ["ID", "ID_AFFAIRE"],
-    "DEMANDE_PRIX": ["ID", "ID_AFFAIRE"],
-    "DEMANDE_ACHAT": ["ID", "ID_AFFAIRE"],
+    "COMMANDE": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "BON_RECEPTION": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "SAISIE_ACHAT": ["ID", "ID_AFFAIRE", "SOURCE", "IDSOURCE", "NUMERO"],
+    "FACTURE_FOURNISSEUR": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "AVOIR_FOURNISSEUR": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "DEVIS": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "COMMANDE_CLIENT": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "SAISIE_VENTE_FACTURE": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "AVOIR_CLIENT": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "BON_DE_LIVRAISON": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "DEMANDE_PRIX": ["ID", "ID_AFFAIRE", "NUMERO"],
+    "DEMANDE_ACHAT": ["ID", "ID_AFFAIRE", "NUMERO"],
 }
 
 LINE_TABLES = {
@@ -85,6 +88,7 @@ def create_database():
     db.execute("CREATE TABLE information_schema.tables (table_schema text, table_name text)")
     db.create_function("current_schema", 0, lambda: SCHEMA)
 
+    _create(db, "AFFAIRE", AFFAIR_COLUMNS)
     for table, columns in DOCUMENT_COLUMNS.items():
         _create(db, table, columns)
     for table, link in LINE_TABLES.items():
@@ -118,6 +122,11 @@ def affair_of(db, table, row_id):
 def transfert_rows():
     """Les cas de test, sous forme de lignes a inserer."""
     return [
+    ("AFFAIRE", dict(ID=11870, NUMERO="11870-PO-007", NOM="KINETIC-THERM")),
+    ("AFFAIRE", dict(ID=300, NUMERO="300", NOM="AFFAIRE 300")),
+    ("AFFAIRE", dict(ID=555, NUMERO="555", NOM="AFFAIRE 555")),
+    ("AFFAIRE", dict(ID=777, NUMERO="777", NOM="AFFAIRE 777")),
+    ("AFFAIRE", dict(ID=888, NUMERO="888", NOM="AFFAIRE 888")),
     # --- documents sources -------------------------------------------------
     ("COMMANDE", dict(ID=251, ID_AFFAIRE=11870)),
     ("COMMANDE", dict(ID=252, ID_AFFAIRE=1)),
@@ -258,7 +267,7 @@ AFTER_REPRISE = [
 # --------------------------------------------------------------------------
 def all_tables():
     """(nom, colonnes) de toutes les tables du schema de test."""
-    tables = []
+    tables = [("AFFAIRE", AFFAIR_COLUMNS)]
     for table, columns in DOCUMENT_COLUMNS.items():
         tables.append((table, columns))
     for table, link in LINE_TABLES.items():
@@ -566,6 +575,7 @@ def main():
     parser.add_argument("--file", help="fichier SQL a executer (au lieu du scenario complet)")
     parser.add_argument("--fixture", default="affaire-transfert", help="jeu de donnees a charger")
     parser.add_argument("--keep", action="store_true", help="affiche toutes les lignes produites")
+    parser.add_argument("--affaire", type=int, help="numero d'affaire a substituer dans le fichier (--file)")
     parser.add_argument("--emit-fixture", action="store_true", help="ecrit le jeu de donnees en SQL PostgreSQL")
     parser.add_argument("--emit-checks", action="store_true", help="ecrit les verifications finales en SQL PostgreSQL")
     parser.add_argument("--emit-before-checks", action="store_true", help="ecrit les verifications de la base de test")
@@ -584,7 +594,12 @@ def main():
     if args.file:
         db = create_database()
         FIXTURES[args.fixture](db)
-        results = execute(db, read_script(args.file))
+        statements = read_script(args.file)
+        if args.affaire is not None:
+            # les fichiers SQL du module portent le numero d'affaire en clair
+            statements = [re.sub(r"select\s+\d+\s+as\s+numero", "select %d as numero" % args.affaire, statement)
+                          for statement in statements]
+        results = execute(db, statements)
         for _statement, headers, rows in results:
             print(" | ".join(headers))
             for row in rows:

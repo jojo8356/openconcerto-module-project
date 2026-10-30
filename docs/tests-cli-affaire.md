@@ -144,6 +144,45 @@ sh scripts/oc-psql.sh -f sql/reprise-affaire-transfert.sql
 Le diagnostic est en lecture seule. La reprise est dans une transaction
 (`BEGIN … COMMIT`), idempotente, et ne remplit que les affaires vides.
 
+## La fenêtre « Historique affaires » : quoi tester, et contre quoi comparer
+
+Cette fenêtre ne montre que les documents **rattachés à l'affaire
+sélectionnée**. Une affaire sans document affiche donc 0 partout : ce n'est pas
+un défaut, et ça ne prouve rien. Il faut d'abord choisir une affaire qui a des
+documents.
+
+```sh
+# 1. éditer le numéro d'affaire dans le fichier (une seule ligne), puis :
+sh scripts/oc-psql.sh -f sql/historique-affaire.sql
+```
+
+Le fichier est en **lecture seule** et donne, pour cette affaire :
+
+- le nombre de documents **par table** — donc par onglet de la fenêtre ;
+- le détail (ID, numéro, affaire) ;
+- et, en fin de sortie, le rappel des documents sans affaire à reprendre.
+
+Comparaison : si un onglet est vide alors que la table correspondante a des
+lignes dans cette sortie, c'est un défaut d'affichage ou de lien, pas une
+absence de données.
+
+### Les contrôles à faire dans la fenêtre, dans cet ordre
+
+| # | Action | Résultat attendu |
+| --- | --- | --- |
+| H1 | choisir une affaire **avec** documents (voir la sortie SQL) | la liste se remplit, les totaux du bas ne sont plus à 0,00 € |
+| H2 | passer chaque onglet (Devis, Bons de commande, Bons de réception fournisseurs, Factures, Avoirs, Demandes d'achat, Demandes de prix, Bons de livraison clients, Achats, Commandes fournisseurs…) | les compteurs correspondent à la sortie SQL, ligne pour ligne |
+| H3 | sur chaque onglet, lire la dernière colonne **Affaire** | elle porte le numéro de l'affaire, jamais vide sur une ligne affichée |
+| H4 | cliquer sur l'en-tête **Affaire** | tri croissant puis décroissant, aucune exception |
+| H5 | sélectionner une ligne | les boutons **Transfert vers facture**, **Transfert vers commande client**, **Modifier le document…** et **Modifier l'affaire** deviennent actifs (plus grisés) |
+| H6 | **Modifier l'affaire** → choisir une autre affaire → OK | la ligne quitte la liste de l'affaire courante ; en fermant/rouvrant la fenêtre, elle est sous la nouvelle affaire |
+| H7 | double-clic sur une facture issue d'un transfert | le formulaire s'ouvre avec le champ **Affaire** déjà rempli du même numéro (c'est le défaut d'origine) |
+| H8 | **Fermer** (bouton et croix de la fenêtre) | aucune fenêtre d'erreur, aucune trace `UncaughtException` dans le journal |
+
+Si H2/H3 échouent, envoyez-moi : la capture de l'onglet, la sortie de
+`sql/historique-affaire.sql` et le numéro d'affaire. La comparaison dit tout de
+suite si la donnée manque ou si c'est l'affichage.
+
 ## Ce qui reste à l'interface
 
 Deux choses seulement, parce qu'elles dépendent de l'affichage :
@@ -166,4 +205,5 @@ comportement du SQL sur PostgreSQL — est couvert ci-dessus.
 | `tests/cli/test-affaire-transfert.py` | exécute le plan du module dans SQLite |
 | `tests/org/.../AffairTransferScenario.java` | scénario de transfert (le bug puis le correctif) |
 | `tests/org/.../AffairBackfillSqlDump.java` | imprime le plan de reprise du module |
+| `sql/historique-affaire.sql` | ce que la fenêtre Historique affaires **devrait** afficher |
 | `.github/workflows/ci-cd.yml` (job `cli-affaire`) | rejoue tout à chaque PR, plus PostgreSQL 16 |
