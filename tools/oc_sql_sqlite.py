@@ -309,13 +309,22 @@ BEFORE_REPRISE = [
 ]
 
 
-def emit_checks():
-    """Verifications finales, en SQL : 'OK' / 'ECHEC' ligne par ligne."""
-    print("-- Verifications du jeu de donnees et de la reprise : tout doit afficher OK.")
-    for table, row_id, affair, label in AFTER_REPRISE + BEFORE_REPRISE:
+def _emit_expectations(rows, title):
+    print("-- %s" % title)
+    for table, row_id, affair, label in rows:
         expected = "NULL" if affair is None else str(affair)
         print("select '%s' as controle, case when (select \"ID_AFFAIRE\" from \"%s\".\"%s\" where \"ID\" = %d) is not distinct from %s then 'OK' else 'ECHEC' end as resultat;"
               % (label.replace("'", "''"), SCHEMA, table, row_id, expected))
+
+
+def emit_checks():
+    """Verifications finales, apres reprise : 'OK' / 'ECHEC' ligne par ligne."""
+    _emit_expectations(AFTER_REPRISE, "Verifications apres reprise : tout doit afficher OK.")
+
+
+def emit_before_checks():
+    """Verifications de la base de test, avant toute reprise."""
+    _emit_expectations(BEFORE_REPRISE, "Le jeu de donnees doit reproduire la panne : tout doit afficher OK.")
 
 
 # --------------------------------------------------------------------------
@@ -558,7 +567,8 @@ def main():
     parser.add_argument("--fixture", default="affaire-transfert", help="jeu de donnees a charger")
     parser.add_argument("--keep", action="store_true", help="affiche toutes les lignes produites")
     parser.add_argument("--emit-fixture", action="store_true", help="ecrit le jeu de donnees en SQL PostgreSQL")
-    parser.add_argument("--emit-checks", action="store_true", help="ecrit les verifications en SQL PostgreSQL")
+    parser.add_argument("--emit-checks", action="store_true", help="ecrit les verifications finales en SQL PostgreSQL")
+    parser.add_argument("--emit-before-checks", action="store_true", help="ecrit les verifications de la base de test")
     args = parser.parse_args()
 
     if args.emit_fixture:
@@ -566,6 +576,9 @@ def main():
         return 0
     if args.emit_checks:
         emit_checks()
+        return 0
+    if args.emit_before_checks:
+        emit_before_checks()
         return 0
 
     if args.file:

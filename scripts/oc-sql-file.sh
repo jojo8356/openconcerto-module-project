@@ -196,6 +196,23 @@ else
     psql_once "$TMP_DIR/fixture.sql"
 fi
 
+echo "1 bis. La base de test reproduit-elle bien la panne ?"
+"$PYTHON" "$TOOL" --emit-before-checks >"$TMP_DIR/before.sql"
+if [ "$DRY_RUN" = 1 ]; then
+    echo "  $PYTHON tools/oc_sql_sqlite.py --emit-before-checks | psql ... -t -A -f -"
+else
+    avant=$(psql_once "$TMP_DIR/before.sql" "-t -A")
+    printf '%s\n' "$avant" | while IFS='|' read -r label status; do
+        [ -n "$label" ] || continue
+        printf '   %-5s %s\n' "$status" "$label"
+    done
+    if printf '%s\n' "$avant" | grep -q 'ECHEC'; then
+        echo "ECHEC : la base de test ne reproduit pas la panne, le reste ne prouverait rien." >&2
+        exit 1
+    fi
+fi
+
+echo
 echo "2. Diagnostic avant reprise"
 if [ -n "$FILE" ]; then
     if [ "$DRY_RUN" = 1 ]; then
