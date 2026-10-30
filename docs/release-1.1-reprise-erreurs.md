@@ -47,7 +47,7 @@ présentée comme une bonne nouvelle. C'est exactement ce que vous avez vu.
 - `AffairRepairReportTest` : **31 contrôles**, dont « une erreur seule n'est
   jamais rien à reprendre », « le total reste affiché et signalé incomplet », et
   « la cause et la requête sont reprises dans le message » ;
-- `AffairBackfillSupportTest` : 62 contrôles, inchangés et verts ;
+- `AffairBackfillSupportTest` : **65 contrôles**, inchangés et verts ;
 - les **85 contrôles** SQL (`sh scripts/test-affaire-cli.sh`) et les 9 suites
   unitaires du module, exécutés dans la CI.
 

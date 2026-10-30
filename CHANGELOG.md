@@ -8,6 +8,28 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — La reprise ne peut plus annoncer « rien à reprendre » à tort
+
+### Fixed
+
+- **Sur la base du client, le menu annonçait « tous les documents transférés ont
+  déjà leur affaire » alors que le SQL en comptait 37.** Cause :
+  `AffairRepairAction.count()` avalait l'exception et renvoyait `0` — un
+  comptage en échec devenait donc « 0 document », c'est-à-dire une bonne
+  nouvelle. Les 19 comptages échouaient et l'interface concluait qu'il n'y
+  avait rien à faire.
+- `AffairRepairReport` (nouvelle classe) : une erreur ne peut plus produire le
+  message « rien à reprendre » ; le total est annoncé **incomplet** dès qu'une
+  reprise échoue, avec la cause et la requête SQL en clair.
+- Le diagnostic complet est écrit dans `~/openconcerto-reprise-affaires.log`
+  (comptages, requêtes, causes), pour le support.
+
+### Added
+
+- `AffairRepairReportTest` : **31 contrôles** sans base, dont « une erreur seule
+  n'est jamais rien à reprendre » et « la cause et la requête sont affichées ».
+- `scripts/run-tests.sh` et `scripts/test-affaire-cli.sh` exécutent ce test.
+
 ## 2026-10-30 — La ligne « Indéfini » n'est plus comptée
 
 ### Fixed
