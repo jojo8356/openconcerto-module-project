@@ -46,4 +46,12 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: openconcerto
           PGDATABASE: openconcerto
-        run: sh scripts/oc-sql-file.sh --postgres
+        run: |
+          set +e
+          sh scripts/oc-sql-file.sh --postgres > /tmp/pg.log 2>&1
+          code=$?
+          cat /tmp/pg.log
+          if [ "$code" -ne 0 ]; then
+            grep -v "^   OK" /tmp/pg.log | tail -n 15 | sed 's/^/::error::/' || true
+            exit "$code"
+          fi
