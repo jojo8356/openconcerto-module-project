@@ -8,6 +8,36 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — Les comptages de la reprise sont acceptés par PostgreSQL
+
+### Fixed
+
+- **Sur la base du client, les 19 comptages de la reprise échouaient tous :** le
+  menu annonçait 0, d'où « tous les documents transférés ont déjà leur affaire »
+  alors que 37 documents attendaient leur affaire. Deux fautes dans le SQL
+  produit, **toutes deux refusées par PostgreSQL et acceptées par SQLite** (ce
+  qui explique que les tests restaient verts) :
+  1. le `ON` de la première jointure citait la table source **avant** qu'elle
+     soit jointe — `invalid reference to FROM-clause entry for table` : les
+     **17 comptages de transfert** échouaient ;
+  2. la colonne `SOURCE` n'était **pas qualifiée** — `column reference "SOURCE"
+     is ambiguous` dès que la table jointe a elle aussi une colonne `SOURCE`
+     (mesuré sur PostgreSQL 16) : les **2 comptages de saisie d'achat**
+     échouaient.
+- `AffairBackfillSupport` : la jointure est découpée en `joinTarget` (cible +
+  table de transfert) et `joinSource` (source), chacune dans son `ON` ; `SOURCE`
+  est écrite `"SAISIE_ACHAT"."SOURCE"`.
+
+### Added
+
+- `tests/cli/sql_scope.py` : contrôle de portée des requêtes (les deux règles
+  PostgreSQL), **8 contrôles** d'auto-test qui reprennent les requêtes cassées
+  comme cas de référence — exécutable seul, sans base ni JDK.
+- `tests/cli/test-affaire-transfert.py` passe le plan du module au contrôle de
+  portée ; `scripts/test-affaire-cli.sh` gagne les étapes **2bis** et **3bis**.
+- `AffairBackfillSupportTest` : 8 vérifications sur la forme des requêtes
+  (**73 contrôles** au total).
+
 ## 2026-10-30 — La reprise ne peut plus annoncer « rien à reprendre » à tort
 
 ### Fixed

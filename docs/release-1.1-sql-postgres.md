@@ -1,0 +1,75 @@
+# Module project 1.1 — les comptages de la reprise passent PostgreSQL
+
+Le menu annonçait « rien à reprendre » alors que 37 documents attendaient leur
+affaire. La cause est maintenant connue **et corrigée** : les 19 requêtes de
+comptage étaient refusées par PostgreSQL.
+
+- **Jar** : `org.openconcerto.modules.project-1.1.jar` (empreinte SHA-256 dans
+  le fichier `.sha256` joint) ;
+- **téléchargement** :
+  <https://github.com/jojo8356/openconcerto-module-project/releases/download/v1.1-sql-postgres/org.openconcerto.modules.project-1.1.jar> ;
+- **installation** : remplacer le jar du module dans `lib/` d'OpenConcerto,
+  puis relancer le client (voir `docs/installation-du-jar.md`).
+
+## Les deux fautes
+
+Le message affiché dans votre fenêtre était exact : *« impossible d'accéder au
+résultat de SELECT count(*) … »*. Les requêtes produites étaient invalides pour
+PostgreSQL, pour deux raisons distinctes.
+
+**1. Une table citée avant d'être jointe** (17 comptages de transfert) :
+
+```sql
+FROM "…"."TR_COMMANDE" ON "TR_COMMANDE"."ID_SAISIE_ACHAT" = "SAISIE_ACHAT"."ID"
+                          AND "TR_COMMANDE"."ID_COMMANDE" = "COMMANDE"."ID"  -- COMMANDE pas encore jointe
+INNER JOIN "…"."COMMANDE" ON …
+```
+
+PostgreSQL répond `invalid reference to FROM-clause entry for table "commande"`.
+
+**2. Une colonne non qualifiée** (2 comptages de saisie d'achat) :
+
+```sql
+WHERE "SOURCE" = 'COMMANDE'
+```
+
+`SAISIE_ACHAT` et `COMMANDE` ont toutes deux une colonne `SOURCE` → `column
+reference "SOURCE" is ambiguous`. Confirmé sur un PostgreSQL 16 réel : la même
+requête, avec `"SAISIE_ACHAT"."SOURCE"`, s'exécute sans erreur.
+
+**Pourquoi aucun test ne l'avait vu :** SQLite, utilisé pour les tests sans
+base, accepte les deux. Les tests étaient verts, la production refusait.
+
+## Le correctif
+
+- la jointure est découpée : chaque `ON` ne cite que les tables déjà jointes ;
+- `SOURCE` est qualifiée par sa table ;
+- un **contrôle de portée** lint désormais toutes les requêtes du plan
+  (`tests/cli/sql_scope.py`), avec les deux requêtes cassées comme cas de
+  référence — il échoue si le défaut revient.
+
+## Vérifié
+
+- `tests/cli/sql_scope.py --selftest` : **8 contrôles** (les deux pièges
+  détectés, les deux versions corrigées acceptées) ;
+- `sh scripts/test-affaire-cli.sh` : **85 contrôles** SQL, le plan passé au
+  contrôle de portée, et le test bout-en-bout dans SQLite ;
+- `AffairBackfillSupportTest` : **73 contrôles**, dont 8 sur la forme des
+  requêtes ; `AffairRepairReportTest` : **31 contrôles** ;
+- les 6 fichiers SQL exécutés sur **PostgreSQL 16** dans la CI (run
+  `41112426597`, vert).
+
+## Le test à faire
+
+1. Installer ce jar, relancer le client.
+2. `Aide > Reprendre les affaires des documents` → il doit annoncer **37**.
+3. Valider, puis :
+   ```sh
+   docker exec -i openconcerto176-db-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /tmp/attendu.sql
+   ```
+   doit afficher **0**.
+4. Affaire **12085** → onglet **Factures fournisseurs** : **25 lignes**, colonne
+   **Affaire** = `190`.
+
+Si un comptage échoue encore, la fenêtre affiche désormais la cause exacte et
+`~/openconcerto-reprise-affaires.log` contient les 19 requêtes avec leur erreur.
