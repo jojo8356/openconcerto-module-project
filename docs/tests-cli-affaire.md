@@ -34,7 +34,10 @@ Sortie attendue (extraits) :
 Code de sortie : `0` si tout est vert, `1` dès le premier échec. Aucune
 installation, aucun serveur, aucun accès réseau.
 
-Sans JDK, l'étage Java est ignoré et les contrôles SQL tournent quand même.
+Sans JDK sur la machine, les deux étages Java tournent dans un conteneur
+jetable (`eclipse-temurin:8-jdk`) dès que Docker est disponible ; sinon ils sont
+ignorés et les contrôles SQL tournent quand même. `--dry-run` montre les
+commandes sans rien exécuter.
 
 ## Ce qui est réellement testé
 
