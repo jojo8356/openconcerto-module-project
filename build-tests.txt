@@ -1,0 +1,8 @@
+AffairListSortSupportTest OK
+AffairBackfillSupportTest : 40 tests OK
+AffairLinkSupportTest : 38 tests OK
+Exception in thread "main" java.lang.AssertionError: paire corrigee : attendu <[COMMANDE->SAISIE_ACHAT]>, obtenu <[COMMANDE -> SAISIE_ACHAT]>
+	at org.openconcerto.modules.project.AffairTransferSupportTest.assertEquals(AffairTransferSupportTest.java:43)
+	at org.openconcerto.modules.project.AffairTransferSupportTest.testInstallAddsMapping(AffairTransferSupportTest.java:152)
+	at org.openconcerto.modules.project.AffairTransferSupportTest.main(AffairTransferSupportTest.java:32)
+exit=1
