@@ -34,6 +34,7 @@ public final class AffairBackfillSupportTest {
         testOrderOfRepairs();
         testRealClientSchema();
         testDevisWithOwnKey();
+        testPlaceholderRowsAreIgnored();
         testTableWithoutKeyIsSkipped();
         testEmptyAndRealAffairPredicates();
         testNullSchema();
@@ -254,6 +255,42 @@ public final class AffairBackfillSupportTest {
             }
         }
         assertEquals("quatre reprises depuis le devis", Integer.valueOf(4), Integer.valueOf(depuisDevis));
+    }
+
+    /**
+     * Ligne « Indefini » (ID 1) et cles etrangeres non renseignees (valeur 1) :
+     * elles ne doivent jamais etre comptees ni mises a jour. Mesure sur la base
+     * du client : sans ce garde-fou, 200 « saisies d'achat a reparer » alors
+     * qu'il n'y en avait que 3 — les 200 etaient la meme ligne 1.
+     */
+    private static void testPlaceholderRowsAreIgnored() {
+        final Map<String, String[]> t = tables(
+                "COMMANDE", cols("ID", "ID_AFFAIRE"),
+                "SAISIE_ACHAT", cols("ID", "ID_AFFAIRE", "SOURCE", "IDSOURCE"),
+                "BON_RECEPTION", cols("ID", "ID_AFFAIRE"),
+                "TR_COMMANDE", cols("ID", "ID_COMMANDE", "ID_BON_RECEPTION", "ID_SAISIE_ACHAT", "ID_FACTURE_FOURNISSEUR"),
+                "COMMANDE_ELEMENT", cols("ID", "ID_AFFAIRE", "ID_COMMANDE"));
+        final List<AffairBackfillSupport.Repair> plan = AffairBackfillSupport.plan(schema(t), Q);
+        final AffairBackfillSupport.Repair source = find(plan, "SAISIE_ACHAT", "SOURCE / IDSOURCE");
+        // la source et la cible doivent etre de vrais documents...
+        assertEquals("source reelle", Boolean.TRUE, Boolean.valueOf(source.getUpdateSql().contains("\"COMMANDE\".\"ID\" > 1")));
+        assertEquals("cible reelle", Boolean.TRUE, Boolean.valueOf(source.getUpdateSql().contains("\"SAISIE_ACHAT\".\"ID\" > 1")));
+        assertEquals("lien reel", Boolean.TRUE, Boolean.valueOf(source.getUpdateSql().contains("\"SAISIE_ACHAT\".\"IDSOURCE\" > 1")));
+        // ...et la ligne de transfert ne doit pas pointer la ligne 1
+        final AffairBackfillSupport.Repair transfer = find(plan, "BON_RECEPTION", "TR_COMMANDE");
+        assertEquals("cle de transfert reelle", Boolean.TRUE,
+                Boolean.valueOf(transfer.getUpdateSql().contains("\"TR_COMMANDE\".\"ID_BON_RECEPTION\" > 1")));
+        assertEquals("source du transfert reelle", Boolean.TRUE,
+                Boolean.valueOf(transfer.getUpdateSql().contains("\"TR_COMMANDE\".\"ID_COMMANDE\" > 1")));
+        // les lignes : ni la ligne 1 du document, ni un lien a 1
+        final AffairBackfillSupport.Repair line = find(plan, "COMMANDE_ELEMENT", "lignes");
+        assertEquals("document de la ligne reel", Boolean.TRUE,
+                Boolean.valueOf(line.getUpdateSql().contains("\"COMMANDE\".\"ID\" > 1")));
+        assertEquals("lien de la ligne reel", Boolean.TRUE,
+                Boolean.valueOf(line.getUpdateSql().contains("\"COMMANDE_ELEMENT\".\"ID_COMMANDE\" > 1")));
+        // la regle est publique et testable seule
+        assertEquals("realKey", "\"T\".\"ID\" > 1", AffairBackfillSupport.realKey(Q, "T", "ID"));
+        assertEquals("realKey sans cle", "1 = 1", AffairBackfillSupport.realKey(Q, "T", null));
     }
 
     /**

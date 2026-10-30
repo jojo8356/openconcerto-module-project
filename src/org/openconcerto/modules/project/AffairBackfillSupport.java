@@ -133,6 +133,9 @@ public final class AffairBackfillSupport {
         if (!hasAffair(schema, target) || !schema.hasField(target, "IDSOURCE") || !schema.hasField(target, "SOURCE")) {
             return;
         }
+        if (!hasKey(schema, target)) {
+            return;
+        }
         // Les valeurs possibles de SOURCE sont les tables sources des
         // injecteurs : COMMANDE et BON_RECEPTION.
         for (final String source : new String[] { "COMMANDE", "BON_RECEPTION" }) {
@@ -144,11 +147,15 @@ public final class AffairBackfillSupport {
             final String empty = emptyAffair(q, target);
             final String real = realAffair(q, source);
             final String description = target + " <- " + source + " (SOURCE / IDSOURCE)";
+            final String targetKey = realKey(q, target, keyOf(schema, target));
+            final String sourceKey = realKey(q, source, keyOf(schema, source));
+            final String sourceReal = a(q, target, "IDSOURCE") + " > " + UNDEFINED_ID;
             repairs.add(new Repair(target, description,
                     "SELECT count(*) FROM " + q.table(target) + " INNER JOIN " + q.table(source) + " ON " + join
-                            + " WHERE " + sourceValue + " AND " + empty + " AND " + real,
+                            + " WHERE " + sourceValue + " AND " + empty + " AND " + real + " AND " + targetKey + " AND " + sourceKey + " AND " + sourceReal,
                     "UPDATE " + q.table(target) + " SET " + q.column(AFFAIR_FIELD) + " = " + a(q, source, AFFAIR_FIELD)
-                            + " FROM " + q.table(source) + " WHERE " + join + " AND " + sourceValue + " AND " + empty + " AND " + real));
+                            + " FROM " + q.table(source) + " WHERE " + join + " AND " + sourceValue + " AND " + empty + " AND " + real
+                            + " AND " + targetKey + " AND " + sourceKey + " AND " + sourceReal));
         }
     }
 
@@ -176,14 +183,19 @@ public final class AffairBackfillSupport {
             final String real = realAffair(q, source);
             final String join = a(q, transferTable, destKey) + " = " + a(q, target, keyOf(schema, target))
                     + " AND " + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source));
+            // Les lignes de transfert pointent la ligne « Indefini » (1) tant
+            // qu'un document n'a pas ete cree : on ne reprend que les liens reels.
+            final String notPlaceholder = a(q, transferTable, destKey) + " > " + UNDEFINED_ID
+                    + " AND " + a(q, transferTable, srcKey) + " > " + UNDEFINED_ID;
+            final String realKeys = realKey(q, target, keyOf(schema, target)) + " AND " + realKey(q, source, keyOf(schema, source));
             repairs.add(new Repair(target, target + " <- " + source + " (via " + transferTable + ")",
                     "SELECT count(*) FROM " + q.table(target) + " INNER JOIN " + q.table(transferTable) + " ON " + join
                             + " INNER JOIN " + q.table(source) + " ON " + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source))
-                            + " WHERE " + empty + " AND " + real,
+                            + " WHERE " + empty + " AND " + real + " AND " + notPlaceholder + " AND " + realKeys,
                     "UPDATE " + q.table(target) + " SET " + q.column(AFFAIR_FIELD) + " = " + a(q, source, AFFAIR_FIELD)
                             + " FROM " + q.table(transferTable) + " INNER JOIN " + q.table(source) + " ON "
                             + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source))
-                            + " WHERE " + join + " AND " + empty + " AND " + real));
+                            + " WHERE " + join + " AND " + empty + " AND " + real + " AND " + notPlaceholder + " AND " + realKeys));
         }
     }
 
@@ -204,10 +216,16 @@ public final class AffairBackfillSupport {
             final String empty = emptyAffair(q, lineTable);
             final String real = realAffair(q, document);
             final String join = a(q, lineTable, link) + " = " + a(q, document, keyOf(schema, document));
+            // Meme garde-fou : la ligne « Indefini » du document (ID 1), et les
+            // cles etrangeres non renseignees (valeur 1), ne sont pas des liens.
+            final String realLinks = a(q, lineTable, link) + " > " + UNDEFINED_ID
+                    + " AND " + realKey(q, lineTable, keyOf(schema, lineTable))
+                    + " AND " + realKey(q, document, keyOf(schema, document));
             repairs.add(new Repair(lineTable, lineTable + " <- " + document + " (lignes)",
-                    "SELECT count(*) FROM " + q.table(lineTable) + " INNER JOIN " + q.table(document) + " ON " + join + " WHERE " + empty + " AND " + real,
+                    "SELECT count(*) FROM " + q.table(lineTable) + " INNER JOIN " + q.table(document) + " ON " + join
+                            + " WHERE " + empty + " AND " + real + " AND " + realLinks,
                     "UPDATE " + q.table(lineTable) + " SET " + q.column(AFFAIR_FIELD) + " = " + a(q, document, AFFAIR_FIELD)
-                            + " FROM " + q.table(document) + " WHERE " + join + " AND " + empty + " AND " + real));
+                            + " FROM " + q.table(document) + " WHERE " + join + " AND " + empty + " AND " + real + " AND " + realLinks));
         }
     }
 
@@ -264,6 +282,26 @@ public final class AffairBackfillSupport {
     /** Affaire vide (nulle ou « Indefini »). */
     static String emptyAffair(final Quoter q, final String table) {
         return "(" + a(q, table, AFFAIR_FIELD) + " IS NULL OR " + a(q, table, AFFAIR_FIELD) + " = " + UNDEFINED_ID + ")";
+    }
+
+    /**
+     * Vrai si la ligne designe un vrai document, et non la ligne « Indefini ».
+     * <p>
+     * Chaque table OpenConcerto contient une ligne d'identifiant 1 (« Indefini
+     * »), et les cles etrangeres non renseignees valent 1, pas {@code NULL}.
+     * Sans ce garde-fou, la jointure par cle etrangere rattache tous les
+     * documents sans lien a cette ligne 1 : mesure sur la base du client,
+     * 200 « saisies d'achat a reparer » alors qu'il n'y en avait que 3, et
+     * toutes les 200 etaient la meme ligne.
+     * </p>
+     */
+    static String realKey(final Quoter q, final String table, final String key) {
+        if (key == null || key.length() == 0) {
+            // table sans cle connue : aucune ligne de ce type n'est un lien reel
+            // a exclure, on ne filtre pas plutot que de produire un SQL invalide
+            return "1 = 1";
+        }
+        return a(q, table, key) + " > " + UNDEFINED_ID;
     }
 
     /** Affaire reellement renseignee. */

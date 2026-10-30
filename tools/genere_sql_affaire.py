@@ -104,6 +104,19 @@ def key(table):
     return OWN_KEYS.get(table, "ID")
 
 
+def real_key(table):
+    """La ligne est un vrai document, pas la ligne « Indefini » (ID 1)."""
+    return "%s > %d" % (a(table, key(table)), UNDEFINED)
+
+
+def real_key_alias(alias):
+    return "%s.%s > %d" % (alias, c(key_alias(alias)), UNDEFINED)
+
+
+def key_alias(alias):
+    return OWN_KEYS.get(alias, "ID")
+
+
 def empty(table):
     return "(%s IS NULL OR %s = %d)" % (a(table, AFFAIR), a(table, AFFAIR), UNDEFINED)
 
@@ -169,9 +182,11 @@ def reprise_entetes(pairs):
             "   SET %s = %s" % (c(AFFAIR), a(source, AFFAIR)),
             "  FROM %s" % t(source),
             " WHERE %s = '%s'" % (a("SAISIE_ACHAT", "SOURCE"), source),
-            "   AND %s = %s" % (a("SAISIE_ACHAT", "IDSOURCE"), a(source, "ID")),
+            "   AND %s = %s" % (a("SAISIE_ACHAT", "IDSOURCE"), a(source, key(source))),
             "   AND %s" % empty("SAISIE_ACHAT"),
-            "   AND %s;" % real(source),
+            "   AND %s" % real(source),
+            "   AND %s > %d" % (a("SAISIE_ACHAT", "IDSOURCE"), UNDEFINED),
+            "   AND %s AND %s;" % (real_key("SAISIE_ACHAT"), real_key(source)),
         ]) + "\n")
         out.append("COMMIT;\n")
 
@@ -191,7 +206,9 @@ def reprise_entetes(pairs):
             "  JOIN %s ON %s = %s" % (t(source), a(source, key(source)), a(transfer, src_key)),
             " WHERE %s" % join,
             "   AND %s" % empty(destination),
-            "   AND %s;" % real(source),
+            "   AND %s" % real(source),
+            "   AND %s > %d AND %s > %d" % (a(transfer, dest_key), UNDEFINED, a(transfer, src_key), UNDEFINED),
+            "   AND %s AND %s;" % (real_key(destination), real_key(source)),
         ]) + "\n")
         out.append("COMMIT;\n")
 
@@ -235,7 +252,8 @@ select table_name
             "  FROM %s" % t(parent),
             " WHERE %s = %s" % (a(line, link), a(parent, key(parent))),
             "   AND %s" % empty(line),
-            "   AND %s;" % real(parent),
+            "   AND %s" % real(parent),
+            "   AND %s > %d AND %s;" % (a(line, link), UNDEFINED, real_key(parent)),
         ]) + "\n")
         out.append("COMMIT;\n")
 
@@ -287,7 +305,9 @@ select current_schema() as schema_courant;
             "  join %s on %s = %s" % (t(source), a(source, key(source)), a("SAISIE_ACHAT", "IDSOURCE")),
             " where %s = '%s'" % (a("SAISIE_ACHAT", "SOURCE"), source),
             "   and %s" % empty("SAISIE_ACHAT"),
-            "   and %s;" % real(source),
+            "   and %s" % real(source),
+            "   and %s > %d" % (a("SAISIE_ACHAT", "IDSOURCE"), UNDEFINED),
+            "   and %s and %s;" % (real_key("SAISIE_ACHAT"), real_key(source)),
         ]) + "\n")
 
     out.append("\\echo ''\n\\echo '=== 2. Documents sans affaire, mais leur source (table TR_*) en a une ==='\n")
@@ -300,7 +320,9 @@ select current_schema() as schema_courant;
             "  join %s on %s = %s" % (t(transfer), a(transfer, "ID_" + destination), a(destination, key(destination))),
             "  join %s on %s = %s" % (t(source), a(source, key(source)), a(transfer, "ID_" + source)),
             " where %s" % empty(destination),
-            "   and %s;" % real(source),
+            "   and %s" % real(source),
+            "   and %s > %d and %s > %d" % (a(transfer, "ID_" + destination), UNDEFINED, a(transfer, "ID_" + source), UNDEFINED),
+            "   and %s and %s;" % (real_key(destination), real_key(source)),
         ]) + "\n")
 
     out.append("""
@@ -323,8 +345,8 @@ select table_name
 
     out.append("\\echo ''\n\\echo '=== 5. Rappel : documents sans affaire, tous cas confondus ==='\n")
     for document in documents:
-        out.append("select '%s' as document, count(*) as sans_affaire from %s where %s;"
-                   % (document, t(document), empty(document)))
+        out.append("select '%s' as document, count(*) as sans_affaire from %s where %s and %s;"
+                   % (document, t(document), empty(document), real_key(document)))
     return "\n".join(out) + "\n"
 
 
@@ -368,6 +390,7 @@ def attendu(pairs):
             "  select count(*) as documents from %s" % t("SAISIE_ACHAT"),
             "    join %s on %s = %s" % (t(source), a(source, key(source)), a("SAISIE_ACHAT", "IDSOURCE")),
             "   where %s = '%s' and %s and %s" % (a("SAISIE_ACHAT", "SOURCE"), source, empty("SAISIE_ACHAT"), real(source)),
+            "     and %s and %s and %s > %d" % (real_key("SAISIE_ACHAT"), real_key(source), a("SAISIE_ACHAT", "IDSOURCE"), UNDEFINED),
         ]))
     for source, destination in pairs:
         transfer = "TR_" + source
@@ -376,6 +399,8 @@ def attendu(pairs):
             "    join %s on %s = %s" % (t(transfer), a(transfer, "ID_" + destination), a(destination, key(destination))),
             "    join %s on %s = %s" % (t(source), a(source, key(source)), a(transfer, "ID_" + source)),
             "   where %s and %s" % (empty(destination), real(source)),
+            "     and %s > %d and %s > %d" % (a(transfer, "ID_" + destination), UNDEFINED, a(transfer, "ID_" + source), UNDEFINED),
+            "     and %s and %s" % (real_key(destination), real_key(source)),
         ]))
     return """-- Le nombre que « Aide > Reprendre les affaires des documents » doit annoncer.
 --
@@ -405,19 +430,21 @@ def historique(pairs, lines):
                  "COMMANDE_CLIENT", "BON_DE_LIVRAISON", "SAISIE_VENTE_FACTURE", "AVOIR_CLIENT"]
     counts = []
     for document in documents:
-        counts.append("select '%s' as tableau, count(*) as documents from %s where %s"
-                      % (document, t(document), empty(document)))
+        counts.append("select '%s' as tableau, count(*) as documents from %s where %s and %s"
+                      % (document, t(document), empty(document), real_key(document)))
     for line, link, parent in lines:
-        counts.append("select '%s' as tableau, count(*) as documents\n  from %s d join %s l on d.%s = l.%s\n where %s"
-                      % (line, t(parent), t(line), c(key(parent)), c(link), empty_on("d")))
+        counts.append("select '%s' as tableau, count(*) as documents\n  from %s d join %s l on d.%s = l.%s\n where %s and d.%s > %d and l.%s > %d"
+                      % (line, t(parent), t(line), c(key(parent)), c(link), empty_on("d"),
+                         c(key(parent)), UNDEFINED, c(link), UNDEFINED))
 
     details = []
     for document in documents:
-        details.append("select '%s' as tableau, cast(%s as text) as id, cast(coalesce(\"NUMERO\", '') as text) as numero\n  from %s\n where %s"
-                       % (document, c(key(document)), t(document), empty(document)))
+        details.append("select '%s' as tableau, cast(%s as text) as id, cast(coalesce(\"NUMERO\", '') as text) as numero\n  from %s\n where %s and %s"
+                       % (document, c(key(document)), t(document), empty(document), real_key(document)))
     for line, link, parent in lines:
-        details.append("select '%s' as tableau, cast(l.\"ID\" as text) as id, cast(d.%s as text) as numero\n  from %s d join %s l on d.%s = l.%s\n where %s"
-                       % (line, c(key(parent)), t(parent), t(line), c(key(parent)), c(link), empty_on("d")))
+        details.append("select '%s' as tableau, cast(l.\"ID\" as text) as id, cast(d.%s as text) as numero\n  from %s d join %s l on d.%s = l.%s\n where %s and d.%s > %d and l.%s > %d"
+                       % (line, c(key(parent)), t(parent), t(line), c(key(parent)), c(link), empty_on("d"),
+                          c(key(parent)), UNDEFINED, c(link), UNDEFINED))
 
     return """-- Historique affaires : ce que la fenetre DEVRAIT afficher pour une affaire.
 --

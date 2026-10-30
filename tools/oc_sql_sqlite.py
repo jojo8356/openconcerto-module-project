@@ -157,6 +157,23 @@ def transfert_rows():
     ("AFFAIRE", dict(ID=555, NUMERO="555", NOM="AFFAIRE 555")),
     ("AFFAIRE", dict(ID=777, NUMERO="777", NOM="AFFAIRE 777")),
     ("AFFAIRE", dict(ID=888, NUMERO="888", NOM="AFFAIRE 888")),
+    # --- lignes « Indefini » : chaque table en a une, d'identifiant 1 --------
+    # Les cles etrangeres non renseignees valent 1, pas NULL : sans garde-fou,
+    # toutes ces lignes se rattachent a la ligne 1 et gonflent les compteurs
+    # (mesure sur la base du client : 200 au lieu de 3).
+    ("COMMANDE", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("BON_RECEPTION", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("SAISIE_ACHAT", dict(ID=1, ID_AFFAIRE=None, SOURCE=None, IDSOURCE=1, NUMERO="Indefini")),
+    ("FACTURE_FOURNISSEUR", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("DEVIS", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("COMMANDE_CLIENT", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("SAISIE_VENTE_FACTURE", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("BON_DE_LIVRAISON", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("AVOIR_CLIENT", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("AVOIR_FOURNISSEUR", dict(ID=1, ID_AFFAIRE=None, NUMERO="Indefini")),
+    ("FACTURE_FOURNISSEUR_ELEMENT", dict(ID=1, ID_AFFAIRE=None, ID_FACTURE_FOURNISSEUR=1)),
+    ("COMMANDE_ELEMENT", dict(ID=1, ID_AFFAIRE=None, ID_COMMANDE=1)),
+
     # --- documents sources -------------------------------------------------
     ("COMMANDE", dict(ID=251, ID_AFFAIRE=11870)),
     ("COMMANDE", dict(ID=252, ID_AFFAIRE=1)),
@@ -210,6 +227,8 @@ def transfert_rows():
     ("TR_COMMANDE", dict(ID=3, ID_COMMANDE=254, ID_BON_RECEPTION=None, ID_SAISIE_ACHAT=None, ID_FACTURE_FOURNISSEUR=904)),
     ("TR_COMMANDE", dict(ID=4, ID_COMMANDE=252, ID_BON_RECEPTION=402, ID_SAISIE_ACHAT=None, ID_FACTURE_FOURNISSEUR=None)),
     ("TR_COMMANDE", dict(ID=5, ID_COMMANDE=251, ID_BON_RECEPTION=403, ID_SAISIE_ACHAT=706, ID_FACTURE_FOURNISSEUR=None)),
+    # transferts dont le lien n'a pas encore ete rempli : valeur 1, pas NULL
+    ("TR_COMMANDE", dict(ID=6, ID_COMMANDE=251, ID_BON_RECEPTION=1, ID_SAISIE_ACHAT=1, ID_FACTURE_FOURNISSEUR=1)),
     ("TR_BON_RECEPTION", dict(ID=1, ID_BON_RECEPTION=400, ID_SAISIE_ACHAT=707, ID_FACTURE_FOURNISSEUR=902)),
     ("TR_SAISIE_ACHAT", dict(ID=1, ID_SAISIE_ACHAT=700, ID_AVOIR_FOURNISSEUR=1300)),
     ("TR_DEVIS", dict(ID=1, ID_DEVIS=600, ID_COMMANDE=255, ID_COMMANDE_CLIENT=800,
@@ -652,7 +671,8 @@ def scenario_transfert(checker):
     execute.errors = []
     results = execute(db, read_script(diagnostic), skip_errors=True)
     cas = collect(results, "cas")
-    checker.check("quatre cas en echec (les quatre transferts du devis)", 4, len(execute.errors))
+    # les 4 transferts du devis, plus le compteur du devis lui-meme (§5)
+    checker.check("cinq requetes en echec : les quatre transferts du devis et son compteur", 5, len(execute.errors))
     checker.check("tous les autres cas sont affiches", 15, len(cas))
     checker.check("les factures depuis une commande restent diagnostiquees", 2,
                   cas.get("FACTURE_FOURNISSEUR <- COMMANDE (via TR_COMMANDE)"))
@@ -667,8 +687,9 @@ def scenario_transfert(checker):
     print()
     print("9 bis. La cle du devis est bien celle de la base mesuree")
     contenu = "\n".join(read_script(reprise))
-    # 4 blocs du devis, chacun citant DEVIS.ID_DEVIS dans le JOIN et dans le WHERE
-    checker.check("les blocs du devis joignent ID_DEVIS", 8, contenu.count('"DEVIS"."ID_DEVIS"'))
+    # 4 blocs du devis, chacun citant DEVIS.ID_DEVIS dans le JOIN, le WHERE et
+    # le garde-fou de la ligne « Indefini »
+    checker.check("les blocs du devis joignent ID_DEVIS", 12, contenu.count('"DEVIS"."ID_DEVIS"'))
     checker.check("aucun bloc ne joint DEVIS.ID", 0, contenu.count('"DEVIS"."ID" ='))
     db = create_database("client", devis_key="ID_DEVIS")
     fixture_transfert(db)
