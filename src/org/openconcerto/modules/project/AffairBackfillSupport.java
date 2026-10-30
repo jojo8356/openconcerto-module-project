@@ -142,7 +142,10 @@ public final class AffairBackfillSupport {
             if (!hasAffair(schema, source) || !hasKey(schema, source)) {
                 continue;
             }
-            final String sourceValue = q.column("SOURCE") + " = '" + source + "'";
+            // La colonne est qualifiee : sans prefixe, des que la table jointe a
+            // elle aussi une colonne SOURCE, PostgreSQL repond « column
+            // reference "SOURCE" is ambiguous » (mesure faite sur PostgreSQL 16).
+            final String sourceValue = a(q, target, "SOURCE") + " = '" + source + "'";
             final String join = a(q, target, "IDSOURCE") + " = " + a(q, source, keyOf(schema, source));
             final String empty = emptyAffair(q, target);
             final String real = realAffair(q, source);
@@ -181,16 +184,25 @@ public final class AffairBackfillSupport {
             }
             final String empty = emptyAffair(q, target);
             final String real = realAffair(q, source);
-            final String join = a(q, transferTable, destKey) + " = " + a(q, target, keyOf(schema, target))
-                    + " AND " + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source));
+            final String joinTarget = a(q, transferTable, destKey) + " = " + a(q, target, keyOf(schema, target));
+            final String joinSource = a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source));
+            // Les deux conditions reunis : utilisables dans un WHERE, ou les deux
+            // tables sont visibles.
+            final String join = joinTarget + " AND " + joinSource;
             // Les lignes de transfert pointent la ligne « Indefini » (1) tant
             // qu'un document n'a pas ete cree : on ne reprend que les liens reels.
             final String notPlaceholder = a(q, transferTable, destKey) + " > " + UNDEFINED_ID
                     + " AND " + a(q, transferTable, srcKey) + " > " + UNDEFINED_ID;
             final String realKeys = realKey(q, target, keyOf(schema, target)) + " AND " + realKey(q, source, keyOf(schema, source));
             repairs.add(new Repair(target, target + " <- " + source + " (via " + transferTable + ")",
-                    "SELECT count(*) FROM " + q.table(target) + " INNER JOIN " + q.table(transferTable) + " ON " + join
-                            + " INNER JOIN " + q.table(source) + " ON " + a(q, transferTable, srcKey) + " = " + a(q, source, keyOf(schema, source))
+                    // Le ON de la premiere jointure ne cite que la cible et la table
+                    // de transfert : citer la source avant qu'elle soit jointe fait
+                    // echouer PostgreSQL (« invalid reference to FROM-clause entry
+                    // for table ... »). Constate sur la base du client : les 17
+                    // comptages de transfert echouaient tous, donc le menu
+                    // annoncait 0 et concluait « rien a reprendre ».
+                    "SELECT count(*) FROM " + q.table(target) + " INNER JOIN " + q.table(transferTable) + " ON " + joinTarget
+                            + " INNER JOIN " + q.table(source) + " ON " + joinSource
                             + " WHERE " + empty + " AND " + real + " AND " + notPlaceholder + " AND " + realKeys,
                     "UPDATE " + q.table(target) + " SET " + q.column(AFFAIR_FIELD) + " = " + a(q, source, AFFAIR_FIELD)
                             + " FROM " + q.table(transferTable) + " INNER JOIN " + q.table(source) + " ON "

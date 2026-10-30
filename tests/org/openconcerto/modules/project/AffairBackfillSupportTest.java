@@ -35,6 +35,7 @@ public final class AffairBackfillSupportTest {
         testRealClientSchema();
         testDevisWithOwnKey();
         testPlaceholderRowsAreIgnored();
+        testCountSqlScope();
         testTableWithoutKeyIsSkipped();
         testEmptyAndRealAffairPredicates();
         testNullSchema();
@@ -291,6 +292,49 @@ public final class AffairBackfillSupportTest {
         // la regle est publique et testable seule
         assertEquals("realKey", "\"T\".\"ID\" > 1", AffairBackfillSupport.realKey(Q, "T", "ID"));
         assertEquals("realKey sans cle", "1 = 1", AffairBackfillSupport.realKey(Q, "T", null));
+    }
+
+    /**
+     * Les requetes de comptage doivent etre acceptees par PostgreSQL, pas
+     * seulement par SQLite.
+     * <p>
+     * Sur la base du client, les 19 comptages echouaient et le menu annoncait
+     * « rien a reprendre ». Deux causes, toutes deux verifiees sur PostgreSQL 16 :
+     * une colonne {@code SOURCE} non qualifiee (« column reference \"SOURCE\" is
+     * ambiguous ») et la condition de la table source placee dans le premier
+     * {@code ON}, avant que cette table soit jointe (« invalid reference to
+     * FROM-clause entry »).
+     * </p>
+     */
+    private static void testCountSqlScope() {
+        // 1. colonne qualifiee, meme si la table jointe porte le meme nom.
+        final Map<String, String[]> sources = tables(
+                "SAISIE_ACHAT", cols("ID", "ID_AFFAIRE", "SOURCE", "IDSOURCE"),
+                "COMMANDE", cols("ID", "ID_AFFAIRE", "SOURCE"));
+        final AffairBackfillSupport.Repair source = find(AffairBackfillSupport.plan(schema(sources), Q), "SAISIE_ACHAT", "SOURCE / IDSOURCE");
+        final String sourceSql = source.getCountSql();
+        assertEquals("SOURCE qualifiee", Boolean.TRUE, Boolean.valueOf(sourceSql.contains("\"SAISIE_ACHAT\".\"SOURCE\" = 'COMMANDE'")));
+        assertEquals("jamais \"SOURCE\" nu", Boolean.FALSE, Boolean.valueOf(sourceSql.contains("WHERE \"SOURCE\"")));
+
+        // 2. le premier ON ne cite que la cible et la table de transfert.
+        final Map<String, String[]> transferts = tables(
+                "COMMANDE", cols("ID", "ID_AFFAIRE"),
+                "FACTURE_FOURNISSEUR", cols("ID", "ID_AFFAIRE"),
+                "TR_COMMANDE", cols("ID", "ID_COMMANDE", "ID_FACTURE_FOURNISSEUR"));
+        final AffairBackfillSupport.Repair transfer = find(AffairBackfillSupport.plan(schema(transferts), Q), "FACTURE_FOURNISSEUR", "TR_COMMANDE");
+        final String count = transfer.getCountSql();
+        final int firstJoin = count.indexOf("INNER JOIN \"TR_COMMANDE\" ON ");
+        final int sourceJoin = count.indexOf("INNER JOIN \"COMMANDE\"", firstJoin);
+        assertEquals("la table de transfert est jointe", Boolean.TRUE, Boolean.valueOf(firstJoin > 0));
+        assertEquals("la source est jointe apres", Boolean.TRUE, Boolean.valueOf(sourceJoin > firstJoin));
+        final String firstOn = count.substring(firstJoin, sourceJoin);
+        assertEquals("premier ON : pas de reference a la source", Boolean.FALSE, Boolean.valueOf(firstOn.contains("\"COMMANDE\".\"")));
+        assertEquals("premier ON : la cible est bien jointe", Boolean.TRUE, Boolean.valueOf(firstOn.contains("\"FACTURE_FOURNISSEUR\".\"ID\"")));
+        assertEquals("second ON : la source est jointe sur la table de transfert", Boolean.TRUE,
+                Boolean.valueOf(count.substring(sourceJoin).contains("\"TR_COMMANDE\".\"ID_COMMANDE\" = \"COMMANDE\".\"ID\"")));
+        // 3. la mise a jour, elle, garde les deux conditions (les deux tables y sont visibles).
+        assertEquals("UPDATE : les deux conditions", Boolean.TRUE,
+                Boolean.valueOf(transfer.getUpdateSql().contains("AND \"TR_COMMANDE\".\"ID_COMMANDE\" = \"COMMANDE\".\"ID\"")));
     }
 
     /**

@@ -40,6 +40,13 @@ failures = []
 # --------------------------------------------------------------------------
 # Verification elementaire
 # --------------------------------------------------------------------------
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sql_scope  # noqa: E402  (controle de portee des requetes)
+
+
+# --------------------------------------------------------------------------
+# Verification elementaire
+# --------------------------------------------------------------------------
 def check(label, expected, actual):
     global passed, failed
     if expected == actual:
@@ -156,6 +163,17 @@ def main():
 
     check("un comptage par reprise", len(updates), len(counts))
     check("tables du plan presentes", True, len(tables) > 10)
+
+    # ---- 0. portee des requetes : les regles que PostgreSQL impose ---------
+    # SQLite accepte ce que PostgreSQL refuse ; sans ce controle, une requete
+    # refusee en production passait ici sans bruit (c'est arrive : les 19
+    # comptages echouaient sur la base du client).
+    print()
+    print("0. Portee des requetes (regles PostgreSQL)")
+    _, problems = sql_scope.check_plan(counts)
+    for problem in problems:
+        print("   ECHEC %s" % problem)
+    check("aucune table citee avant sa jointure, aucune colonne non qualifiee", 0, len(problems))
 
     db = build_database(tables)
     fixture(db)

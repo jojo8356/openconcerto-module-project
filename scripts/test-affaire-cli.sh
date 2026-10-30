@@ -153,11 +153,19 @@ if [ "$have_java" = 1 ]; then
     echo "   OK    $reprises reprises generees ($(grep -c '^TABLE|' "$PLAN_FILE") tables decrites)"
 
     echo
+    echo "=== 2bis. Portee des requetes du plan (regles PostgreSQL) ==="
+    python3 tests/cli/sql_scope.py "$PLAN_FILE"
+
+    echo
     echo "=== 3. Plan de reprise execute dans SQLite ==="
     python3 tests/cli/test-affaire-transfert.py "$PLAN_FILE"
 else
     echo "   (ignore : ni JDK ni Docker)"
 fi
+
+echo
+echo "=== 3bis. Les deux pieges PostgreSQL refuses par SQLite (sans base) ==="
+python3 tests/cli/sql_scope.py --selftest
 
 echo
 echo "=== 4. Fichiers SQL du module : sont-ils toujours ceux du code ? ==="
