@@ -75,6 +75,7 @@ Sur les 49 contrôles, ceux qui comptent :
 | Facture sans table de transfert | reste vide |
 | Saisie d'achat née d'une commande (`SOURCE`/`IDSOURCE`) | affaire recopiée |
 | Saisie d'achat dont la source est « Indéfini » (1) | rien |
+| Document dont la clé étrangère vaut 1 (non renseignée) | aucun compteur, aucune écriture |
 | Saisie d'achat saisie à la main (sans source) | rien |
 | Lignes de document sans affaire | reprennent celle du document |
 | Ligne avec une affaire propre | conservée |
@@ -114,7 +115,7 @@ tableaux, puis variante à douze).
 `sql/diagnostic-affaire-transfert.sql` et `sql/reprise-affaire-transfert.sql`
 sont exécutés **tels quels** (seules les commandes `\echo` de psql sont
 retirées) dans une base SQLite qui porte le schéma `OpenConcerto42`, une
-`INFORMATION_SCHEMA` minimale et la fonction `current_schema()`. 63 contrôles :
+`INFORMATION_SCHEMA` minimale et la fonction `current_schema()`. 85 contrôles :
 
 - le diagnostic compte juste, section par section (17 transferts, 12 tableaux
   de lignes, compteur global) ;
@@ -122,7 +123,11 @@ retirées) dans une base SQLite qui porte le schéma `OpenConcerto42`, une
 - la reprise remplit ce qu'il faut, et **seulement** ce qu'il faut ;
 - le rejeu ne change plus rien ;
 - sans table `TR_*`, la reprise échoue et la transaction annulée ne laisse
-  aucune écriture.
+  aucune écriture ;
+- **la ligne « Indéfini » (ID 1) n'est jamais comptée ni mise à jour** : chaque
+  table du jeu de données a sa ligne 1, et un `TR_COMMANDE` dont les trois clés
+  valent `1` vient vérifier que la clé étrangère non renseignée ne fabrique pas
+  de faux compteur (mesuré sur la base du client : 200 au lieu de 3).
 
 ## Sur un vrai PostgreSQL
 

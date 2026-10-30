@@ -8,6 +8,36 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-10-30 — La ligne « Indéfini » n'est plus comptée
+
+### Fixed
+
+- **Chaque table d'OpenConcerto contient une ligne « Indéfini » d'ID 1, et une
+  clé étrangère non renseignée vaut `1`, jamais `NULL`.** Le diagnostic et la
+  reprise joignaient donc cette ligne 1 et la comptaient autant de fois qu'il y
+  a de lignes de transfert : sur la base du client, **200** « saisies d'achat à
+  réparer » et **200** « bons de réception à réparer » alors qu'il n'y en a que
+  **3** et **10**. Le `UPDATE` pouvait en outre écrire sur la ligne 1.
+- `AffairBackfillSupport.realKey()` impose `<clé> > 1` sur la cible, la source,
+  le lien de transfert et le lien de ligne ; `addSourceRepairs` exige une clé
+  réelle des deux côtés. Appliqué aux trois étapes de la reprise.
+- Les **6 fichiers SQL** portent le même garde-fou (reprise, diagnostic,
+  attendu, historique), toujours générés depuis le code.
+- Outils de test : la fixture reproduit le cas réel (une ligne « Indéfini » par
+  table, un `TR_COMMANDE` dont les trois clés valent `1`), **85 contrôles**, plus
+  `testPlaceholderRowsAreIgnored` (7 vérifications) côté Java.
+
+### Measured
+
+- Base du client, avant ce correctif : les compteurs `SAISIE_ACHAT <- COMMANDE`
+  et `BON_RECEPTION <- COMMANDE` étaient à **200** pour **3** et **10** documents
+  réellement concernés. Les autres transferts mesurés : `FACTURE_FOURNISSEUR <-
+  COMMANDE` 17, `COMMANDE_CLIENT <- DEVIS` 8, `BON_DE_LIVRAISON <-
+  COMMANDE_CLIENT` 1, `SAISIE_VENTE_FACTURE <- BON_DE_LIVRAISON` 17,
+  `AVOIR_CLIENT <- SAISIE_VENTE_FACTURE` 11, `BON_DE_LIVRAISON <-
+  SAISIE_VENTE_FACTURE` 8 — soit **62** au maximum, à confirmer par une nouvelle
+  mesure du diagnostic corrigé (le total de 462 annoncé ci-dessous est faux).
+
 ## 2026-10-30 — La clé du devis est `ID_DEVIS`
 
 ### Fixed
@@ -31,6 +61,9 @@
 - Base du client, `sql/attendu-reprise.sql` : **462** documents réparables au
   total, dont **244 issus d'un devis** (218 sans les devis). Sans ce correctif,
   plus de la moitié du travail de reprise était ignorée, sans message d'erreur.
+  **Ce chiffre est à revoir :** il a été mesuré avant le correctif « Indéfini »
+  (voir la section du 2026-10-30 ci-dessus), qui gonflait les compteurs avec la
+  ligne 1 ; le total réel est de l'ordre de **62**.
 
 ## 2026-10-30 — Une table sans colonne `ID` ne bloque plus la reprise
 
