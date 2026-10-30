@@ -7,6 +7,8 @@
 -- Les requetes reprennent exactement les regles de AffairBackfillSupport :
 -- seules les affaires VIDES (NULL) ou « Indefini » (ID 1) sont comptees, et
 -- seulement quand le document source porte une vraie affaire.
+--
+-- Verifie automatiquement, sans base :  sh scripts/test-affaire-cli.sh
 
 \echo '=== 0. Schema utilise (adapter si votre societe porte un autre nom) ==='
 select current_schema() as schema_courant;
@@ -15,67 +17,184 @@ select current_schema() as schema_courant;
 \echo '=== 1. Saisies d achat sans affaire, alors que leur source en a une ==='
 select 'COMMANDE' as source, count(*) as documents
   from "OpenConcerto42"."SAISIE_ACHAT"
-  join "OpenConcerto42"."COMMANDE" on "COMMANDE"."ID" = "SAISIE_ACHAT"."IDSOURCE"
- where "SAISIE_ACHAT"."SOURCE" = 'COMMANDE'
-   and ("SAISIE_ACHAT"."ID_AFFAIRE" is null or "SAISIE_ACHAT"."ID_AFFAIRE" = 1)
-   and "COMMANDE"."ID_AFFAIRE" > 1
-union all
-select 'BON_RECEPTION', count(*)
+  join "OpenConcerto42"."COMMANDE" on "OpenConcerto42"."COMMANDE"."ID" = "OpenConcerto42"."SAISIE_ACHAT"."IDSOURCE"
+ where "OpenConcerto42"."SAISIE_ACHAT"."SOURCE" = 'COMMANDE'
+   and ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1 union all
+select 'BON_RECEPTION' as source, count(*) as documents
   from "OpenConcerto42"."SAISIE_ACHAT"
-  join "OpenConcerto42"."BON_RECEPTION" on "BON_RECEPTION"."ID" = "SAISIE_ACHAT"."IDSOURCE"
- where "SAISIE_ACHAT"."SOURCE" = 'BON_RECEPTION'
-   and ("SAISIE_ACHAT"."ID_AFFAIRE" is null or "SAISIE_ACHAT"."ID_AFFAIRE" = 1)
-   and "BON_RECEPTION"."ID_AFFAIRE" > 1;
+  join "OpenConcerto42"."BON_RECEPTION" on "OpenConcerto42"."BON_RECEPTION"."ID" = "OpenConcerto42"."SAISIE_ACHAT"."IDSOURCE"
+ where "OpenConcerto42"."SAISIE_ACHAT"."SOURCE" = 'BON_RECEPTION'
+   and ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" > 1;
 
 \echo ''
 \echo '=== 2. Documents sans affaire, mais leur source (table TR_*) en a une ==='
+select 'SAISIE_ACHAT <- COMMANDE' as transfert, count(*) as documents
+  from "OpenConcerto42"."SAISIE_ACHAT"
+  join "OpenConcerto42"."TR_COMMANDE" on "OpenConcerto42"."TR_COMMANDE"."ID_SAISIE_ACHAT" = "OpenConcerto42"."SAISIE_ACHAT"."ID"
+  join "OpenConcerto42"."COMMANDE" on "OpenConcerto42"."COMMANDE"."ID" = "OpenConcerto42"."TR_COMMANDE"."ID_COMMANDE"
+ where ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1 union all
+select 'BON_RECEPTION <- COMMANDE' as transfert, count(*) as documents
+  from "OpenConcerto42"."BON_RECEPTION"
+  join "OpenConcerto42"."TR_COMMANDE" on "OpenConcerto42"."TR_COMMANDE"."ID_BON_RECEPTION" = "OpenConcerto42"."BON_RECEPTION"."ID"
+  join "OpenConcerto42"."COMMANDE" on "OpenConcerto42"."COMMANDE"."ID" = "OpenConcerto42"."TR_COMMANDE"."ID_COMMANDE"
+ where ("OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1 union all
 select 'FACTURE_FOURNISSEUR <- COMMANDE' as transfert, count(*) as documents
   from "OpenConcerto42"."FACTURE_FOURNISSEUR"
-  join "OpenConcerto42"."TR_COMMANDE" on "TR_COMMANDE"."ID_FACTURE_FOURNISSEUR" = "FACTURE_FOURNISSEUR"."ID"
-  join "OpenConcerto42"."COMMANDE" on "COMMANDE"."ID" = "TR_COMMANDE"."ID_COMMANDE"
- where ("FACTURE_FOURNISSEUR"."ID_AFFAIRE" is null or "FACTURE_FOURNISSEUR"."ID_AFFAIRE" = 1)
-   and "COMMANDE"."ID_AFFAIRE" > 1
-union all
-select 'FACTURE_FOURNISSEUR <- BON_RECEPTION', count(*)
+  join "OpenConcerto42"."TR_COMMANDE" on "OpenConcerto42"."TR_COMMANDE"."ID_FACTURE_FOURNISSEUR" = "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID"
+  join "OpenConcerto42"."COMMANDE" on "OpenConcerto42"."COMMANDE"."ID" = "OpenConcerto42"."TR_COMMANDE"."ID_COMMANDE"
+ where ("OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1 union all
+select 'SAISIE_ACHAT <- BON_RECEPTION' as transfert, count(*) as documents
+  from "OpenConcerto42"."SAISIE_ACHAT"
+  join "OpenConcerto42"."TR_BON_RECEPTION" on "OpenConcerto42"."TR_BON_RECEPTION"."ID_SAISIE_ACHAT" = "OpenConcerto42"."SAISIE_ACHAT"."ID"
+  join "OpenConcerto42"."BON_RECEPTION" on "OpenConcerto42"."BON_RECEPTION"."ID" = "OpenConcerto42"."TR_BON_RECEPTION"."ID_BON_RECEPTION"
+ where ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" > 1 union all
+select 'FACTURE_FOURNISSEUR <- BON_RECEPTION' as transfert, count(*) as documents
   from "OpenConcerto42"."FACTURE_FOURNISSEUR"
-  join "OpenConcerto42"."TR_BON_RECEPTION" on "TR_BON_RECEPTION"."ID_FACTURE_FOURNISSEUR" = "FACTURE_FOURNISSEUR"."ID"
-  join "OpenConcerto42"."BON_RECEPTION" on "BON_RECEPTION"."ID" = "TR_BON_RECEPTION"."ID_BON_RECEPTION"
- where ("FACTURE_FOURNISSEUR"."ID_AFFAIRE" is null or "FACTURE_FOURNISSEUR"."ID_AFFAIRE" = 1)
-   and "BON_RECEPTION"."ID_AFFAIRE" > 1
-union all
-select 'BON_RECEPTION <- COMMANDE', count(*)
-  from "OpenConcerto42"."BON_RECEPTION"
-  join "OpenConcerto42"."TR_COMMANDE" on "TR_COMMANDE"."ID_BON_RECEPTION" = "BON_RECEPTION"."ID"
-  join "OpenConcerto42"."COMMANDE" on "COMMANDE"."ID" = "TR_COMMANDE"."ID_COMMANDE"
- where ("BON_RECEPTION"."ID_AFFAIRE" is null or "BON_RECEPTION"."ID_AFFAIRE" = 1)
-   and "COMMANDE"."ID_AFFAIRE" > 1
-union all
-select 'SAISIE_VENTE_FACTURE <- COMMANDE_CLIENT', count(*)
+  join "OpenConcerto42"."TR_BON_RECEPTION" on "OpenConcerto42"."TR_BON_RECEPTION"."ID_FACTURE_FOURNISSEUR" = "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID"
+  join "OpenConcerto42"."BON_RECEPTION" on "OpenConcerto42"."BON_RECEPTION"."ID" = "OpenConcerto42"."TR_BON_RECEPTION"."ID_BON_RECEPTION"
+ where ("OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" > 1 union all
+select 'COMMANDE <- DEVIS' as transfert, count(*) as documents
+  from "OpenConcerto42"."COMMANDE"
+  join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE" = "OpenConcerto42"."COMMANDE"."ID"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ where ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1 union all
+select 'AVOIR_FOURNISSEUR <- SAISIE_ACHAT' as transfert, count(*) as documents
+  from "OpenConcerto42"."AVOIR_FOURNISSEUR"
+  join "OpenConcerto42"."TR_SAISIE_ACHAT" on "OpenConcerto42"."TR_SAISIE_ACHAT"."ID_AVOIR_FOURNISSEUR" = "OpenConcerto42"."AVOIR_FOURNISSEUR"."ID"
+  join "OpenConcerto42"."SAISIE_ACHAT" on "OpenConcerto42"."SAISIE_ACHAT"."ID" = "OpenConcerto42"."TR_SAISIE_ACHAT"."ID_SAISIE_ACHAT"
+ where ("OpenConcerto42"."AVOIR_FOURNISSEUR"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."AVOIR_FOURNISSEUR"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" > 1 union all
+select 'COMMANDE_CLIENT <- DEVIS' as transfert, count(*) as documents
+  from "OpenConcerto42"."COMMANDE_CLIENT"
+  join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_COMMANDE_CLIENT" = "OpenConcerto42"."COMMANDE_CLIENT"."ID"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ where ("OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1 union all
+select 'SAISIE_VENTE_FACTURE <- DEVIS' as transfert, count(*) as documents
   from "OpenConcerto42"."SAISIE_VENTE_FACTURE"
-  join "OpenConcerto42"."TR_COMMANDE_CLIENT" on "TR_COMMANDE_CLIENT"."ID_SAISIE_VENTE_FACTURE" = "SAISIE_VENTE_FACTURE"."ID"
-  join "OpenConcerto42"."COMMANDE_CLIENT" on "COMMANDE_CLIENT"."ID" = "TR_COMMANDE_CLIENT"."ID_COMMANDE_CLIENT"
- where ("SAISIE_VENTE_FACTURE"."ID_AFFAIRE" is null or "SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
-   and "COMMANDE_CLIENT"."ID_AFFAIRE" > 1;
+  join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_SAISIE_VENTE_FACTURE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ where ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1 union all
+select 'BON_DE_LIVRAISON <- DEVIS' as transfert, count(*) as documents
+  from "OpenConcerto42"."BON_DE_LIVRAISON"
+  join "OpenConcerto42"."TR_DEVIS" on "OpenConcerto42"."TR_DEVIS"."ID_BON_DE_LIVRAISON" = "OpenConcerto42"."BON_DE_LIVRAISON"."ID"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."TR_DEVIS"."ID_DEVIS"
+ where ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1 union all
+select 'SAISIE_VENTE_FACTURE <- COMMANDE_CLIENT' as transfert, count(*) as documents
+  from "OpenConcerto42"."SAISIE_VENTE_FACTURE"
+  join "OpenConcerto42"."TR_COMMANDE_CLIENT" on "OpenConcerto42"."TR_COMMANDE_CLIENT"."ID_SAISIE_VENTE_FACTURE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID"
+  join "OpenConcerto42"."COMMANDE_CLIENT" on "OpenConcerto42"."COMMANDE_CLIENT"."ID" = "OpenConcerto42"."TR_COMMANDE_CLIENT"."ID_COMMANDE_CLIENT"
+ where ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" > 1 union all
+select 'BON_DE_LIVRAISON <- COMMANDE_CLIENT' as transfert, count(*) as documents
+  from "OpenConcerto42"."BON_DE_LIVRAISON"
+  join "OpenConcerto42"."TR_COMMANDE_CLIENT" on "OpenConcerto42"."TR_COMMANDE_CLIENT"."ID_BON_DE_LIVRAISON" = "OpenConcerto42"."BON_DE_LIVRAISON"."ID"
+  join "OpenConcerto42"."COMMANDE_CLIENT" on "OpenConcerto42"."COMMANDE_CLIENT"."ID" = "OpenConcerto42"."TR_COMMANDE_CLIENT"."ID_COMMANDE_CLIENT"
+ where ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" > 1 union all
+select 'COMMANDE <- COMMANDE_CLIENT' as transfert, count(*) as documents
+  from "OpenConcerto42"."COMMANDE"
+  join "OpenConcerto42"."TR_COMMANDE_CLIENT" on "OpenConcerto42"."TR_COMMANDE_CLIENT"."ID_COMMANDE" = "OpenConcerto42"."COMMANDE"."ID"
+  join "OpenConcerto42"."COMMANDE_CLIENT" on "OpenConcerto42"."COMMANDE_CLIENT"."ID" = "OpenConcerto42"."TR_COMMANDE_CLIENT"."ID_COMMANDE_CLIENT"
+ where ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" > 1 union all
+select 'SAISIE_VENTE_FACTURE <- BON_DE_LIVRAISON' as transfert, count(*) as documents
+  from "OpenConcerto42"."SAISIE_VENTE_FACTURE"
+  join "OpenConcerto42"."TR_BON_DE_LIVRAISON" on "OpenConcerto42"."TR_BON_DE_LIVRAISON"."ID_SAISIE_VENTE_FACTURE" = "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID"
+  join "OpenConcerto42"."BON_DE_LIVRAISON" on "OpenConcerto42"."BON_DE_LIVRAISON"."ID" = "OpenConcerto42"."TR_BON_DE_LIVRAISON"."ID_BON_DE_LIVRAISON"
+ where ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" > 1 union all
+select 'AVOIR_CLIENT <- SAISIE_VENTE_FACTURE' as transfert, count(*) as documents
+  from "OpenConcerto42"."AVOIR_CLIENT"
+  join "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE" on "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE"."ID_AVOIR_CLIENT" = "OpenConcerto42"."AVOIR_CLIENT"."ID"
+  join "OpenConcerto42"."SAISIE_VENTE_FACTURE" on "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID" = "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE"."ID_SAISIE_VENTE_FACTURE"
+ where ("OpenConcerto42"."AVOIR_CLIENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."AVOIR_CLIENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" > 1 union all
+select 'BON_DE_LIVRAISON <- SAISIE_VENTE_FACTURE' as transfert, count(*) as documents
+  from "OpenConcerto42"."BON_DE_LIVRAISON"
+  join "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE" on "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE"."ID_BON_DE_LIVRAISON" = "OpenConcerto42"."BON_DE_LIVRAISON"."ID"
+  join "OpenConcerto42"."SAISIE_VENTE_FACTURE" on "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID" = "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE"."ID_SAISIE_VENTE_FACTURE"
+ where ("OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" > 1 union all
+select 'COMMANDE <- SAISIE_VENTE_FACTURE' as transfert, count(*) as documents
+  from "OpenConcerto42"."COMMANDE"
+  join "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE" on "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE"."ID_COMMANDE" = "OpenConcerto42"."COMMANDE"."ID"
+  join "OpenConcerto42"."SAISIE_VENTE_FACTURE" on "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID" = "OpenConcerto42"."TR_SAISIE_VENTE_FACTURE"."ID_SAISIE_VENTE_FACTURE"
+ where ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" > 1;
 
 \echo ''
 \echo '=== 3. Lignes sans affaire, alors que leur document en a une ==='
 select 'COMMANDE_ELEMENT' as table_lignes, count(*) as lignes
   from "OpenConcerto42"."COMMANDE_ELEMENT"
-  join "OpenConcerto42"."COMMANDE" on "COMMANDE"."ID" = "COMMANDE_ELEMENT"."ID_COMMANDE"
- where ("COMMANDE_ELEMENT"."ID_AFFAIRE" is null or "COMMANDE_ELEMENT"."ID_AFFAIRE" = 1)
-   and "COMMANDE"."ID_AFFAIRE" > 1
-union all
-select 'FACTURE_FOURNISSEUR_ELEMENT', count(*)
+  join "OpenConcerto42"."COMMANDE" on "OpenConcerto42"."COMMANDE"."ID" = "OpenConcerto42"."COMMANDE_ELEMENT"."ID_COMMANDE"
+ where ("OpenConcerto42"."COMMANDE_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" > 1 union all
+select 'BON_RECEPTION_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."BON_RECEPTION_ELEMENT"
+  join "OpenConcerto42"."BON_RECEPTION" on "OpenConcerto42"."BON_RECEPTION"."ID" = "OpenConcerto42"."BON_RECEPTION_ELEMENT"."ID_BON_RECEPTION"
+ where ("OpenConcerto42"."BON_RECEPTION_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_RECEPTION_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" > 1 union all
+select 'FACTURE_FOURNISSEUR_ELEMENT' as table_lignes, count(*) as lignes
   from "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT"
-  join "OpenConcerto42"."FACTURE_FOURNISSEUR" on "FACTURE_FOURNISSEUR"."ID" = "FACTURE_FOURNISSEUR_ELEMENT"."ID_FACTURE_FOURNISSEUR"
- where ("FACTURE_FOURNISSEUR_ELEMENT"."ID_AFFAIRE" is null or "FACTURE_FOURNISSEUR_ELEMENT"."ID_AFFAIRE" = 1)
-   and "FACTURE_FOURNISSEUR"."ID_AFFAIRE" > 1
-union all
-select 'SAISIE_ACHAT_ELEMENT', count(*)
+  join "OpenConcerto42"."FACTURE_FOURNISSEUR" on "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID" = "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT"."ID_FACTURE_FOURNISSEUR"
+ where ("OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" > 1 union all
+select 'SAISIE_ACHAT_ELEMENT' as table_lignes, count(*) as lignes
   from "OpenConcerto42"."SAISIE_ACHAT_ELEMENT"
-  join "OpenConcerto42"."SAISIE_ACHAT" on "SAISIE_ACHAT"."ID" = "SAISIE_ACHAT_ELEMENT"."ID_SAISIE_ACHAT"
- where ("SAISIE_ACHAT_ELEMENT"."ID_AFFAIRE" is null or "SAISIE_ACHAT_ELEMENT"."ID_AFFAIRE" = 1)
-   and "SAISIE_ACHAT"."ID_AFFAIRE" > 1;
+  join "OpenConcerto42"."SAISIE_ACHAT" on "OpenConcerto42"."SAISIE_ACHAT"."ID" = "OpenConcerto42"."SAISIE_ACHAT_ELEMENT"."ID_SAISIE_ACHAT"
+ where ("OpenConcerto42"."SAISIE_ACHAT_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" > 1 union all
+select 'AVOIR_FOURNISSEUR_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."AVOIR_FOURNISSEUR_ELEMENT"
+  join "OpenConcerto42"."AVOIR_FOURNISSEUR" on "OpenConcerto42"."AVOIR_FOURNISSEUR"."ID" = "OpenConcerto42"."AVOIR_FOURNISSEUR_ELEMENT"."ID_AVOIR_FOURNISSEUR"
+ where ("OpenConcerto42"."AVOIR_FOURNISSEUR_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."AVOIR_FOURNISSEUR_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."AVOIR_FOURNISSEUR"."ID_AFFAIRE" > 1 union all
+select 'DEMANDE_PRIX_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."DEMANDE_PRIX_ELEMENT"
+  join "OpenConcerto42"."DEMANDE_PRIX" on "OpenConcerto42"."DEMANDE_PRIX"."ID" = "OpenConcerto42"."DEMANDE_PRIX_ELEMENT"."ID_DEMANDE_PRIX"
+ where ("OpenConcerto42"."DEMANDE_PRIX_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."DEMANDE_PRIX_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."DEMANDE_PRIX"."ID_AFFAIRE" > 1 union all
+select 'DEMANDE_ACHAT_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."DEMANDE_ACHAT_ELEMENT"
+  join "OpenConcerto42"."DEMANDE_ACHAT" on "OpenConcerto42"."DEMANDE_ACHAT"."ID" = "OpenConcerto42"."DEMANDE_ACHAT_ELEMENT"."ID_DEMANDE_ACHAT"
+ where ("OpenConcerto42"."DEMANDE_ACHAT_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."DEMANDE_ACHAT_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."DEMANDE_ACHAT"."ID_AFFAIRE" > 1 union all
+select 'COMMANDE_CLIENT_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."COMMANDE_CLIENT_ELEMENT"
+  join "OpenConcerto42"."COMMANDE_CLIENT" on "OpenConcerto42"."COMMANDE_CLIENT"."ID" = "OpenConcerto42"."COMMANDE_CLIENT_ELEMENT"."ID_COMMANDE_CLIENT"
+ where ("OpenConcerto42"."COMMANDE_CLIENT_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE_CLIENT_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" > 1 union all
+select 'SAISIE_VENTE_FACTURE_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."SAISIE_VENTE_FACTURE_ELEMENT"
+  join "OpenConcerto42"."SAISIE_VENTE_FACTURE" on "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID" = "OpenConcerto42"."SAISIE_VENTE_FACTURE_ELEMENT"."ID_SAISIE_VENTE_FACTURE"
+ where ("OpenConcerto42"."SAISIE_VENTE_FACTURE_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" > 1 union all
+select 'DEVIS_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."DEVIS_ELEMENT"
+  join "OpenConcerto42"."DEVIS" on "OpenConcerto42"."DEVIS"."ID" = "OpenConcerto42"."DEVIS_ELEMENT"."ID_DEVIS"
+ where ("OpenConcerto42"."DEVIS_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."DEVIS_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."DEVIS"."ID_AFFAIRE" > 1 union all
+select 'AVOIR_CLIENT_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."AVOIR_CLIENT_ELEMENT"
+  join "OpenConcerto42"."AVOIR_CLIENT" on "OpenConcerto42"."AVOIR_CLIENT"."ID" = "OpenConcerto42"."AVOIR_CLIENT_ELEMENT"."ID_AVOIR_CLIENT"
+ where ("OpenConcerto42"."AVOIR_CLIENT_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."AVOIR_CLIENT_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."AVOIR_CLIENT"."ID_AFFAIRE" > 1 union all
+select 'BON_DE_LIVRAISON_ELEMENT' as table_lignes, count(*) as lignes
+  from "OpenConcerto42"."BON_DE_LIVRAISON_ELEMENT"
+  join "OpenConcerto42"."BON_DE_LIVRAISON" on "OpenConcerto42"."BON_DE_LIVRAISON"."ID" = "OpenConcerto42"."BON_DE_LIVRAISON_ELEMENT"."ID_BON_DE_LIVRAISON"
+ where ("OpenConcerto42"."BON_DE_LIVRAISON_ELEMENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_DE_LIVRAISON_ELEMENT"."ID_AFFAIRE" = 1)
+   and "OpenConcerto42"."BON_DE_LIVRAISON"."ID_AFFAIRE" > 1;
 
 \echo ''
 \echo '=== 4. Les tables de transfert presentes dans cette base ==='
@@ -86,10 +205,5 @@ select table_name
 
 \echo ''
 \echo '=== 5. Rappel : documents sans affaire, tous cas confondus ==='
-select 'COMMANDE' as document, count(*) as sans_affaire from "OpenConcerto42"."COMMANDE" where "ID_AFFAIRE" is null or "ID_AFFAIRE" = 1
-union all select 'BON_RECEPTION', count(*) from "OpenConcerto42"."BON_RECEPTION" where "ID_AFFAIRE" is null or "ID_AFFAIRE" = 1
-union all select 'SAISIE_ACHAT', count(*) from "OpenConcerto42"."SAISIE_ACHAT" where "ID_AFFAIRE" is null or "ID_AFFAIRE" = 1
-union all select 'FACTURE_FOURNISSEUR', count(*) from "OpenConcerto42"."FACTURE_FOURNISSEUR" where "ID_AFFAIRE" is null or "ID_AFFAIRE" = 1
-union all select 'COMMANDE_CLIENT', count(*) from "OpenConcerto42"."COMMANDE_CLIENT" where "ID_AFFAIRE" is null or "ID_AFFAIRE" = 1
-union all select 'SAISIE_VENTE_FACTURE', count(*) from "OpenConcerto42"."SAISIE_VENTE_FACTURE" where "ID_AFFAIRE" is null or "ID_AFFAIRE" = 1
+select 'COMMANDE' as document, count(*) as sans_affaire from "OpenConcerto42"."COMMANDE" where ("OpenConcerto42"."COMMANDE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE"."ID_AFFAIRE" = 1) union all select 'BON_RECEPTION' as document, count(*) as sans_affaire from "OpenConcerto42"."BON_RECEPTION" where ("OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."BON_RECEPTION"."ID_AFFAIRE" = 1) union all select 'SAISIE_ACHAT' as document, count(*) as sans_affaire from "OpenConcerto42"."SAISIE_ACHAT" where ("OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_ACHAT"."ID_AFFAIRE" = 1) union all select 'FACTURE_FOURNISSEUR' as document, count(*) as sans_affaire from "OpenConcerto42"."FACTURE_FOURNISSEUR" where ("OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."FACTURE_FOURNISSEUR"."ID_AFFAIRE" = 1) union all select 'COMMANDE_CLIENT' as document, count(*) as sans_affaire from "OpenConcerto42"."COMMANDE_CLIENT" where ("OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."COMMANDE_CLIENT"."ID_AFFAIRE" = 1) union all select 'SAISIE_VENTE_FACTURE' as document, count(*) as sans_affaire from "OpenConcerto42"."SAISIE_VENTE_FACTURE" where ("OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" IS NULL OR "OpenConcerto42"."SAISIE_VENTE_FACTURE"."ID_AFFAIRE" = 1)
 order by 2 desc;
