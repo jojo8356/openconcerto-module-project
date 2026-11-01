@@ -156,6 +156,26 @@ def affair_of(db, table, row_id):
 # --------------------------------------------------------------------------
 # Jeu de donnees
 # --------------------------------------------------------------------------
+def _assert_unique_ids(rows):
+    """Refuse un jeu de donnees avec deux fois le meme ID dans une table.
+
+    SQLite accepte silencieusement (la seconde ligne ecrase la premiere) ; la
+    vraie base a une cle primaire, donc PostgreSQL refuse. Un doublon dans la
+    fixture cachait donc une erreur de jeu de donnees : « AFFAIRE 777 » etait
+    inseree deux fois, ce qui faisait echouer la creation des tables cote
+    PostgreSQL des que la cle primaire a ete declaree.
+    """
+    seen = {}
+    for table, values in rows:
+        ident = values.get("ID")
+        if ident is None:
+            continue
+        key = (table, ident)
+        if key in seen:
+            raise ValueError("jeu de donnees invalide : %s ID %s insere deux fois" % (table, ident))
+        seen[key] = True
+
+
 def transfert_rows():
     """Les cas de test, sous forme de lignes a inserer."""
     return [
@@ -189,7 +209,6 @@ def transfert_rows():
     ("COMMANDE", dict(ID=255, ID_AFFAIRE=None)),
     ("COMMANDE", dict(ID=256, ID_AFFAIRE=None)),
     ("COMMANDE", dict(ID=257, ID_AFFAIRE=None)),
-    ("AFFAIRE", dict(ID=777, NUMERO="777", NOM="AFFAIRE 777")),
     ("DEVIS", dict(ID=600, ID_AFFAIRE=777)),
     ("BON_RECEPTION", dict(ID=400, ID_AFFAIRE=300)),
     ("BON_RECEPTION", dict(ID=401, ID_AFFAIRE=1)),
@@ -266,6 +285,7 @@ def transfert_rows():
 
 
 def fixture_transfert(db):
+    _assert_unique_ids(transfert_rows())
     for table, values in transfert_rows():
         insert(db, table, **values)
 
@@ -357,6 +377,7 @@ def column_type(name):
 
 def emit_fixture(line_columns="client", devis_key="ID_DEVIS"):
     """DDL + donnees, en PostgreSQL : cree la base de test de toutes pieces."""
+    _assert_unique_ids(transfert_rows())
     print("-- Base de test jetable pour sql/*.sql (PostgreSQL).")
     print('CREATE SCHEMA IF NOT EXISTS "%s";' % SCHEMA)
     for table, columns in all_tables(line_columns, devis_key):
