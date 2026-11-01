@@ -6,6 +6,8 @@
 --   sh scripts/oc-psql.sh -f sql/diagnostic-affaire-lignes.sql
 
 \echo '=== 0. Tableaux de lignes qui portent la colonne ID_AFFAIRE ==='
+\echo '(seuls ceux qui sont listes ; pour les autres, l erreur'
+\echo ' « column ... does not exist » est la reponse attendue, pas un incident)'
 select table_name
   from information_schema.columns
  where table_schema = 'OpenConcerto42' and column_name = 'ID_AFFAIRE'

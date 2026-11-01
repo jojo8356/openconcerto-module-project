@@ -21,7 +21,11 @@ select table_name
  order by 1;
 
 
--- COMMANDE_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 1/12 COMMANDE_ELEMENT (lignes de COMMANDE) ---'
+
+
+-- COMMANDE_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -36,7 +40,11 @@ UPDATE "OpenConcerto42"."COMMANDE_ELEMENT"
 COMMIT;
 
 
--- FACTURE_FOURNISSEUR_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 2/12 FACTURE_FOURNISSEUR_ELEMENT (lignes de FACTURE_FOURNISSEUR) ---'
+
+
+-- FACTURE_FOURNISSEUR_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -51,7 +59,11 @@ UPDATE "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT"
 COMMIT;
 
 
--- BON_RECEPTION_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 3/12 BON_RECEPTION_ELEMENT (lignes de BON_RECEPTION) ---'
+
+
+-- BON_RECEPTION_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -66,7 +78,11 @@ UPDATE "OpenConcerto42"."BON_RECEPTION_ELEMENT"
 COMMIT;
 
 
--- DEMANDE_PRIX_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 4/12 DEMANDE_PRIX_ELEMENT (lignes de DEMANDE_PRIX) ---'
+
+
+-- DEMANDE_PRIX_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -81,7 +97,11 @@ UPDATE "OpenConcerto42"."DEMANDE_PRIX_ELEMENT"
 COMMIT;
 
 
--- DEMANDE_ACHAT_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 5/12 DEMANDE_ACHAT_ELEMENT (lignes de DEMANDE_ACHAT) ---'
+
+
+-- DEMANDE_ACHAT_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -96,7 +116,11 @@ UPDATE "OpenConcerto42"."DEMANDE_ACHAT_ELEMENT"
 COMMIT;
 
 
--- SAISIE_ACHAT_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 6/12 SAISIE_ACHAT_ELEMENT (lignes de SAISIE_ACHAT) ---'
+
+
+-- SAISIE_ACHAT_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -111,7 +135,11 @@ UPDATE "OpenConcerto42"."SAISIE_ACHAT_ELEMENT"
 COMMIT;
 
 
--- AVOIR_FOURNISSEUR_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 7/12 AVOIR_FOURNISSEUR_ELEMENT (lignes de AVOIR_FOURNISSEUR) ---'
+
+
+-- AVOIR_FOURNISSEUR_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -126,7 +154,11 @@ UPDATE "OpenConcerto42"."AVOIR_FOURNISSEUR_ELEMENT"
 COMMIT;
 
 
--- COMMANDE_CLIENT_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 8/12 COMMANDE_CLIENT_ELEMENT (lignes de COMMANDE_CLIENT) ---'
+
+
+-- COMMANDE_CLIENT_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -141,7 +173,11 @@ UPDATE "OpenConcerto42"."COMMANDE_CLIENT_ELEMENT"
 COMMIT;
 
 
--- SAISIE_VENTE_FACTURE_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 9/12 SAISIE_VENTE_FACTURE_ELEMENT (lignes de SAISIE_VENTE_FACTURE) ---'
+
+
+-- SAISIE_VENTE_FACTURE_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -156,7 +192,11 @@ UPDATE "OpenConcerto42"."SAISIE_VENTE_FACTURE_ELEMENT"
 COMMIT;
 
 
--- DEVIS_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 10/12 DEVIS_ELEMENT (lignes de DEVIS) ---'
+
+
+-- DEVIS_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -171,7 +211,11 @@ UPDATE "OpenConcerto42"."DEVIS_ELEMENT"
 COMMIT;
 
 
--- AVOIR_CLIENT_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 11/12 AVOIR_CLIENT_ELEMENT (lignes de AVOIR_CLIENT) ---'
+
+
+-- AVOIR_CLIENT_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -186,7 +230,11 @@ UPDATE "OpenConcerto42"."AVOIR_CLIENT_ELEMENT"
 COMMIT;
 
 
--- BON_DE_LIVRAISON_ELEMENT (colonne ID_AFFAIRE requise)
+\echo '--- 12/12 BON_DE_LIVRAISON_ELEMENT (lignes de BON_DE_LIVRAISON) ---'
+
+
+-- BON_DE_LIVRAISON_ELEMENT (colonne ID_AFFAIRE requise : si elle n existe pas, PostgreSQL repond
+-- « column ... does not exist », le bloc est annule et le suivant continue)
 
 BEGIN;
 
@@ -201,5 +249,14 @@ UPDATE "OpenConcerto42"."BON_DE_LIVRAISON_ELEMENT"
 COMMIT;
 
 \echo ''
-\echo '=== Termine. Chaque bloc est dans sa propre transaction : un tableau sans la'
+\echo '=== Tableaux sans la colonne (blocs annules : c est normal) ==='
+select count(*) as tableaux_de_lignes_sans_colonne
+  from information_schema.tables tb
+ where tb.table_schema = 'OpenConcerto42' and tb.table_name in ('COMMANDE_ELEMENT', 'FACTURE_FOURNISSEUR_ELEMENT', 'BON_RECEPTION_ELEMENT', 'DEMANDE_PRIX_ELEMENT', 'DEMANDE_ACHAT_ELEMENT', 'SAISIE_ACHAT_ELEMENT', 'AVOIR_FOURNISSEUR_ELEMENT', 'COMMANDE_CLIENT_ELEMENT', 'SAISIE_VENTE_FACTURE_ELEMENT', 'DEVIS_ELEMENT', 'AVOIR_CLIENT_ELEMENT', 'BON_DE_LIVRAISON_ELEMENT')
+   and not exists (select 1 from information_schema.columns co
+                    where co.table_schema = tb.table_schema and co.table_name = tb.table_name
+                      and co.column_name = 'ID_AFFAIRE');
+
+\echo ''
+\echo '=== Termine. Chaque bloc est dans une transaction : un tableau sans la'
 \echo 'colonne n''annule pas les autres. ==='

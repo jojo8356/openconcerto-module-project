@@ -533,6 +533,8 @@ select 'SAISIE_VENTE_FACTURE' as tableau, count(*) as affaire_indefinie from "Op
 \echo '################################################################'
 
 \echo '=== 0. Tableaux de lignes qui portent la colonne ID_AFFAIRE ==='
+\echo '(seuls ceux qui sont listes ; pour les autres, l erreur'
+\echo ' « column ... does not exist » est la reponse attendue, pas un incident)'
 select table_name
   from information_schema.columns
  where table_schema = 'OpenConcerto42' and column_name = 'ID_AFFAIRE'

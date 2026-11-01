@@ -243,8 +243,11 @@ select table_name
  order by 1;
 """ % (SCHEMA, AFFAIR)]
 
-    for line, link, parent in lines:
-        out.append("\n-- %s (colonne %s requise)\n" % (line, AFFAIR))
+    total = len(lines)
+    for index, (line, link, parent) in enumerate(lines, start=1):
+        out.append("\n\\echo '--- %d/%d %s (lignes de %s) ---'\n" % (index, total, line, parent))
+        out.append("\n-- %s (colonne %s requise : si elle n existe pas, PostgreSQL repond" % (line, AFFAIR))
+        out.append("-- « column ... does not exist », le bloc est annule et le suivant continue)\n")
         out.append("BEGIN;\n")
         out.append("\n".join([
             "UPDATE %s" % t(line),
@@ -257,10 +260,20 @@ select table_name
         ]) + "\n")
         out.append("COMMIT;\n")
 
+    avec = ", ".join("'%s'" % line for line, _lien, _parent in lines)
     out.append("""\\echo ''
-\\echo '=== Termine. Chaque bloc est dans sa propre transaction : un tableau sans la'
+\\echo '=== Tableaux sans la colonne (blocs annules : c est normal) ==='
+select count(*) as tableaux_de_lignes_sans_colonne
+  from information_schema.tables tb
+ where tb.table_schema = '%s' and tb.table_name in (%s)
+   and not exists (select 1 from information_schema.columns co
+                    where co.table_schema = tb.table_schema and co.table_name = tb.table_name
+                      and co.column_name = '%s');
+
+\\echo ''
+\\echo '=== Termine. Chaque bloc est dans une transaction : un tableau sans la'
 \\echo 'colonne n''annule pas les autres. ==='
-""")
+""" % (SCHEMA, avec, AFFAIR))
     return "\n".join(out)
 
 
@@ -359,6 +372,8 @@ def diagnostic_lignes(lines):
 --   sh scripts/oc-psql.sh -f sql/diagnostic-affaire-lignes.sql
 
 \\echo '=== 0. Tableaux de lignes qui portent la colonne ID_AFFAIRE ==='
+\\echo '(seuls ceux qui sont listes ; pour les autres, l erreur'
+\\echo ' « column ... does not exist » est la reponse attendue, pas un incident)'
 select table_name
   from information_schema.columns
  where table_schema = '%s' and column_name = '%s'
