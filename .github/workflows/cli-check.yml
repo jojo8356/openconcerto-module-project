@@ -35,6 +35,8 @@ jobs:
         env: { PGHOST: localhost, PGUSER: postgres, PGPASSWORD: openconcerto, PGDATABASE: openconcerto }
         run: |
           set -e
+          # le scenario precedent a laisse son schema : on repart d'une base nue
+          psql -q -c 'drop schema if exists "OpenConcerto42" cascade'
           sh scripts/oc-sql-file.sh --postgres --file sql/controle-affaire-complet.sql > /tmp/pg-complet.log 2>&1 || {
             tail -n 25 /tmp/pg-complet.log; echo "::error::le controle complet echoue sur PostgreSQL"; exit 1; }
           grep -q "reste_a_reprendre" /tmp/pg-complet.log || { echo "::error::verdict final absent"; tail -n 20 /tmp/pg-complet.log; exit 1; }
