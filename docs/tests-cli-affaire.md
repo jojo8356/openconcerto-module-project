@@ -152,6 +152,19 @@ sh scripts/oc-sql-file.sh --sqlite      # même scénario
 sh scripts/oc-sql-file.sh --dry-run     # montre les commandes sans rien exécuter
 ```
 
+Tout le contrôle en un seul fichier, en lecture seule — c'est celui à lancer
+après une reprise pour savoir si tout est réparé :
+
+```sh
+sh scripts/oc-psql.sh -f sql/controle-affaire-complet.sql
+```
+
+Il regroupe, dans l'ordre : le schéma (clé de `DEVIS`, colonnes `ID_AFFAIRE`),
+les 18 cas de documents à reprendre, le verdict que le menu doit annoncer, le
+garde-fou « Indéfini » (ligne 1), les tableaux de lignes, une affaire témoin
+(en base / archivées / affichables) et le verdict final. Le bloc final doit
+afficher **0**.
+
 Un seul fichier, pour l'inspecter :
 
 ```sh

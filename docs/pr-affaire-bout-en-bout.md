@@ -44,7 +44,7 @@ archives. Vérifié, ce n'est pas un défaut.
 ## Tests, tous exécutables en ligne de commande
 
 ```sh
-sh scripts/test-affaire-cli.sh        # 6 étages : transfert, plan du module, SQLite, portée, SQL, historique
+sh scripts/test-affaire-cli.sh        # 7 étages : transfert, plan du module, SQLite, portée, SQL, historique
 python3 tools/oc_sql_sqlite.py        # 85 contrôles, 6 fichiers SQL du module exécutés
 python3 tests/cli/sql_scope.py --selftest   # 8 contrôles : les 2 requêtes cassées en cas de référence
 sh scripts/run-tests.sh               # 9 suites, dont AffairBackfillSupportTest (73) et AffairRepairReportTest (31)
@@ -52,7 +52,8 @@ sh scripts/run-tests.sh               # 9 suites, dont AffairBackfillSupportTest
 
 - les 6 fichiers SQL sont exécutés **sur un PostgreSQL 16 réel** dans la CI
   (`scripts/oc-sql-file.sh --postgres`) ;
-- `tools/genere_sql_affaire.py --check` échoue si le SQL dérive du code ;
+- `tools/genere_sql_affaire.py --check` échoue si le SQL dérive du code
+  (**7 fichiers** générés, y compris le contrôle complet) ;
 - le plan produit par le module lui-même (pas une copie) est rejoué dans SQLite
   **et** passé au contrôle de portée.
 
@@ -61,6 +62,7 @@ sh scripts/run-tests.sh               # 9 suites, dont AffairBackfillSupportTest
 `CHANGELOG.md` (6 sections datées, avec les mesures), `docs/release-1.1-*.md`
 (notes de chaque release), `docs/tests-cli-affaire.md` (comment rejouer les
 tests), et les 3 nouveaux fichiers de contrôle :
+`sql/controle-affaire-complet.sql` (tout le contrôle en un seul fichier),
 `sql/controle-affaire-12085.sql`, `sql/diagnostic-facture-absente.sql`,
 `tests/cli/sql_scope.py`.
 
