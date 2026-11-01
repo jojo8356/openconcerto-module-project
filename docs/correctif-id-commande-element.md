@@ -23,20 +23,25 @@ n'est pas stocké sur la facture, il est déduit de ce lien.
 
 Ce n'est donc pas un défaut d'affichage : c'est une colonne manquante.
 
-## 1. Se placer dans le dépôt
+## 1. Se procurer le script
 
-Si vous ne savez plus où il est :
-
-```sh
-find ~ -maxdepth 3 -name 'fix-facture-fournisseur-element.sh' 2>/dev/null
-```
-
-puis, avec le dossier affiché :
+Deux fichiers suffisent, et ils n'ont pas besoin du reste du dépôt. Le plus
+simple, sur la machine OpenConcerto :
 
 ```sh
-cd ~/openconcerto-module-project     # ← le dossier renvoyé ci-dessus
-ls sql/fix-facture-fournisseur-element-id-commande-element.sql
+mkdir -p ~/oc-fix/scripts ~/oc-fix/sql && cd ~/oc-fix
+B=https://raw.githubusercontent.com/jojo8356/openconcerto-module-project/arena/ff79607f-openconcerto-module-project
+curl -fsS "$B/scripts/fix-facture-fournisseur-element.sh" -o scripts/fix-facture-fournisseur-element.sh
+curl -fsS "$B/sql/fix-facture-fournisseur-element-id-commande-element.sql" -o sql/fix-facture-fournisseur-element-id-commande-element.sql
+ls -l scripts sql
 ```
+
+Si le dépôt est déjà sur la machine, travaillez directement dedans (le script
+retrouve le SQL tout seul, il suffit de garder l'arborescence `scripts/` +
+`sql/`).
+
+`~/oc-fix` doit rester le dossier courant pour les commandes suivantes : le
+script lit `../sql/fix-facture-fournisseur-element-id-commande-element.sql`.
 
 ## 2. Vérifier l'état de la base
 
@@ -44,7 +49,7 @@ Le client affiche la base indiquée dans sa configuration ; le conteneur est
 celui de votre installation (`docker ps` pour le retrouver).
 
 ```sh
-C=openconcerto176-db-1
+C=openconcerto176-db-1          # docker ps --format '{{.Names}}' pour le retrouver
 grep systemRoot ~/.config/OpenConcerto/main.properties
 ```
 
