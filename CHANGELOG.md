@@ -8,6 +8,44 @@
 > précisée dans le titre des sections de release.
 > Voir `docs/release-process.md`.
 
+## 2026-11-01 — Une table de libellés vide bloquait le démarrage du client
+
+### Fixed
+
+- **Le client ne se connectait plus du tout**, avec trois messages qui ne disent
+  pas la cause : « Impossible d'accéder aux préférences », puis
+  `Constructor failed`, puis `No preferences for DBRoot SQLSchema OpenConcerto42`.
+  La vraie erreur, dans le journal du client :
+  `IllegalStateException: /PROJECT_COLUMN_LABEL/ is empty, can not infer
+  UNDEFINED_ID`, levée par `SQLTable.findMinID` pendant que
+  `MemoryRep.replicateStruct` copie la structure au démarrage.
+  OpenConcerto demande l'identifiant non défini de chaque table à clé primaire
+  numérique (`select min("ID")`) : sur une table **vide**, ce calcul échoue.
+- **`PROJECT_COLUMN_LABEL` pouvait rester vide** : l'enregistrement des libellés
+  faisait `delete from` puis les insertions, donc zéro libellé = table vide.
+  `ColumnLabelRules.sentinelStatement` crée désormais une ligne sentinelle
+  (noms vides) avec les tables, `saveStatements` la conserve
+  (`delete ... where not (noms vides)`) et la remet si besoin, et la lecture
+  l'exclut (`sentinelCondition`) : la table n'est plus jamais vide.
+- `sql/fix-project-column-label-undefined-row.sql` répare une base déjà
+  bloquée (idempotent) et **liste les autres tables à clé numérique vides**, qui
+  bloqueraient aussi le démarrage.
+- Diagnostic : `sql/diagnostic-connexion-preferences.sql` gagne une section 9
+  qui liste ces tables vides — la piste « UNDEFINED_ID » est désormais
+  vérifiable en une commande.
+
+### Tests
+
+- `ColumnLabelRulesTest.testLabelTableIsNeverEmpty` (création, conservation,
+  lecture) ; `testCreateStatementsAreIdempotentAndSchemaQualified` passe à
+  4 instructions.
+- `tests/sql/e2e-colonnes.sh` : après migration, `min("ID")` est calculable et
+  la sentinelle n'est pas une règle.
+- Mutations 20 et 21 : supprimer la sentinelle, ou l'effacer à chaque
+  enregistrement, fait échouer la suite.
+- CI : « Correctif - table des libelles vide » reproduit la panne sur
+  PostgreSQL 16, la détecte, applique le correctif et vérifie l'idempotence.
+
 ## 2026-10-30 — Les comptages de la reprise sont acceptés par PostgreSQL
 
 ### Fixed

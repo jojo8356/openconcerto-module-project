@@ -234,3 +234,48 @@ jobs:
             exit 1
           fi
           echo "OK : lien ecrit, cle etrangere appliquee"
+
+      # 13 : le correctif qui debloque le client quand la table des libelles est
+      # vide. Reproduit la panne exacte (table vide -> min(ID) NULL) puis la
+      # corrige, et verifie que le diagnostic la detecte.
+      - name: "Correctif - table des libelles vide"
+        env: *pgci
+        run: |
+          set -eu
+          dump() { awk '{gsub(/%/,"%25");gsub(/\r/,"");printf "%s%%0A",$0}' "$1"; }
+          psql -v ON_ERROR_STOP=1 -q -c 'DROP SCHEMA IF EXISTS "OpenConcerto42" CASCADE'
+          psql -v ON_ERROR_STOP=1 -q -c 'CREATE SCHEMA "OpenConcerto42"'
+          psql -v ON_ERROR_STOP=1 -q -c 'CREATE TABLE "OpenConcerto42"."PROJECT_COLUMN_LABEL" (
+              "ID" serial primary key, "TABLE_NAME" varchar(64) not null,
+              "COLUMN_NAME" varchar(64) not null, "LABEL" varchar(128) not null,
+              "DATE" timestamp, "ID_USER" integer)'
+          psql -v ON_ERROR_STOP=1 -q -c 'CREATE TABLE "OpenConcerto42"."PROJECT_SETTINGS" ("KEY" varchar(128) primary key, "VALUE" varchar(1024), "DATE" timestamp, "ID_USER" integer)'
+
+          # la panne : min(ID) vaut NULL sur une table vide
+          if psql -tA -c 'SELECT min("ID") FROM "OpenConcerto42"."PROJECT_COLUMN_LABEL"' | grep -qv '^$'; then
+            echo "::error::la table devrait etre vide au depart"; exit 1
+          fi
+          echo "OK : table vide, min(ID) est NULL (la panne est reproduite)"
+
+          # le diagnostic doit la signaler
+          out=$(psql -v ON_ERROR_STOP=1 -f sql/diagnostic-connexion-preferences.sql 2>&1)
+          echo "$out" | grep -q 'VIDE : PROJECT_COLUMN_LABEL' || {
+            echo "::error::Le diagnostic n a pas vu la table vide%0A$(echo "$out" | tr '\n' '|')"; exit 1; }
+          echo "OK : le diagnostic signale la table vide"
+
+          # le correctif
+          psql -v ON_ERROR_STOP=1 -f sql/fix-project-column-label-undefined-row.sql > /tmp/step.log 2>&1 || {
+            echo "::error::Echec du correctif: $(dump /tmp/step.log)"; exit 1; }
+          cat /tmp/step.log
+          psql -tA -c 'SELECT min("ID") FROM "OpenConcerto42"."PROJECT_COLUMN_LABEL"' | grep -qx 1 \
+            || { echo "::error::min(ID) devrait valoir 1 apres correctif"; exit 1; }
+
+          # idempotent : deuxieme execution sans effet
+          psql -v ON_ERROR_STOP=1 -q -f sql/fix-project-column-label-undefined-row.sql > /dev/null
+          n=$(psql -tA -c 'SELECT count(*) FROM "OpenConcerto42"."PROJECT_COLUMN_LABEL"')
+          [ "$n" = "1" ] || { echo "::error::le correctif n est pas idempotent ($n lignes)"; exit 1; }
+
+          # et la sentinelle n'est pas une regle : la lecture doit la filtrer
+          n=$(psql -tA -c 'SELECT count(*) FROM "OpenConcerto42"."PROJECT_COLUMN_LABEL" WHERE NOT ("TABLE_NAME" = '"''"' AND "COLUMN_NAME" = '"''"')')
+          [ "$n" = "0" ] || { echo "::error::la sentinelle serait lue comme une regle"; exit 1; }
+          echo "OK : correctif applique, idempotent, sentinelle invisible"

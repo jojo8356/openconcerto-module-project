@@ -126,4 +126,39 @@ WHERE table_schema = 'OpenConcerto42'
   AND column_name = 'ID_COMMANDE_ELEMENT';
 
 \echo ''
+\echo '=== 9. Tables à clé numérique vides (elles empêchent le client de démarrer) ==='
+-- OpenConcerto calcule l'identifiant non défini de chaque table par
+-- select min("ID") ; sur une table vide, il lève
+-- « <TABLE> is empty, can not infer UNDEFINED_ID » pendant le démarrage, ce qui
+-- interrompt le chargement des préférences et la connexion.
+DO $$
+DECLARE
+    t record;
+    n bigint;
+    vides int := 0;
+BEGIN
+    FOR t IN
+        SELECT c.relname AS nom
+          FROM pg_index i
+          JOIN pg_class c     ON c.oid = i.indrelid
+          JOIN pg_namespace s ON s.oid = c.relnamespace
+          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = (i.indkey)[0]
+          JOIN pg_type ty     ON ty.oid = a.atttypid
+         WHERE s.nspname = 'OpenConcerto42'
+           AND i.indisprimary
+           AND array_length(i.indkey::int[], 1) = 1
+           AND ty.typname IN ('int2', 'int4', 'int8', 'numeric')
+    LOOP
+        EXECUTE format('SELECT count(*) FROM %I.%I', 'OpenConcerto42', t.nom) INTO n;
+        IF n = 0 THEN
+            vides := vides + 1;
+            RAISE NOTICE 'VIDE : %', t.nom;
+        END IF;
+    END LOOP;
+    IF vides = 0 THEN
+        RAISE NOTICE 'aucune table vide : la piste « UNDEFINED_ID » est écartée';
+    END IF;
+END $$;
+
+\echo ''
 \echo '=== Fin du diagnostic ==='

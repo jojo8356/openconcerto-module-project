@@ -985,13 +985,55 @@ public final class ColumnLabelRules {
                 + " \"DATE\" timestamp,"
                 + " \"ID_USER\" integer)");
         statements.add("create unique index if not exists " + quoteIdentifier(LABEL_TABLE + "_UNQ") + " on " + s + ".\"" + LABEL_TABLE + "\" (\"TABLE_NAME\", \"COLUMN_NAME\")");
+        statements.add(sentinelStatement(schema));
         return statements;
+    }
+
+    /**
+     * Instruction qui garantit que {@code PROJECT_COLUMN_LABEL} n'est <b>jamais
+     * vide</b>.
+     * <p>
+     * Pourquoi c'est indispensable : OpenConcerto demande l'« identifiant non
+     * defini » de chaque table dont la cle primaire est numerique
+     * ({@code SQLTable.isRowable()}). Quand la politique est {@code min}
+     * (propriete {@code fwk_sql.debug.undefined_id}, ou metadonnee
+     * {@code undefined ID policy} du schema), il execute {@code select min("ID")}
+     * et, si la table est vide, leve :
+     *
+     * <pre>
+     * IllegalStateException: /PROJECT_COLUMN_LABEL/ is empty, can not infer UNDEFINED_ID
+     * </pre>
+     *
+     * Cette exception remonte de {@code MemoryRep.replicateStruct} pendant le
+     * demarrage : les preferences ne sont pas chargees, et le client s'arrete sur
+     * « Impossible d'acceder aux preferences » puis « No preferences for DBRoot ».
+     * Autrement dit une table de libelles vide <b>empeche OpenConcerto de
+     * demarrer</b>.
+     * <p>
+     * La ligne sentinelle porte des noms vides : elle n'est jamais lue comme une
+     * regle (voir {@link #loadLabelsQuery(String)}), et elle est conservee par
+     * {@link #saveStatements(String, Map, String, int)}.
+     */
+    public static String sentinelStatement(final String schema) {
+        final String s = quoteIdentifier(schema);
+        return "insert into " + s + ".\"" + LABEL_TABLE + "\" (\"TABLE_NAME\", \"COLUMN_NAME\", \"LABEL\")"
+                + " select '', '', '' where not exists (select 1 from " + s + ".\"" + LABEL_TABLE + "\")";
+    }
+
+    /**
+     * Condition SQL qui reconnait la ligne sentinelle (noms de table et de
+     * colonne vides) : {@code saveStatements} la conserve au lieu de la
+     * supprimer.
+     */
+    public static String sentinelCondition() {
+        return "(\"TABLE_NAME\" = '' and \"COLUMN_NAME\" = '')";
     }
 
     /** Requete de lecture des libelles enregistres. */
     public static String loadLabelsQuery(final String schema) {
         final String s = quoteIdentifier(schema);
-        return "select \"TABLE_NAME\", \"COLUMN_NAME\", \"LABEL\" from " + s + ".\"" + LABEL_TABLE + "\" order by \"TABLE_NAME\", \"COLUMN_NAME\"";
+        return "select \"TABLE_NAME\", \"COLUMN_NAME\", \"LABEL\" from " + s + ".\"" + LABEL_TABLE + "\""
+                + " where not " + sentinelCondition() + " order by \"TABLE_NAME\", \"COLUMN_NAME\"";
     }
 
     /** Requete de lecture des reglages (mode...). */
@@ -1015,7 +1057,9 @@ public final class ColumnLabelRules {
         final String s = quoteIdentifier(schema);
         final StringBuilder sb = new StringBuilder();
         sb.append("begin;");
-        sb.append("delete from ").append(s).append(".\"").append(LABEL_TABLE).append("\";");
+        // La ligne sentinelle est conservee : sans elle, une table vide empeche
+        // le client de demarrer (voir sentinelStatement).
+        sb.append("delete from ").append(s).append(".\"").append(LABEL_TABLE).append("\" where not ").append(sentinelCondition()).append(";");
         if (labels != null) {
             for (final Map.Entry<String, String> entry : labels.entrySet()) {
                 final String ruleKey = entry.getKey();
@@ -1038,6 +1082,9 @@ public final class ColumnLabelRules {
                 sb.append(userId).append(");");
             }
         }
+        // Si la table etait vide (premier enregistrement, ou enregistrement
+        // sans aucune regle), la sentinelle est remise avant de valider.
+        sb.append(sentinelStatement(schema)).append(";");
         sb.append("delete from ").append(s).append(".\"").append(SETTINGS_TABLE).append("\" where \"KEY\" = ").append(quoteString(MODE_KEY)).append(";");
         sb.append("insert into ").append(s).append(".\"").append(SETTINGS_TABLE).append("\" (\"KEY\", \"VALUE\", \"DATE\", \"ID_USER\") values (")
                 .append(quoteString(MODE_KEY)).append(", ").append(quoteString(normalizeMode(mode))).append(", now(), ").append(userId).append(");");

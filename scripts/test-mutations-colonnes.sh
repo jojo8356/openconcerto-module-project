@@ -238,6 +238,20 @@ if [ "$AVEC_JAVA" -eq 1 ]; then
         "        final String byAutoLabel = null;"
     expect_java_failure "en-tete metier sans identifiant technique : regle perdue"
 
+    echo "== 20. la ligne sentinelle n'est plus creee (le client ne demarrerait plus) =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        '        statements.add(sentinelStatement(schema));' \
+        '        statements.add("-- sentinelle supprimee");'
+    expect_java_failure "table des libelles vide : detecte"
+
+    echo "== 21. l'enregistrement efface aussi la ligne sentinelle =="
+    prepare
+    replace src/org/openconcerto/modules/project/ColumnLabelRules.java \
+        '.append("\" where not ").append(sentinelCondition()).append(";");' \
+        '.append("\";");'
+    expect_java_failure "sentinelle effacee a chaque enregistrement : detecte"
+
     echo "== 6. enregistrement non transactionnel =="
     prepare
     replace src/org/openconcerto/modules/project/ColumnLabelRules.java \

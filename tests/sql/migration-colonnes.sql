@@ -44,6 +44,24 @@ create table if not exists "__SCHEMA__"."PROJECT_COLUMN_LABEL" (
 create unique index if not exists "PROJECT_COLUMN_LABEL_UNQ"
     on "__SCHEMA__"."PROJECT_COLUMN_LABEL" ("TABLE_NAME", "COLUMN_NAME");
 
+-- La table des libelles ne doit JAMAIS etre vide.
+--
+-- OpenConcerto demande l'« identifiant non defini » de chaque table a cle
+-- primaire numerique (SQLTable.isRowable). Avec la politique « min », il
+-- execute select min("ID") et, si la table est vide, leve :
+--
+--   IllegalStateException: /PROJECT_COLUMN_LABEL/ is empty, can not infer UNDEFINED_ID
+--
+-- Cette exception remonte pendant le demarrage, dans MemoryRep.replicateStruct,
+-- avant même les preferences : le client s'arrete sur
+-- « Impossible d'acceder aux preferences » puis « No preferences for DBRoot ».
+--
+-- D'ou cette ligne sentinelle (noms vides : elle n'est jamais lue comme une
+-- regle). ColumnLabelRules.saveStatements la conserve.
+insert into "__SCHEMA__"."PROJECT_COLUMN_LABEL" ("TABLE_NAME", "COLUMN_NAME", "LABEL")
+select '', '', ''
+where not exists (select 1 from "__SCHEMA__"."PROJECT_COLUMN_LABEL");
+
 -- Le mode par defaut : suppression du prefixe ID_ dans toutes les listes.
 insert into "__SCHEMA__"."PROJECT_SETTINGS" ("KEY", "VALUE", "DATE")
 values ('column.label.mode', 'AUTO', now())

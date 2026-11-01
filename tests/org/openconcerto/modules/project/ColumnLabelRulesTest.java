@@ -96,6 +96,7 @@ public final class ColumnLabelRulesTest {
 
         // 6. SQL.
         testCreateStatementsAreIdempotentAndSchemaQualified();
+        testLabelTableIsNeverEmpty();
         testSaveIsOneTransaction();
         testSaveSkipsInvalidRules();
         testQuoteStringEscapes();
@@ -658,13 +659,46 @@ public final class ColumnLabelRulesTest {
 
     private static void testCreateStatementsAreIdempotentAndSchemaQualified() {
         final List<String> statements = ColumnLabelRules.createTableStatements("OpenConcerto42");
-        assertEquals("trois instructions (2 tables + 1 index)", 3, statements.size());
-        for (final String statement : statements) {
+        // 2 tables + 1 index + la ligne sentinelle.
+        assertEquals("quatre instructions (2 tables + 1 index + sentinelle)", 4, statements.size());
+        for (int i = 0; i < 3; i++) {
+            final String statement = statements.get(i);
             assertTrue("idempotent : " + statement, statement.contains("if not exists"));
+        }
+        for (final String statement : statements) {
             assertTrue("qualifie par le schema : " + statement, statement.contains("\"OpenConcerto42\""));
         }
         assertTrue("table des libelles", statements.get(1).contains("PROJECT_COLUMN_LABEL"));
         assertTrue("index unique", statements.get(2).contains("PROJECT_COLUMN_LABEL_UNQ") && statements.get(2).contains("unique"));
+        pass();
+    }
+
+    /**
+     * La table des libelles ne doit <b>jamais</b> etre vide : OpenConcerto demande
+     * l'identifiant non defini de chaque table a cle numerique et, si la table
+     * est vide, leve « /PROJECT_COLUMN_LABEL/ is empty, can not infer
+     * UNDEFINED_ID » pendant le demarrage. Le client ne s'ouvre alors plus du
+     * tout (« No preferences for DBRoot »).
+     */
+    private static void testLabelTableIsNeverEmpty() {
+        final String sentinel = ColumnLabelRules.sentinelStatement("OpenConcerto42");
+        assertTrue("la sentinelle insere une ligne : " + sentinel,
+                sentinel.startsWith("insert into \"OpenConcerto42\".\"PROJECT_COLUMN_LABEL\""));
+        assertTrue("la sentinelle ne s'ajoute que si la table est vide : " + sentinel,
+                sentinel.contains("where not exists (select 1 from \"OpenConcerto42\".\"PROJECT_COLUMN_LABEL\")"));
+        assertTrue("la sentinelle fait partie de la creation des tables",
+                ColumnLabelRules.createTableStatements("OpenConcerto42").contains(sentinel));
+
+        // Enregistrer zero libelle ne doit pas laisser la table vide.
+        final String empty = ColumnLabelRules.saveStatements("OpenConcerto42", rules(), ColumnLabelRules.MODE_OFF, 3);
+        assertTrue("suppression sans effacer la sentinelle : " + empty,
+                empty.contains("delete from \"OpenConcerto42\".\"PROJECT_COLUMN_LABEL\" where not "
+                        + ColumnLabelRules.sentinelCondition()));
+        assertTrue("la sentinelle est remise dans la meme transaction", empty.contains(sentinel));
+
+        // Et la sentinelle n'est jamais lue comme une regle.
+        assertTrue("lecture sans la sentinelle : " + ColumnLabelRules.loadLabelsQuery("OpenConcerto42"),
+                ColumnLabelRules.loadLabelsQuery("OpenConcerto42").contains("where not " + ColumnLabelRules.sentinelCondition()));
         pass();
     }
 
@@ -685,7 +719,7 @@ public final class ColumnLabelRulesTest {
     private static void testSaveSkipsInvalidRules() {
         final Map<String, String> labels = rules("SANS_POINT=Libelle", "*.ID_CLIENT=", "COMMANDE.ID_AFFAIRE=Affaire");
         final String sql = ColumnLabelRules.saveStatements("S", labels, ColumnLabelRules.MODE_AUTO, 1);
-        assertEquals("une seule regle valide enregistree", 1, count(sql, "insert into \"S\".\"PROJECT_COLUMN_LABEL\""));
+        assertEquals("une seule regle valide enregistree", 1, count(sql, "\"ID_USER\") values ("));
         assertTrue("la regle valide est celle attendue", sql.contains("'COMMANDE'") && sql.contains("'ID_AFFAIRE'"));
         pass();
     }

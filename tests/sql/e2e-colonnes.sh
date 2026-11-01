@@ -98,6 +98,19 @@ check "l'index unique (table, colonne) existe" "1" \
 check "le mode par defaut est AUTO" "AUTO" \
     "select \"VALUE\" from \"$SCHEMA\".\"PROJECT_SETTINGS\" where \"KEY\" = 'column.label.mode'"
 
+# --- Le demarrage du client en depend ----------------------------------
+# OpenConcerto calcule l'identifiant non defini de chaque table a cle numerique
+# par « select min(ID) » et refuse de demarrer si la table est vide :
+#   IllegalStateException: /PROJECT_COLUMN_LABEL/ is empty, can not infer UNDEFINED_ID
+# Ce qui se traduit par « Impossible d'acceder aux preferences » puis
+# « No preferences for DBRoot » : le client ne s'ouvre plus du tout.
+check "la table des libelles n'est jamais vide" "1" \
+    "select case when count(*) > 0 then 1 else 0 end from \"$SCHEMA\".\"PROJECT_COLUMN_LABEL\""
+check "min(ID) est calculable (ce que fait OpenConcerto au demarrage)" "1" \
+    "select case when min(\"ID\") is not null then 1 else 0 end from \"$SCHEMA\".\"PROJECT_COLUMN_LABEL\""
+check "la ligne sentinelle n'est pas une regle" "0" \
+    "select count(*) from \"$SCHEMA\".\"PROJECT_COLUMN_LABEL\" where \"TABLE_NAME\" = 'AFFAIRE'"
+
 # --- Idempotence : on rejoue la migration ------------------------------
 "$PSQL" -X -v ON_ERROR_STOP=1 -f "$WORK_DIR/migration-ddl.sql" > /dev/null
 check "la migration est idempotente (toujours 2 tables)" "2" \

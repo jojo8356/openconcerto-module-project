@@ -79,7 +79,11 @@ public final class ColumnLabelStore {
             try {
                 ensureTables(root);
                 for (final Object[] row : executeRows(root, ColumnLabelRules.loadLabelsQuery(schemaOf(root)))) {
-                    if (row.length >= 3 && row[0] != null && row[1] != null && row[2] != null) {
+                    // La ligne sentinelle (noms vides) maintient la table non
+                    // vide sans etre une regle : on ne la lit pas.
+                    if (row.length >= 3 && row[0] != null && row[1] != null && row[2] != null
+                            && String.valueOf(row[0]).trim().length() > 0
+                            && String.valueOf(row[1]).trim().length() > 0) {
                         final String key = ColumnLabelRules.key(String.valueOf(row[0]), String.valueOf(row[1]));
                         fromDatabase.put(key, String.valueOf(row[2]));
                     }
