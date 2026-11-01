@@ -78,6 +78,71 @@ select "LOGIN", "PASSWORD",
 3. **Retour arrière** : `sh scripts/oc-psql.sh --password abe <ancien mot de passe>`
    (ou réinjecter l'empreinte notée avant la modification).
 
+## Restaurer un dump dans le conteneur (`.dumpsql`, `.dumpsql.gz`)
+
+Un dump OpenConcerto s'appelle `OC-v1.7.6-….dumpsql` ; il peut être **gzippé**
+(`….dumpsql.gz`). Ce n'est pas parce que l'extension est `.dumpsql` que le
+contenu est du SQL texte : c'est le plus souvent du `pg_dump -Fc`, qui commence
+par les cinq octets `PGDMP`. On vérifie avant de restaurer :
+
+```sh
+file OC-v1.7.6-Noon_Dump_2026-10-09.dumpsql.gz
+gunzip -c OC-v1.7.6-Noon_Dump_2026-10-09.dumpsql.gz | head -c 5; echo
+# PGDMP  -> format -Fc    (pg_restore)
+# --…    -> SQL texte     (psql)
+```
+
+Le script fait tout (détection du format, sauvegarde, restauration, contrôle) :
+
+```sh
+scripts/push-dump-to-docker.sh -f OC-v1.7.6-Noon_Dump_2026-10-09.dumpsql.gz -n   # plan
+scripts/push-dump-to-docker.sh -f OC-v1.7.6-Noon_Dump_2026-10-09.dumpsql.gz      # exécute
+```
+
+Il détecte le conteneur qui publie le `5433`, lit `POSTGRES_USER` / `POSTGRES_DB`
+dans le conteneur, **sauvegarde la base cible avant de la toucher**
+(`backup-<base>-<date>.dump` à côté du dump) et refuse de continuer si la
+sauvegarde est vide.
+
+À la main, pour un dump `-Fc` gzippé :
+
+```sh
+gunzip -c OC-v1.7.6-Noon_Dump_2026-10-09.dumpsql.gz > /tmp/dump.dumpsql
+docker cp /tmp/dump.dumpsql openconcerto176-db-1:/tmp/dump.dumpsql
+
+# 1. sauvegarde de ce qu'il y a déjà
+docker exec -i openconcerto176-db-1 sh -c 'pg_dump -U "$POSTGRES_USER" -Fc -d "$POSTGRES_DB"' > backup-$(date +%F).dump
+
+# 2. base neuve (les données actuelles sont remplacées)
+docker exec -i openconcerto176-db-1 sh -c 'dropdb -U "$POSTGRES_USER" "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" -O "$POSTGRES_USER" "$POSTGRES_DB"'
+
+# 3. restauration
+docker exec -i openconcerto176-db-1 sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-privileges /tmp/dump.dumpsql'
+```
+
+Deux points qui font échouer une restauration dans 90 % des cas :
+
+- **`pg_restore` sort en 1 sans que les données soient en cause** : ce sont les
+  propriétaires, extensions ou `COMMENT` de l'installation d'origine. Le code 2
+  et plus est un vrai échec ; le code 1 se lit dans la sortie.
+- **la collation** : un dump `fr_FR.UTF-8` restauré dans un cluster `C.UTF-8`
+  échoue sur `CREATE DATABASE`. Voir la section locale de
+  `docker/openconcerto-1.7.6/README.md` (override `docker-compose.fr_FR.yml`,
+  qui exige un volume vierge).
+
+Pour un dump **SQL texte** :
+
+```sh
+gunzip -c dump.sql.gz | docker exec -i openconcerto176-db-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=0'
+```
+
+Si le fichier contient un `CREATE DATABASE`, il faut le jouer sur `postgres` et
+non sur la base cible.
+
+**Attention aux données reprises.** Un dump antérieur à une reprise des affaires
+la remet à zéro : le compteur de `sql/attendu-reprise.sql` repassera au-dessus de
+0 et `Aide > Reprendre les affaires des documents` aura de nouveau du travail.
+
 ## Sans le script : les commandes Docker utiles
 
 ```sh

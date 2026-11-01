@@ -92,6 +92,19 @@ conséquence ; ne jamais le pointer vers la base de production.
 Si la locale du dump n'existe pas dans le conteneur, relancer avec
 `LOCALE=C.UTF-8`.
 
+### Avec un dump déjà gzippé (`.dumpsql.gz`)
+
+Le script du dépôt fait la détection du format, la sauvegarde, la restauration
+et le contrôle :
+
+```sh
+scripts/push-dump-to-docker.sh -f OC-v1.7.6-Noon_Dump_2026-10-09.dumpsql.gz -n   # plan
+scripts/push-dump-to-docker.sh -f OC-v1.7.6-Noon_Dump_2026-10-09.dumpsql.gz
+```
+
+Voir `docs/psql-docker.md` pour les commandes équivalentes à la main, et les
+deux pièges (code de sortie 1 de `pg_restore`, collation `fr_FR.UTF-8`).
+
 ## 4. Brancher le client 1.7.6
 
 Le client lit sa configuration dans `~/.config/OpenConcerto/main.properties`.
