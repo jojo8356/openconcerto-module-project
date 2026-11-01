@@ -80,7 +80,17 @@ jobs:
       # Java (regles de rattachement) + PostgreSQL embarque (pglite) :
       # aucun OpenConcerto.jar n'est necessaire.
       - name: Suite complete (Java + SQL + scenario + mutations)
-        run: sh scripts/test-affaire-fournisseur.sh
+        run: |
+          set +e
+          sh scripts/test-affaire-fournisseur.sh > /tmp/suite.log 2>&1
+          code=$?
+          set -e
+          tail -60 /tmp/suite.log
+          # Les lignes ECHEC deviennent des annotations : lisibles sans journaux.
+          grep -E "ECHEC|en echec|ERREUR" /tmp/suite.log | head -12 | while read -r ligne; do
+            echo "::error::$ligne"
+          done
+          exit $code
 
   cli-affaire:
     name: Tests en ligne de commande (rattachement d'affaire)

@@ -719,7 +719,7 @@ public final class ColumnLabelRulesTest {
     private static void testSaveSkipsInvalidRules() {
         final Map<String, String> labels = rules("SANS_POINT=Libelle", "*.ID_CLIENT=", "COMMANDE.ID_AFFAIRE=Affaire");
         final String sql = ColumnLabelRules.saveStatements("S", labels, ColumnLabelRules.MODE_AUTO, 1);
-        assertEquals("une seule regle valide enregistree", 1, count(sql, "\"ID_USER\") values ("));
+        assertEquals("une seule regle valide enregistree", 1, count(sql, "\"LABEL\", \"DATE\", \"ID_USER\") values ("));
         assertTrue("la regle valide est celle attendue", sql.contains("'COMMANDE'") && sql.contains("'ID_AFFAIRE'"));
         pass();
     }
