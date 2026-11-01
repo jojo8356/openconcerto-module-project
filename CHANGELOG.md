@@ -40,6 +40,13 @@
 
 ### Verified
 
+- **Un dump OpenConcerto 1.7.6 réel se restaure proprement dans la stack
+  Docker : `pg_restore --exit-on-error` rend le code 0**, sur une base neuve
+  (`dump1009`, 398 affaires, 672 factures fournisseur, 234 lignes de
+  `TR_COMMANDE`). Le piège rencontré a été documenté : restauré dans une base qui
+  contenait déjà le schéma, le même dump produit 5 700 « existe déjà » et un code
+  1 ininterprétable — d'où le garde-fou « base cible vide » de
+  `scripts/push-dump-to-docker.sh`.
 - **Reprise appliquée sur la base du client (30/10)** : le menu a annoncé 37,
   le compte rendu 37 lignes rattachées, et `sql/attendu-reprise.sql` est tombé à
   **0**. Les 37 documents ont rejoint l'affaire de leur document d'origine.
