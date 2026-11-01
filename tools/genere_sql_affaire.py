@@ -567,12 +567,26 @@ select table_name
  where table_schema = '%s' and column_name = '%s'
  order by 1;
 
+\\echo '--- 0.4 Colonne requise par le TRANSFERT commande -> facture fournisseur ---'
+-- OpenConcerto 1.7.6 ecrit FACTURE_FOURNISSEUR_ELEMENT.ID_COMMANDE_ELEMENT
+-- pendant le transfert (FactureFournisseurSQLComponent.loadQuantity). Si la
+-- colonne manque, le transfert echoue avec « ID_COMMANDE_ELEMENT is not in
+-- table /FACTURE_FOURNISSEUR_ELEMENT/ » et aucune facture ne recopie le lien.
+-- Correctif fourni : sql/fix-facture-fournisseur-element-id-commande-element.sql
+select case
+         when exists (select 1 from information_schema.columns
+                       where table_schema = '%s' and table_name = 'FACTURE_FOURNISSEUR_ELEMENT'
+                         and column_name = 'ID_COMMANDE_ELEMENT')
+         then 'presente : le transfert commande -> facture est possible'
+         else 'ABSENTE : lancer sql/fix-facture-fournisseur-element-id-commande-element.sql'
+       end as id_commande_element;
+
 
 \\echo '################################################################'
 \\echo '# 1. Documents a reprendre, cas par cas (attendu : 0 partout)'
 \\echo '################################################################'
 
-""" % (SCHEMA, SCHEMA, AFFAIR)]
+""" % (SCHEMA, SCHEMA, AFFAIR, SCHEMA)]
 
     out.append(_sans_entete(diagnostic_entetes(pairs)))
 
