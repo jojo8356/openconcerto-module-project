@@ -1,0 +1,79 @@
+name: Sonde SQL (temporaire)
+
+on:
+  push:
+    paths:
+      - 'sql/diagnostic-connexion-preferences.sql'
+      - '.github/workflows/sql-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: openconcerto
+          POSTGRES_DB: openconcerto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: openconcerto
+      PGDATABASE: openconcerto
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer le client PostgreSQL
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Base de test (sans PREF_NODE / PREF_VALUE)
+        run: |
+          set -eu
+          python3 tools/oc_sql_sqlite.py --emit-fixture --line-columns all --devis-key ID_DEVIS \
+            | psql -v ON_ERROR_STOP=1 -q
+
+      - name: Diagnostic sur une base sans preferences
+        run: |
+          set -eu
+          out=$(psql -v ON_ERROR_STOP=1 -f sql/diagnostic-connexion-preferences.sql 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::Le diagnostic sort en $rc%0A$(echo "$out" | tr '\n' '|')"; exit 1; }
+          echo "$out" | grep -q 'PREF_NODE  : ABSENTE'   || { echo "::error::PREF_NODE devrait etre ABSENTE"; exit 1; }
+          echo "$out" | grep -q 'PREF_VALUE : ABSENTE'   || { echo "::error::PREF_VALUE devrait etre ABSENTE"; exit 1; }
+          echo "$out" | grep -q 'SOCIETE_COMMON : ABSENTE' || { echo "::error::SOCIETE_COMMON devrait etre ABSENTE"; exit 1; }
+          echo "OK : diagnostic sans preferences"
+
+      - name: Diagnostic sur une base avec preferences
+        run: |
+          set -eu
+          psql -v ON_ERROR_STOP=1 -q <<'SQL'
+          CREATE TABLE "OpenConcerto42"."PREF_NODE" (
+              "ID" integer PRIMARY KEY,
+              "ID_PARENT" integer NULL,
+              "NAME" varchar(80)
+          );
+          CREATE TABLE "OpenConcerto42"."PREF_VALUE" (
+              "ID_NODE" integer NOT NULL,
+              "NAME" varchar(80) NOT NULL,
+              "VALUE" varchar(8192),
+              CONSTRAINT "PREF_VALUE_pkey" PRIMARY KEY ("ID_NODE", "NAME")
+          );
+          INSERT INTO "OpenConcerto42"."PREF_NODE" VALUES (1, NULL, 'root');
+          INSERT INTO "OpenConcerto42"."PREF_VALUE" VALUES (1, 'test', 'valeur');
+          CREATE SEQUENCE "OpenConcerto42"."PREF_NODE_ID_SEQ";
+          SQL
+          out=$(psql -v ON_ERROR_STOP=1 -f sql/diagnostic-connexion-preferences.sql 2>&1); rc=$?
+          echo "$out"
+          [ "$rc" -eq 0 ] || { echo "::error::Le diagnostic sort en $rc%0A$(echo "$out" | tr '\n' '|')"; exit 1; }
+          echo "$out" | grep -q 'PREF_NODE  : 1 ligne'  || { echo "::error::PREF_NODE devrait avoir 1 ligne"; exit 1; }
+          echo "$out" | grep -q 'PREF_VALUE : 1 ligne'  || { echo "::error::PREF_VALUE devrait avoir 1 ligne"; exit 1; }
+          echo "$out" | grep -q 'PREF_NODE_ID_SEQ'      || { echo "::error::la sequence devrait apparaitre"; exit 1; }
+          echo "OK : diagnostic avec preferences"
