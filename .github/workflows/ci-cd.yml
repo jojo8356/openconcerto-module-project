@@ -188,11 +188,14 @@ jobs:
         run: |
           set -eu
           dump() { awk '{gsub(/%/,"%25");gsub(/\r/,"");printf "%s%%0A",$0}' "$1"; }
-          bash scripts/fix-facture-fournisseur-element.sh --check -d openconcerto \
-            > /tmp/step.log 2>&1 || {
-            echo "::error::--check devrait voir la colonne: $(dump /tmp/step.log)"; exit 1; }
-          grep -q 'colonne presente' /tmp/step.log || {
-            echo "::error::Sortie inattendue: $(dump /tmp/step.log)"; exit 1; }
+          # code 0 = colonne presente (le texte est accentue : on teste le code)
+          if ! bash scripts/fix-facture-fournisseur-element.sh --check -d openconcerto \
+            > /tmp/step.log 2>&1; then
+            echo "::error::--check devrait voir la colonne: $(dump /tmp/step.log)"
+            exit 1
+          fi
+          grep -q 'integer|1' /tmp/step.log || {
+            echo "::error::Type inattendu: $(dump /tmp/step.log)"; exit 1; }
           echo "OK : colonne presente"
 
       - name: "Correctif - relance sans effet (idempotence)"
