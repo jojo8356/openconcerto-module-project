@@ -360,7 +360,19 @@ def emit_fixture(line_columns="client", devis_key="ID_DEVIS"):
     print("-- Base de test jetable pour sql/*.sql (PostgreSQL).")
     print('CREATE SCHEMA IF NOT EXISTS "%s";' % SCHEMA)
     for table, columns in all_tables(line_columns, devis_key):
-        ddl = ", ".join('"%s" %s' % (column, column_type(column)) for column in columns)
+        parts = []
+        for column in columns:
+            definition = '"%s" %s' % (column, column_type(column))
+            # La colonne ID est la cle primaire, comme dans la vraie base : sans
+            # elle, une cle etrangere ne peut pas etre creee (PostgreSQL :
+            # « there is no unique constraint matching given keys »). Ce detail
+            # a une consequence reelle : le correctif
+            # FACTURE_FOURNISSEUR_ELEMENT.ID_COMMANDE_ELEMENT pose une FK vers
+            # COMMANDE_ELEMENT("ID").
+            if column == "ID":
+                definition += " PRIMARY KEY"
+            parts.append(definition)
+        ddl = ", ".join(parts)
         print('CREATE TABLE "%s"."%s" (%s);' % (SCHEMA, table, ddl))
     for table, values in transfert_rows():
         values = dict(values)
