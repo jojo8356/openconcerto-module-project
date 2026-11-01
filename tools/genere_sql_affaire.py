@@ -485,6 +485,171 @@ select a."ID" as id_affaire, a."NUMERO", a."NOM"
 
 
 # --------------------------------------------------------------------------
+def _sans_entete(contenu):
+    """Retire le commentaire d'en-tete d'un fichier genere.
+
+    Le fichier de controle final est compose des requetes deja generees : en
+    reprenant leur texte plutot qu'en le reecrivant, il ne peut pas deriver du
+    code du module.
+    """
+    lignes = contenu.splitlines(True)
+    i = 0
+    while i < len(lignes) and (lignes[i].startswith("--") or lignes[i].strip() == ""):
+        i += 1
+    return "".join(lignes[i:])
+
+
+def controle_complet(pairs, lines):
+    """UN seul fichier de controle, en lecture seule : tout ce qui a ete corrige.
+
+    Apres une reprise, la question « est-ce que tout est repare ? » demandait de
+    lancer six fichiers. Ici une seule commande repond, dans l'ordre du
+    diagnostic :
+      0. le schema (cle de DEVIS, colonnes ID_AFFAIRE) ;
+      1. les documents a reprendre, cas par cas, avec la requete du module ;
+      2. le verdict : ce que le menu doit annoncer ;
+      3. le garde-fou « Indefini » (ligne 1) ;
+      4. les tableaux de lignes ;
+      5. une affaire temoin, pour le controle visuel de la fenetre ;
+      6. le verdict final.
+    """
+    out = ["""-- Controle complet du rattachement d'affaire : tout ce qui a ete corrige.
+--
+-- Lecture seule. AUCUNE ECRITURE : ce fichier ne repare rien, il verifie.
+--
+-- Il reprend les requetes des autres fichiers (memes regles, meme generateur) et
+-- les regroupe dans l'ordre du diagnostic. Apres une reprise, les sections 1, 4
+-- et 6 doivent etre a 0.
+--
+--   sh scripts/oc-psql.sh -f sql/controle-affaire-complet.sql
+--
+-- Les trois defauts que ces requetes detectent (mesures sur la base du client) :
+--   * une cle etrangere non renseignee vaut 1, pas NULL : sans le garde-fou
+--     « <cle> > 1 », la ligne « Indefini » est comptee 200 fois ;
+--   * DEVIS n'a pas de colonne ID : sa cle est ID_DEVIS ;
+--   * les tableaux de lignes n'ont pas tous la colonne ID_AFFAIRE (2 sur 12) :
+--     pour ceux qui ne l'ont pas, la section 4 affiche une erreur « column does
+--     not exist » et psql CONTINUE avec les autres tableaux — c'est normal,
+--     chaque bloc est independant.
+
+
+\\echo '################################################################'
+\\echo '# 0. Schema : les cles et les colonnes que les requetes supposent'
+\\echo '################################################################'
+
+\\echo '--- 0.1 Schema courant ---'
+select current_schema() as schema_courant;
+
+\\echo '--- 0.2 Cle de DEVIS (ID attendu ; ID_DEVIS sur la base du client) ---'
+select column_name
+  from information_schema.columns
+ where table_schema = '%s' and table_name = 'DEVIS' and column_name in ('ID', 'ID_DEVIS')
+ order by 1;
+
+\\echo '--- 0.3 Tables d en-tete qui portent la colonne ID_AFFAIRE ---'
+select table_name
+  from information_schema.columns
+ where table_schema = '%s' and column_name = '%s'
+ order by 1;
+
+
+\\echo '################################################################'
+\\echo '# 1. Documents a reprendre, cas par cas (attendu : 0 partout)'
+\\echo '################################################################'
+
+""" % (SCHEMA, SCHEMA, AFFAIR)]
+
+    out.append(_sans_entete(diagnostic_entetes(pairs)))
+
+    out.append("""
+\\echo '################################################################'
+\\echo '# 2. Verdict : le nombre que le menu doit annoncer'
+\\echo '################################################################'
+
+""")
+    out.append(_sans_entete(attendu(pairs)))
+
+    out.append("""
+\\echo '################################################################'
+\\echo '# 3. Garde-fou « Indefini » : la ligne 1 n est jamais un document'
+\\echo '################################################################'
+--
+-- Ces compteurs ne sont PAS des erreurs : la ligne 1 existe dans chaque table.
+-- Ils servent a verifier qu'elle n'est jamais prise pour un document.
+""")
+    for source, destination in pairs:
+        transfer = "TR_" + source
+        out.append("""
+\\echo '--- 3.x %s : lignes pointant la ligne 1 (normal, non comptees) ---'
+select count(*) filter (where %s = %d) as vers_indefini_cible,
+       count(*) filter (where %s = %d) as vers_indefini_source,
+       count(*) as lignes_total
+  from %s;
+""" % (transfer, a(transfer, "ID_" + destination), UNDEFINED,
+       a(transfer, "ID_" + source), UNDEFINED, t(transfer)))
+
+    out.append("""
+\\echo '--- 3.99 Documents dont l affaire vaut 1 : ils n ont pas de document d origine ---'
+""")
+    documents = sorted({pair[0] for pair in pairs} | {pair[1] for pair in pairs} | {"SAISIE_ACHAT"})
+    for document in documents:
+        out.append("select '%s' as tableau, count(*) as affaire_indefinie from %s where %s = %d and %s;\n"
+                   % (document, t(document), a(document, AFFAIR), UNDEFINED, real_key(document)))
+
+    out.append("""
+\\echo '################################################################'
+\\echo '# 4. Tableaux de lignes (attendu : 0)'
+\\echo '################################################################'
+
+""")
+    out.append(_sans_entete(diagnostic_lignes(lines)))
+
+    out.append("""
+\\echo '################################################################'
+\\echo '# 5. Affaire temoin : controle visuel de « Historique affaires »'
+\\echo '################################################################'
+--
+-- Le numero ci-dessous est un EXEMPLE mesure sur la base du client : remplacez-le
+-- par une affaire de votre choix. Si la fenetre affiche moins de lignes que la
+-- section 5.2, la difference s'explique par ARCHIVE = 1 (OpenConcerto ne montre
+-- pas les documents archives).
+drop table if exists cible;
+create temp table cible as select 12085 as numero;
+
+\\echo '--- 5.1 L affaire (son ID sert a toutes les jointures) ---'
+select "ID" as id_affaire, "NUMERO" from %s where "NUMERO" = (select cast(numero as text) from cible);
+
+\\echo '--- 5.2 Factures fournisseur : en base, archivees, affichables ---'
+select count(*) as en_base,
+       count(*) filter (where f.%s = 1) as archivees,
+       count(*) filter (where f.%s = 0) as affichables
+  from %s f
+ where f.%s = (select "ID" from %s a where a."NUMERO" = (select cast(numero as text) from cible));
+
+\\echo '--- 5.3 Leur numero, avec l etat d archive ---'
+select f."NUMERO", f."DATE", f.%s as archive
+  from %s f
+ where f.%s = (select "ID" from %s a where a."NUMERO" = (select cast(numero as text) from cible))
+ order by f."NUMERO";
+
+
+\\echo '################################################################'
+\\echo '# 6. Verdict final'
+\\echo '################################################################'
+--
+-- Une seule ligne : 0 = tout est repris, sinon le nombre restant.
+""" % (t("AFFAIRE"), c("ARCHIVE"), c("ARCHIVE"), t("FACTURE_FOURNISSEUR"),
+       c(AFFAIR), t("AFFAIRE"), c("ARCHIVE"),
+       t("FACTURE_FOURNISSEUR"), c(AFFAIR), t("AFFAIRE")))
+    out.append(_sans_entete(attendu(pairs)).replace("total_a_reprendre", "reste_a_reprendre").replace(
+        "-- Le nombre que", "-- Le nombre que"))
+
+    return "".join(out)
+
+
+
+
+
 def build():
     pairs = transfer_pairs()
     lines = line_tables()
@@ -495,6 +660,7 @@ def build():
         "sql/diagnostic-affaire-lignes.sql": diagnostic_lignes(lines),
         "sql/historique-affaire.sql": historique(pairs, lines),
         "sql/attendu-reprise.sql": attendu(pairs),
+        "sql/controle-affaire-complet.sql": controle_complet(pairs, lines),
     }
 
 

@@ -176,6 +176,18 @@ echo "=== 5. Fichiers SQL du module (sql/*.sql) ==="
 python3 tools/oc_sql_sqlite.py
 
 echo
+echo "=== 5bis. sql/controle-affaire-complet.sql (tout le controle en un fichier) ==="
+controle=$(python3 tools/oc_sql_sqlite.py --line-columns all --file sql/controle-affaire-complet.sql 2>&1)
+if printf '%s\n' "$controle" | grep -q '^reste_a_reprendre'; then
+    reste=$(printf '%s\n' "$controle" | grep -A2 '^reste_a_reprendre' | tail -1)
+    echo "   OK    le fichier s'execute de bout en bout (reste a reprendre : $reste)"
+else
+    echo "   ECHEC le fichier de controle complet n'a pas produit son verdict"
+    printf '%s\n' "$controle" | tail -10
+    exit 1
+fi
+
+echo
 echo "=== 6. sql/historique-affaire.sql (fenetre « Historique affaires ») ==="
 # Le fichier porte un numero d'affaire en clair ; on le remplace par une affaire
 # du jeu de donnees pour verifier qu'il liste bien les documents.

@@ -1,0 +1,43 @@
+name: Verification temporaire (branche de travail)
+on:
+  push:
+    branches: [arena/ff79607f-openconcerto-module-project]
+jobs:
+  cli-affaire:
+    name: Tests en ligne de commande
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_PASSWORD: openconcerto, POSTGRES_DB: openconcerto }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "8" }
+      - name: Tests en ligne de commande (sans base)
+        run: |
+          set -e
+          sh scripts/test-affaire-cli.sh 2>&1 | tee /tmp/cli.log
+          grep -q "aucune table citee avant sa jointure" /tmp/cli.log || { echo "::error::portee non verifiee"; exit 1; }
+          grep -q "Controles : 85 | echecs : 0" /tmp/cli.log || { echo "::error::85 controles non verts"; grep ECHEC /tmp/cli.log | tail -n 10; exit 1; }
+          grep -q "controle-affaire-complet.sql" /tmp/cli.log || { echo "::error::fichier de controle complet non execute"; exit 1; }
+      - name: Suites unitaires
+        run: sh scripts/run-tests.sh
+      - name: Installer le client PostgreSQL
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Le fichier de controle complet sur PostgreSQL 16
+        env: { PGHOST: localhost, PGUSER: postgres, PGPASSWORD: openconcerto, PGDATABASE: openconcerto }
+        run: |
+          set -e
+          sh scripts/oc-sql-file.sh --postgres --file sql/controle-affaire-complet.sql > /tmp/pg-complet.log 2>&1 || {
+            tail -n 25 /tmp/pg-complet.log; echo "::error::le controle complet echoue sur PostgreSQL"; exit 1; }
+          grep -q "reste_a_reprendre" /tmp/pg-complet.log || { echo "::error::verdict final absent"; tail -n 20 /tmp/pg-complet.log; exit 1; }
+          grep -q "ERROR" /tmp/pg-complet.log && { echo "::error::erreur SQL dans le controle complet"; grep -n ERROR /tmp/pg-complet.log | head -n 10; exit 1; } || true
+          echo "--- verdict ---"
+          grep -A3 "6. Verdict final" /tmp/pg-complet.log | head -n 8
+      - name: Les autres fichiers SQL sur PostgreSQL
+        env: { PGHOST: localhost, PGUSER: postgres, PGPASSWORD: openconcerto, PGDATABASE: openconcerto }
+        run: sh scripts/oc-sql-file.sh --postgres > /tmp/pg.log 2>&1 || { tail -n 20 /tmp/pg.log; echo "::error::suite PostgreSQL en echec"; exit 1; }

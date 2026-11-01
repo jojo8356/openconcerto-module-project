@@ -49,6 +49,13 @@ DOCUMENT_COLUMNS = {
     "DEMANDE_ACHAT": ["ID", "ID_AFFAIRE", "NUMERO"],
 }
 
+#: Toutes les tables de documents d'OpenConcerto portent ARCHIVE (0 = actif,
+#: 1 = archive). La fenetre « Historique affaires » ne montre pas les archives :
+#: c'est ce qui explique qu'une affaire compte 25 factures en base et 24 a
+#: l'ecran (mesure du 30/10, facture F201240028467).
+for _columns in DOCUMENT_COLUMNS.values():
+    _columns.extend(["ARCHIVE", "DATE"])
+
 LINE_TABLES = {
     "COMMANDE_ELEMENT": "ID_COMMANDE",
     "BON_RECEPTION_ELEMENT": "ID_BON_RECEPTION",
@@ -204,7 +211,7 @@ def transfert_rows():
 
     # --- achats : factures et avoirs --------------------------------------
     ("FACTURE_FOURNISSEUR", dict(ID=900, ID_AFFAIRE=None)),
-    ("FACTURE_FOURNISSEUR", dict(ID=901, ID_AFFAIRE=555)),
+    ("FACTURE_FOURNISSEUR", dict(ID=901, ID_AFFAIRE=555, ARCHIVE=1)),
     ("FACTURE_FOURNISSEUR", dict(ID=902, ID_AFFAIRE=1)),
     ("FACTURE_FOURNISSEUR", dict(ID=903, ID_AFFAIRE=None)),
     ("FACTURE_FOURNISSEUR", dict(ID=904, ID_AFFAIRE=None)),
