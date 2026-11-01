@@ -100,12 +100,39 @@ die() { printf '\nERREUR : %s\n' "$*" >&2; exit 1; }
 # n'est pas lisible depuis le conteneur.
 if [ -n "$CONTAINER" ]; then
     psql_run() { docker exec -i "$CONTAINER" psql -U "$SQL_USER" -d "$DB" "$@" ; }
-    pg_dump_run() { docker exec "$CONTAINER" pg_dump -U "$SQL_USER" -d "$DB" "$@" ; }
 else
     export PGUSER="$SQL_USER"
     psql_run() { psql -d "$DB" "$@" ; }
-    pg_dump_run() { pg_dump -d "$DB" "$@" ; }
 fi
+
+# Sauvegarde la base dans un fichier, en refusant un fichier vide.
+# Dans un conteneur, pg_dump ecrit dans le conteneur puis on copie : passer par
+# la sortie standard du conteneur a produit un fichier de 0 octet en CI.
+# Usage : dump_database FICHIER [options pg_dump...]
+dump_database() {
+    out="$1"
+    shift
+    err=$(mktemp)
+    if [ -n "$CONTAINER" ]; then
+        tmp="/tmp/oc-dump-$$.dmp"
+        if ! docker exec "$CONTAINER" pg_dump -U "$SQL_USER" -d "$DB" "$@" -f "$tmp" 2>"$err"; then
+            sed 's/^/  pg_dump : /' "$err" >&2
+            rm -f "$err" "$out"
+            die "pg_dump a échoué (message ci-dessus)."
+        fi
+        docker cp "$CONTAINER:$tmp" "$out" >/dev/null 2>&1 \
+            || { docker exec "$CONTAINER" rm -f "$tmp"; rm -f "$err" "$out"; die "Copie du dump depuis '$CONTAINER' impossible."; }
+        docker exec "$CONTAINER" rm -f "$tmp" >/dev/null 2>&1 || true
+    else
+        if ! pg_dump -d "$DB" "$@" -f "$out" 2>"$err"; then
+            sed 's/^/  pg_dump : /' "$err" >&2
+            rm -f "$err" "$out"
+            die "pg_dump a échoué (message ci-dessus)."
+        fi
+    fi
+    rm -f "$err"
+    [ -s "$out" ] || die "Sauvegarde vide ($out) : arrêt, aucune modification."
+}
 
 # ---------------------------------------------------------------- 1. Vérifications
 log "Vérification des outils"
@@ -173,8 +200,7 @@ else
 
     # ------------------------------------------------------------ 3. Sauvegarde
     log "Sauvegarde avant correctif : $BACKUP"
-    pg_dump_run -Fc -f - > "$BACKUP" || die "Échec de la sauvegarde. Aucune modification n'a été faite."
-    [ -s "$BACKUP" ] || die "Sauvegarde vide ($BACKUP) : arrêt avant toute modification."
+    dump_database "$BACKUP" -Fc
     echo "Sauvegarde : $(wc -c < "$BACKUP") octets"
 
     # -------------------------------------------------------------- 4. Correctif
@@ -200,7 +226,7 @@ esac
 if [ "$FIXED" -eq 1 ]; then
     FINAL_DUMP="$OUTDIR/OpenConcerto-1.7.6-a-jour_${DATE_TAG}.dumpsql"
     log "Création du dump complet à jour : $FINAL_DUMP"
-    pg_dump_run -Fc --no-owner --no-privileges -f - > "$FINAL_DUMP"
+    dump_database "$FINAL_DUMP" -Fc --no-owner --no-privileges
     if command -v sha256sum >/dev/null 2>&1; then
         (cd "$OUTDIR" && sha256sum "$(basename "$FINAL_DUMP")" > "$(basename "$FINAL_DUMP").sha256")
         echo "Empreinte : $FINAL_DUMP.sha256"
