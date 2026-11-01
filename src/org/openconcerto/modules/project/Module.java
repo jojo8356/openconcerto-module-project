@@ -29,10 +29,14 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -71,6 +75,7 @@ import org.openconcerto.sql.element.SQLElement;
 import org.openconcerto.sql.element.SQLElementDirectory;
 import org.openconcerto.sql.model.DBRoot;
 import org.openconcerto.sql.model.FieldPath;
+import org.openconcerto.sql.model.SQLField;
 import org.openconcerto.sql.model.SQLInjector;
 import org.openconcerto.sql.model.SQLRow;
 import org.openconcerto.sql.model.SQLRowAccessor;
@@ -114,9 +119,31 @@ import org.openconcerto.utils.cc.ITransformer;
 public final class Module extends AbstractModule {
 
     public static final String PROJECT_TABLENAME = "AFFAIRE";
+
+    /** Menu ou est propose le parametrage des libelles de colonnes. */
+    private static final String PARAM_MENU = "Paramètres";
+
+    /** Nombre de nouvelles tentatives d'affichage du menu (toutes les 2 s). */
+    private static final int MAX_MENU_ATTEMPTS = 15;
+
+    /** Delai entre deux tentatives, en millisecondes. */
+    private static final int MENU_RETRY_DELAY_MS = 2000;
     private static boolean deliveryNoteListActionSyncInstalled = false;
-    private List<String> listTableAffaire = Arrays.asList("DEMANDE_PRIX", "BON_RECEPTION", "DEMANDE_ACHAT_ELEMENT", "SAISIE_VENTE_FACTURE", "AVOIR_CLIENT", "BON_DE_LIVRAISON", "COMMANDE_CLIENT",
-            "DEVIS", "COMMANDE", "SAISIE_ACHAT", "AVOIR_FOURNISSEUR");
+    /** Ecouteur global d'affichage pour la colonne « Affaire » des lignes. */
+    private static boolean itemAffairColumnInstalled = false;
+    /**
+     * Tables qui portent directement {@code ID_AFFAIRE}. La liste vient de
+     * {@link AffairLinkSupport#DIRECT_AFFAIR_TABLES}, qui est la source de
+     * verite unique du module : creer la colonne, l'exposer dans les ecrans de
+     * saisie, ajouter la colonne « Affaire » et l'action « Historique affaire »
+     * dans les listes de l'ERP sont quatre consequences de cette liste.
+     * <p>
+     * {@code FACTURE_FOURNISSEUR} en fait partie depuis le correctif de
+     * l'affaire sur les documents fournisseurs : sans elle, l'affaire saisie sur
+     * une facture fournisseur n'apparaissait ni dans la liste, ni dans
+     * l'historique des affaires.
+     */
+    private final List<String> listTableAffaire = AffairLinkSupport.DIRECT_AFFAIR_TABLES;
 
     public Module(ModuleFactory f) throws IOException {
         super(f);
@@ -206,6 +233,199 @@ public final class Module extends AbstractModule {
         // Table de transfert TR_DEMANDE_PRIX (liaison demande de prix -> commande
         // fournisseur). OpenConcerto la cree tout seul : rien a faire a la main.
         createTransfertDemandePrixTable(ctxt.getRoot());
+
+        // Les colonnes ID_AFFAIRE de toutes les tables du module (et non plus
+        // seulement celles creees avec la table AFFAIRE) : une installation
+        // existante doit etre reparee sans attendre le prochain demarrage.
+        ensureAffairColumns(ctxt.getRoot());
+    }
+
+    /**
+     * Base de donnees de l'element {@code AFFAIRE} d'un contexte de composants.
+     * <p>
+     * {@code ComponentsContext} n'expose pas sa base ({@code ElementContext.getRoot()}
+     * est protege) : on passe par l'element, qui est la base de l'historique.
+     *
+     * @return la base, ou {@code null} si elle n'est pas disponible.
+     */
+    static DBRoot affairRoot(final MenuContext ctxt) {
+        try {
+            final SQLElement affairElement = ctxt.getElement(AffairLinkSupport.AFFAIR_TABLE);
+            if (affairElement != null && affairElement.getTable() != null) {
+                return affairElement.getTable().getDBRoot();
+            }
+        } catch (Exception e) {
+            log("base de l'affaire introuvable dans le contexte du menu : " + e);
+        }
+        return null;
+    }
+
+    static DBRoot affairRoot(final ComponentsContext ctxt) {
+        try {
+            final SQLElement affairElement = ctxt.getElement(AffairLinkSupport.AFFAIR_TABLE);
+            if (affairElement != null && affairElement.getTable() != null) {
+                return affairElement.getTable().getDBRoot();
+            }
+        } catch (Exception e) {
+            log("base de l'affaire introuvable dans le contexte des composants : " + e);
+        }
+        return null;
+    }
+
+    /**
+     * Acces au schema pour {@link AffairLinkSupport}.
+     */
+    static AffairLinkSupport.Schema schemaOf(final DBRoot root) {
+        return new AffairLinkSupport.Schema() {
+            @Override
+            public boolean hasTable(final String tableName) {
+                return root != null && root.contains(tableName);
+            }
+
+            @Override
+            public boolean hasField(final String tableName, final String fieldName) {
+                return root != null && root.contains(tableName) && root.getTable(tableName).contains(fieldName);
+            }
+        };
+    }
+
+    /**
+     * Cree les colonnes {@code ID_AFFAIRE} manquantes sur les tables de
+     * documents, puis rafraichit le cache de schema.
+     * <p>
+     * Cette methode est idempotente et sans risque : elle ne fait rien quand
+     * toutes les colonnes existent, ce qui permet de l'appeler a chaque
+     * demarrage du client, et pas seulement lors de l'installation du module.
+     * <p>
+     * Elle est volontairement decoupee en trois etapes independantes, parce que
+     * chacune peut echouer pour une raison differente :
+     * <ol>
+     * <li><b>la colonne</b> d'abord, sans contrainte : c'est elle qui rend
+     * l'affaire affichable, enregistrable et filtrable. Un echec ici est
+     * vraiment bloquant et est signale ;</li>
+     * <li><b>la contrainte de cle etrangere</b> ensuite, en {@code NOT VALID}.
+     * Une base de production contient souvent des documents rattaches a une
+     * affaire supprimee : une contrainte validee d'emblee ferait echouer toute
+     * l'instruction {@code ALTER TABLE ... ADD COLUMN ... REFERENCES} — donc la
+     * colonne ne serait jamais creee. C'était le mode d'echec silencieux de la
+     * version precedente ({@code AlterTable.addForeignColumn} en une seule
+     * instruction, dans un {@code try/catch} qui se contentait d'imprimer la
+     * pile d'appels) ;</li>
+     * <li><b>les metadonnees du module</b> et le rafraichissement du schema, qui
+     * rendent la colonne immediatement visible aux ecrans et aux listes de la
+     * session en cours.</li>
+     * </ol>
+     *
+     * @return les tables dont la colonne vient d'etre creee.
+     */
+    List<String> ensureAffairColumns(final DBRoot root) {
+        final List<String> created = new ArrayList<String>();
+        if (root == null || !root.contains(AffairLinkSupport.AFFAIR_TABLE)) {
+            return created;
+        }
+        final List<String> missing;
+        try {
+            missing = AffairLinkSupport.getMissingAffairColumns(schemaOf(root));
+        } catch (Exception e) {
+            log("verification des colonnes ID_AFFAIRE impossible : " + e);
+            return created;
+        }
+        if (missing.isEmpty()) {
+            return created;
+        }
+        final SQLTable affairTable = root.getTable(AffairLinkSupport.AFFAIR_TABLE);
+        final String affairSQLName = affairTable.getSQLName().quote();
+        final String affairKey = "\"" + affairTable.getKey().getName() + "\"";
+        for (final String tableName : missing) {
+            final String sqlTableName;
+            try {
+                sqlTableName = root.getTable(tableName).getSQLName().quote();
+            } catch (Exception e) {
+                log("table " + tableName + " introuvable : colonne " + AffairLinkSupport.AFFAIR_FIELD + " non verifiee");
+                continue;
+            }
+            final String column = "\"" + AffairLinkSupport.AFFAIR_FIELD + "\"";
+            try {
+                root.getDBSystemRoot().getDataSource().execute("ALTER TABLE " + sqlTableName + " ADD COLUMN " + column + " integer");
+            } catch (Exception e) {
+                if (!isAlreadyExists(e)) {
+                    // Colonne non creee : on continue avec les autres tables
+                    // plutot que d'empecher le demarrage du module.
+                    log("colonne " + AffairLinkSupport.AFFAIR_FIELD + " non creee sur " + tableName + " : " + e);
+                    continue;
+                }
+            }
+            created.add(tableName);
+            try {
+                final String constraintName = tableName + "_" + AffairLinkSupport.AFFAIR_FIELD + "_fkey";
+                root.getDBSystemRoot().getDataSource().execute("ALTER TABLE " + sqlTableName + " ADD CONSTRAINT \"" + constraintName + "\" FOREIGN KEY (" + column + ") REFERENCES "
+                        + affairSQLName + " (" + affairKey + ") NOT VALID");
+            } catch (Exception e) {
+                if (!isAlreadyExists(e)) {
+                    log("contrainte " + AffairLinkSupport.AFFAIR_FIELD + " non creee sur " + tableName + " (documents pointant vers une affaire inexistante ?) : " + e);
+                }
+            }
+            registerAffairColumnMetadata(root, tableName);
+            try {
+                root.refetchTable(tableName);
+            } catch (Exception e) {
+                log("rafraichissement de " + tableName + " impossible : " + e + " (redemarrer le client)");
+            }
+        }
+        if (!created.isEmpty()) {
+            try {
+                root.getSchema().updateVersion();
+            } catch (Exception e) {
+                log("mise a jour de la version du schema impossible : " + e);
+            }
+            log("colonnes " + AffairLinkSupport.AFFAIR_FIELD + " creees : " + created);
+        }
+        return created;
+    }
+
+    /**
+     * Enregistre dans {@code FWK_MODULE_METADATA} la colonne ajoutee, avec la
+     * version declaree du module.
+     */
+    private void registerAffairColumnMetadata(final DBRoot root, final String tableName) {
+        if (!root.contains("FWK_MODULE_METADATA")) {
+            return;
+        }
+        try {
+            final long moduleVersion = getFactory() != null && getFactory().getVersion() != null ? getFactory().getVersion().getMerged() : 10000L;
+            final String sql = "INSERT INTO " + root.getTable("FWK_MODULE_METADATA").getSQLName().quote()
+                    + "(\"MODULE_NAME\",\"TABLE\",\"FIELD\",\"KEY\",\"MODULE_VERSION\") VALUES('org.openconcerto.modules.project','" + tableName + "','"
+                    + AffairLinkSupport.AFFAIR_FIELD + "',true," + moduleVersion + ")";
+            root.getDBSystemRoot().getDataSource().execute(sql);
+        } catch (Exception e) {
+            log("metadonnees du module non enregistrees pour " + tableName + " : " + e);
+        }
+    }
+
+    /**
+     * Vrai si l'exception signale un objet deja existant (colonne ou
+     * contrainte). Ces cas ne sont pas des erreurs : l'operation est
+     * idempotente.
+     */
+    static boolean isAlreadyExists(final Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            final String message = current.getMessage();
+            if (message != null) {
+                final String lower = message.toLowerCase();
+                if (lower.indexOf("already exists") >= 0 || lower.indexOf("existe déjà") >= 0 || lower.indexOf("duplicate_column") >= 0
+                        || lower.indexOf("duplicate_object") >= 0) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    /** Trace lisible dans la console du client (les erreurs ne doivent pas bloquer le demarrage). */
+    static void log(final String message) {
+        System.err.println("[module project] " + message);
     }
 
     /**
@@ -239,6 +459,21 @@ public final class Module extends AbstractModule {
         dir.addSQLElement(ProjectSQLElement.class);
         dir.addSQLElement(ProjectStateSQLElement.class);
         dir.addSQLElement(ProjectTypeSQLElement.class);
+
+        // setupElements() est appele AVANT setupComponents() (cycle de vie des
+        // modules OpenConcerto). Les listes de l'ERP et l'historique utilisent
+        // deja ID_AFFAIRE a ce moment-la : on s'assure donc que les colonnes
+        // existent avant de declarer la moindre colonne « Affaire ».
+        DBRoot elementsRoot = null;
+        try {
+            final SQLElement projectElement = dir.getElement(PROJECT_TABLENAME);
+            if (projectElement != null && projectElement.getTable() != null) {
+                elementsRoot = projectElement.getTable().getDBRoot();
+            }
+        } catch (Exception e) {
+            log("base de l'element " + PROJECT_TABLENAME + " introuvable : " + e);
+        }
+        ensureAffairColumns(elementsRoot);
 
         final SQLElement element = dir.getElement("DEVIS");
         DevisSQLElement eltDevis = dir.getElement(DevisSQLElement.class);
@@ -347,6 +582,16 @@ public final class Module extends AbstractModule {
                 final SQLElement elt = dir.getElement(tableName);
                 if (elt == null) {
                     JOptionPane.showMessageDialog(null, "Table " + tableName + " manquante");
+                    continue;
+                }
+                if (elt.getTable() == null || !elt.getTable().contains(AffairLinkSupport.AFFAIR_FIELD)) {
+                    // La colonne manque encore (droits insuffisants, colonne
+                    // supprimee, base restauree...) : declarer ici une colonne ou
+                    // une action qui lit ID_AFFAIRE ferait echouer la construction
+                    // de la liste de l'ERP. On saute la table en le signalant ;
+                    // l'auto-reparation du prochain demarrage la remettra en place.
+                    log("colonne " + AffairLinkSupport.AFFAIR_FIELD + " absente de " + tableName
+                            + " : colonne « Affaire » et action « Historique affaire » non ajoutees");
                     continue;
                 }
                 RowAction action = new RowAction(new AbstractAction("Historique affaire") {
@@ -657,30 +902,21 @@ public final class Module extends AbstractModule {
     protected void setupComponents(final ComponentsContext ctxt) {
 
         DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
-        List<String> table2check = Arrays.asList("BON_RECEPTION", "DEMANDE_PRIX", "DEMANDE_ACHAT_ELEMENT", "FACTURE_FOURNISSEUR");
-        // Version reellement declaree par le module : OpenConcerto enregistre
-        // dans FWK_MODULE_METADATA les tables et colonnes creees par le module,
-        // avec le numero de version qui les a creees.
-        final long moduleVersion = getFactory().getVersion() != null ? getFactory().getVersion().getMerged() : 10000L;
-        for (String table : table2check) {
-            if (root.contains(table)) {
-                SQLTable tableCR = root.getTable(table);
-                if (!tableCR.contains("ID_AFFAIRE")) {
-                    try {
-                        AlterTable alt = new AlterTable(tableCR);
-                        alt.addForeignColumn("ID_AFFAIRE", root.getTable("AFFAIRE"));
-                        root.getDBSystemRoot().getDataSource().execute(alt.asString());
-                        String s = "INSERT INTO " + root.getTable("FWK_MODULE_METADATA").getSQLName().quote()
-                                + "(\"MODULE_NAME\",\"TABLE\",\"FIELD\",\"KEY\",\"MODULE_VERSION\") VALUES('org.openconcerto.modules.project','" + table + "','ID_AFFAIRE',true," + moduleVersion + ")";
-                        root.getDBSystemRoot().getDataSource().execute(s);
-                        root.getSchema().updateVersion();
-                        root.refetchTable(tableCR.getName());
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
+        if (root == null) {
+            // Pas de base societe ouverte (installation, tache de fond) : on prend
+            // la base de l'element AFFAIRE, qui est celle de l'historique.
+            root = affairRoot(ctxt);
         }
+        // Auto-reparation des colonnes ID_AFFAIRE : install() n'est rejoue que lors
+        // de la PREMIERE installation du module. Sur une base existante (module
+        // deja installe, restauration, nouvelle table), on verifie a chaque demarrage.
+        ensureAffairColumns(root);
+
+        // Les transferts du coeur ne recopient pas l'affaire (aucun injecteur de
+        // 1.7.6 ne mentionne ID_AFFAIRE) : on la fait transporter par toutes les
+        // paires de documents, sinon une commande fournisseur transferee en
+        // facture perd son affaire.
+        installAffairTransferMapping(root);
 
         // Enregistrer l'injecteur après l'ajout éventuel de
         // FACTURE_FOURNISSEUR.ID_AFFAIRE ci-dessus, afin que la colonne soit
@@ -689,13 +925,21 @@ public final class Module extends AbstractModule {
             new SupplierOrderToInvoiceSQLInjector(root);
         }
 
-        // Rendre visible dans l'en-tete de facture l'affaire reprise par
-        // l'injecteur. La colonne ID_AFFAIRE des lignes est un autre champ.
-        SupplierInvoiceAffairComponentSupport.register(ctxt);
-
-        for (String table : this.listTableAffaire) {
-            if (!table.equalsIgnoreCase("DEVIS"))
-                ctxt.putAdditionalField(table, "ID_AFFAIRE");
+        // Rendre l'affaire visible et enregistrable dans les ecrans de saisie
+        // (en-tete de facture fournisseur compris).
+        //
+        // Une seule declaration par table, et jamais d'exception qui remonte :
+        // ComponentsContext.putAdditionalField leve IllegalStateException quand
+        // le champ est deja declare. La double declaration de
+        // FACTURE_FOURNISSEUR (une fois ici, une fois par
+        // SupplierInvoiceAffairComponentSupport) empechait le module de
+        // demarrer : « Already added ID_AFFAIRE in FactureFournisseurSQLElement ».
+        try {
+            final AffairLinkSupport.RegistrationReport registration = SupplierInvoiceAffairComponentSupport.register(ctxt, schemaOf(root));
+            log("affaire dans les ecrans de saisie : " + registration.getSummary());
+        } catch (Exception e) {
+            // Aucun champ d'affichage ne doit empecher le module de demarrer.
+            log("affaire non ajoutee aux ecrans de saisie : " + e);
         }
         installDeliveryNoteInvoiceAction(ctxt);
         installTransfertDemandePrix();
@@ -797,6 +1041,153 @@ public final class Module extends AbstractModule {
                 }
             }
         }.execute();
+    }
+
+    /**
+     * Ajoute la colonne « Affaire » dans les tableaux de lignes des documents
+     * (commandes et factures fournisseurs, ventes...).
+     * <p>
+     * Le champ Affaire de l'en-tete est renseigne, mais OpenConcerto n'affiche
+     * nulle part l'affaire dans le tableau des lignes : c'est le « je ne vois
+     * toujours pas l'affaire » du detail d'une commande fournisseur. La colonne
+     * est ajoutee au moment de l'affichage, sur les API publiques, sans toucher
+     * au jar OpenConcerto.
+     * </p>
+     * <p>
+     * L'installation est idempotente et sans risque : seule une nouvelle fenetre
+     * (ou un nouveau composant) est examinee, et un tableau deja equipe n'est
+     * jamais retouche.
+     * </p>
+     */
+    /**
+     * Fait transporter l'affaire par tous les transferts de documents.
+     * <p>
+     * Mesure a l'origine du correctif : {@code grep -rn ID_AFFAIRE
+     * org/openconcerto/erp/injector/} ne renvoie <b>rien</b> dans OpenConcerto
+     * 1.7.6. Les injecteurs du c&oelig;ur enumerent champ par champ ce qu'ils
+     * transferent ; un champ absent de cette liste n'est jamais copie. C'est
+     * pourquoi une commande fournisseur rattachee a une affaire donnait une
+     * facture sans affaire.
+     * </p>
+     * <p>
+     * Le mapping est ajoute a l'injecteur <b>deja enregistre</b> par le
+     * c&oelig;ur, sans le remplacer : ses regles (numerotation, transfert des
+     * lignes, table {@code TR_*}) restent intactes, on ajoute seulement
+     * {@code ID_AFFAIRE} a la liste des champs copies.
+     * </p>
+     * <p>
+     * Idempotent et sans exception : appelable a chaque demarrage.
+     * </p>
+     */
+    static AffairTransferSupport.Report installAffairTransferMapping(final DBRoot root) {
+        final AffairTransferSupport.Report report;
+        try {
+            final AffairLinkSupport.Schema schema = schemaOf(root);
+            report = AffairTransferSupport.install(schema, new AffairTransferSupport.InjectorAccess() {
+
+                @Override
+                public boolean isRegistered(final String src, final String dest) {
+                    return injector(root, src, dest) != null;
+                }
+
+                @Override
+                public boolean isMapped(final String src, final String dest) {
+                    final SQLInjector injector = injector(root, src, dest);
+                    if (injector == null) {
+                        return false;
+                    }
+                    try {
+                        return injector.getFrom().contains(root.getTable(src).getField(AffairLinkSupport.AFFAIR_FIELD));
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+
+                @Override
+                public boolean addMapping(final String src, final String dest) {
+                    final SQLInjector injector = injector(root, src, dest);
+                    if (injector == null) {
+                        return false;
+                    }
+                    final SQLField from = root.getTable(src).getField(AffairLinkSupport.AFFAIR_FIELD);
+                    final SQLField to = root.getTable(dest).getField(AffairLinkSupport.AFFAIR_FIELD);
+                    if (injector.getFrom().contains(from)) {
+                        return false;
+                    }
+                    // Les deux listes de SQLInjector.merge() doivent rester de
+                    // meme longueur : on ajoute la source et la destination
+                    // ensemble, en verrouillant l'injecteur (createRowValuesFrom()
+                    // est synchronized sur le meme objet).
+                    synchronized (injector) {
+                        injector.getFrom().add(from);
+                        injector.getTo().add(to);
+                    }
+                    return true;
+                }
+            });
+        } catch (Exception e) {
+            log("reprise de l'affaire dans les transferts impossible : " + e);
+            return new AffairTransferSupport.Report();
+        }
+        log("transferts : " + report.getSummary());
+        return report;
+    }
+
+    /** Injecteur enregistre pour cette paire, ou <code>null</code>. */
+    private static SQLInjector injector(final DBRoot root, final String src, final String dest) {
+        try {
+            if (root == null || !root.contains(src) || !root.contains(dest)) {
+                return null;
+            }
+            return SQLInjector.getRegistrereddInjector(root.getTable(src), root.getTable(dest));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Base de la societe ouverte, pour les actions de menu. */
+    static DBRoot affairRootForMenu() {
+        try {
+            final DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+            if (root != null) {
+                return root;
+            }
+        } catch (Exception e) {
+            // pas de base societe ouverte : on essaie la base globale
+        }
+        try {
+            return Configuration.getInstance().getRoot();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void installItemAffairColumn() {
+        if (itemAffairColumnInstalled) {
+            return;
+        }
+        itemAffairColumnInstalled = true;
+        if (!ItemTableAffairColumn.isEnabled()) {
+            log("colonne « Affaire » des lignes desactivee (" + ItemTableAffairColumn.ENABLED_PROPERTY + "=false)");
+            return;
+        }
+        Toolkit.getDefaultToolkit().addAWTEventListener(new java.awt.event.AWTEventListener() {
+            @Override
+            public void eventDispatched(final AWTEvent event) {
+                if (event instanceof WindowEvent) {
+                    if (((WindowEvent) event).getID() == WindowEvent.WINDOW_OPENED) {
+                        ItemTableAffairColumn.installLater(((WindowEvent) event).getWindow());
+                    }
+                } else if (event instanceof ContainerEvent) {
+                    if (((ContainerEvent) event).getID() == ContainerEvent.COMPONENT_ADDED) {
+                        ItemTableAffairColumn.installLater(((ContainerEvent) event).getChild());
+                    }
+                }
+            }
+        }, AWTEvent.WINDOW_EVENT_MASK | AWTEvent.CONTAINER_EVENT_MASK);
+        for (final Window window : Window.getWindows()) {
+            ItemTableAffairColumn.installLater(window);
+        }
     }
 
     private static synchronized void installDeliveryNoteListActionSync() {
@@ -909,6 +1300,143 @@ public final class Module extends AbstractModule {
         final RowAction rowAction = (RowAction) action;
         final Object name = rowAction.getAction() == null ? null : rowAction.getAction().getValue(javax.swing.Action.NAME);
         return String.valueOf(rowAction.getID()) + "|" + String.valueOf(name);
+    }
+
+    /**
+     * Ajoute le menu <b>Paramètres &gt; Libellés des colonnes</b>.
+     * <p>
+     * Le menu n'est propose qu'a l'utilisateur qui a le plus de droits dans la
+     * base (voir {@link ColumnLabelAccess}) : c'est lui qui choisit, une fois
+     * pour toute l'equipe, le nom des colonnes affichees dans les listes. Le
+     * choix est stocke sur le serveur SQL (table {@code PROJECT_COLUMN_LABEL}),
+     * pas sur le poste.
+     */
+    private void installColumnLabelMenu() {
+        installColumnLabelMenu(0);
+    }
+
+
+    /**
+     * Ajoute le menu <b>Paramètres &gt; Libellés des colonnes</b> dans la barre
+     * de menus, une fois la session ouverte.
+     * <p>
+     * Pourquoi ici et pas dans {@code setupMenu} : a ce moment-la, le client n'a
+     * pas encore etabli l'utilisateur courant. La verification des droits
+     * repondait alors « utilisateur inconnu », donc le menu etait masque pour
+     * <b>tout le monde</b>, y compris pour l'administrateur : c'est exactement
+     * le symptome « je ne trouve pas le menu ». On ajoute donc le menu apres le
+     * demarrage, et tant que la decision ne peut pas etre prise on reessaie
+     * (toutes les 2 s, pendant 30 s) au lieu de renoncer.
+     */
+    /**
+     * Ajoute <b>Aide &gt; Diagnostic affaire</b> : un rapport en lecture seule qui
+     * dit pourquoi le champ Affaire peut être vide ou grisé pour l'utilisateur
+     * connecté (droits réels, nombre de lignes, contenu du menu déroulant).
+     * <p>
+     * Même raison que pour le menu des libellés : on l'ajoute après la session,
+     * sinon l'utilisateur courant n'est pas encore connu.
+     */
+    private void installAffairDiagnosticMenu() {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final AbstractAction action = new AbstractAction("Diagnostic affaire") {
+                        @Override
+                        public void actionPerformed(final ActionEvent e) {
+                            DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+                            if (root == null) {
+                                root = Configuration.getInstance().getRoot();
+                            }
+                            AffairDiagnostic.run(root);
+                        }
+                    };
+                    addMenuEntry("Aide", action);
+                    addMenuEntry("Aide", new AffairRepairAction(affairRootForMenu()));
+                } catch (Exception e) {
+                    log("menu « Diagnostic affaire » impossible (" + e + ")");
+                }
+            }
+        });
+    }
+
+    /**
+     * Ajoute une entree dans un menu de la barre, en reperant le menu par son
+     * <b>texte affiche</b> (« Aide »).
+     * <p>
+     * Pourquoi ne pas appeler directement {@code MainFrame.addMenuItem(action,
+     * "Aide")} : cette methode exige un chemin d'un nombre <b>pair</b>
+     * d'elements (menu puis groupe) et leve {@code IllegalArgumentException}
+     * sinon ; l'exception etait avalee et le menu n'apparaissait jamais. On
+     * cherche donc le menu dans la barre, et on n'utilise {@code addMenuItem}
+     * qu'en repli, avec un chemin valide.
+     *
+     * @return vrai si l'entree a ete ajoutee.
+     */
+    private boolean addMenuEntry(final String menuText, final Action action) {
+        final JMenuBar bar = MainFrame.getInstance().getJMenuBar();
+        if (bar != null) {
+            final List<String> texts = new ArrayList<String>();
+            for (int i = 0; i < bar.getMenuCount(); i++) {
+                final JMenu m = bar.getMenu(i);
+                texts.add(m == null ? null : m.getText());
+            }
+            final int index = ProjectMenuSupport.findMenu(texts, menuText);
+            if (index >= 0) {
+                final JMenu menu = bar.getMenu(index);
+                menu.add(new JMenuItem(action));
+                log("menu « " + action.getValue(Action.NAME) + " » ajoute dans « " + menu.getText() + " »");
+                return true;
+            }
+            log("menu « " + menuText + " » introuvable dans la barre (" + texts + ")");
+        }
+        // Repli : chemin toujours pair (menu, groupe), sinon MainFrame leve.
+        try {
+            final String[] path = ProjectMenuSupport.path(menuText, ProjectMenuSupport.DEFAULT_GROUP);
+            MainFrame.getInstance().addMenuItem(action, path);
+            log("menu « " + action.getValue(Action.NAME) + " » ajoute via addMenuItem (" + path[0] + "/" + path[1] + ")");
+            return true;
+        } catch (Exception e) {
+            log("menu « " + action.getValue(Action.NAME) + " » non ajoute (" + e + ")");
+            return false;
+        }
+    }
+
+    private void installColumnLabelMenu(final int attempt) {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+                    if (!ColumnLabelAccess.canEdit(root, false)) {
+                        if (ColumnLabelAccess.isUndetermined() && attempt < MAX_MENU_ATTEMPTS) {
+                            final javax.swing.Timer timer = new javax.swing.Timer(MENU_RETRY_DELAY_MS, new ActionListener() {
+                                @Override
+                                public void actionPerformed(final ActionEvent e) {
+                                    installColumnLabelMenu(attempt + 1);
+                                }
+                            });
+                            timer.setRepeats(false);
+                            timer.start();
+                            return;
+                        }
+                        log("menu « Libellés des colonnes » masque : " + ColumnLabelAccess.getLastReason());
+                        return;
+                    }
+                    final ColumnLabelSettingsAction action = new ColumnLabelSettingsAction(root);
+                    try {
+                        MainFrame.getInstance().addMenuItem(action, PARAM_MENU, "Affichage");
+                    } catch (Exception e) {
+                        // Repli : menu existant dans toutes les versions du client.
+                        log("menu « Paramètres » indisponible (" + e + "), ajout dans « Structure »");
+                        MainFrame.getInstance().addMenuItem(new ColumnLabelSettingsAction(root), "Structure", "Paramètres");
+                    }
+                    log("menu « Libellés des colonnes » ajoute (utilisateur " + ColumnLabelAccess.currentUserName() + ")");
+                } catch (Exception e) {
+                    log("menu « Libellés des colonnes » impossible : " + e);
+                }
+            }
+        });
     }
 
     @Override
@@ -1081,9 +1609,50 @@ public final class Module extends AbstractModule {
         }, MainFrame.CREATE_MENU);
     }
 
+    /**
+     * Charge les libelles de colonnes (valeurs du jar + valeurs de la base) et
+     * les applique a toutes les listes de l'application.
+     * <p>
+     * L'application est faite apres l'ouverture de la fenetre principale, en
+     * differe : les listes du cœur OpenConcerto sont traitees comme celles du
+     * module, sans modifier une seule ligne du cœur. Une erreur ici ne doit
+     * jamais empecher le client de demarrer : tout est protege et seulement
+     * trace.
+     */
+    private void installColumnLabels() {
+        try {
+            DBRoot root = ComptaPropsConfiguration.getInstanceCompta().getRootSociete();
+            final java.util.Map<String, String> labels = ColumnLabelStore.reload(root);
+            log("libelles de colonnes : " + labels.size() + " regle(s) chargee(s), mode " + ColumnLabelStore.getMode());
+        } catch (Exception e) {
+            log("libelles de colonnes : chargement impossible (" + e + "), valeurs du jar utilisees");
+        }
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ColumnLabelUi.installGlobal();
+                } catch (Exception e) {
+                    log("libelles de colonnes : application impossible (" + e + ")");
+                }
+            }
+        });
+    }
+
     @Override
     protected void start() {
         installDeliveryNoteListActionSync();
+        installItemAffairColumn();
+        // Deuxieme passage : certains injecteurs du coeur sont enregistres
+        // apres la mise en place des composants du module.
+        try {
+            installAffairTransferMapping(ComptaPropsConfiguration.getInstanceCompta().getRootSociete());
+        } catch (Exception e) {
+            log("reprise de l'affaire dans les transferts (2e passage) impossible : " + e);
+        }
+        installColumnLabels();
+        installColumnLabelMenu();
+        installAffairDiagnosticMenu();
 
         final JComponent quoteComponent = createQuotePanel();
         final JComponent orderComponent = createOrderPanel();

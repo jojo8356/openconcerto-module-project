@@ -46,9 +46,19 @@ BEGIN
           AND t.relname = 'FACTURE_FOURNISSEUR_ELEMENT'
           AND c.conname = 'FACTURE_FOURNISSEUR_ELEMENT_ID_COMMANDE_ELEMENT_fkey'
     ) THEN
-        ALTER TABLE "FACTURE_FOURNISSEUR_ELEMENT"
-            ADD CONSTRAINT "FACTURE_FOURNISSEUR_ELEMENT_ID_COMMANDE_ELEMENT_fkey"
-            FOREIGN KEY ("ID_COMMANDE_ELEMENT") REFERENCES "COMMANDE_ELEMENT" ("ID");
+        -- Une cle etrangere exige une contrainte d'unicite sur la colonne visee.
+        -- Sur une base de test sans cle primaire, PostgreSQL refuse ; on
+        -- l'annonce au lieu d'echouer : la colonne, elle, est indispensable.
+        IF EXISTS (SELECT 1
+                     FROM pg_constraint c
+                    WHERE c.conrelid = '"OpenConcerto42"."COMMANDE_ELEMENT"'::regclass
+                      AND c.contype IN ('p', 'u')) THEN
+            ALTER TABLE "FACTURE_FOURNISSEUR_ELEMENT"
+                ADD CONSTRAINT "FACTURE_FOURNISSEUR_ELEMENT_ID_COMMANDE_ELEMENT_fkey"
+                FOREIGN KEY ("ID_COMMANDE_ELEMENT") REFERENCES "COMMANDE_ELEMENT" ("ID");
+        ELSE
+            RAISE NOTICE 'COMMANDE_ELEMENT(ID) sans contrainte d unicite : cle etrangere ignoree, colonne ajoutee';
+        END IF;
     END IF;
 END $$;
 

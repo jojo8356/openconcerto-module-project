@@ -1,0 +1,123 @@
+# Recette graphique — libellés des colonnes
+
+Test **manuel, dans l'interface**, du menu **Paramètres → Libellés des colonnes**
+(jar `org.openconcerto.modules.project-1.1.jar`).
+
+Durée : 15 minutes. Aucun SQL n'est nécessaire pour la recette ; la vérification
+en base est une simple lecture (étape 6), à faire avec un compte administrateur.
+
+Deux comptes sont nécessaires :
+
+- **A** : le compte le mieux doté de la base (super-utilisateur, sinon
+  administrateur) — c'est lui qui doit voir le menu ;
+- **B** : un compte « utilisateur normal » (commercial, assistante…) — c'est lui
+  qui ne doit **pas** voir le menu mais qui doit **voir les libellés changés**.
+
+## 0. Préparation (5 min)
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| 0.1 | Sauvegarder la base | une sauvegarde datée existe |
+| 0.2 | Fermer le client, remplacer le jar du module dans le dossier `Modules` (un seul jar de ce module), relancer | le client démarre normalement |
+| 0.3 | Ouvrir la console / le log du client | aucune erreur `[module project]` autre que le compte rendu du menu |
+| 0.4 | Vérifier la version du module (aide / informations) | `1.1` |
+
+## 1. Le menu n'est proposé qu'au compte le mieux doté
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| 1.1 | Se connecter avec le compte **B** | accueil |
+| 1.2 | Ouvrir le menu **Paramètres** | pas d'entrée **Libellés des colonnes** |
+| 1.3 | Dans la console, chercher `Libellés des colonnes` | une ligne du type `… menu « Libellés des colonnes » masque : …` qui nomme le compte ayant le droit |
+| 1.4 | Se déconnecter, se connecter avec **A** | accueil |
+| 1.5 | Ouvrir **Paramètres** | entrée **Libellés des colonnes** présente |
+
+> Le menu `Paramètres` apparaît à droite de `Structure`, juste avant `Aide`. Il est
+> ajouté après l'ouverture de la session : compter quelques secondes (le module
+> réessaie pendant 30 s) et regarder la console pour la ligne
+> `menu « Libellés des colonnes » ajoute (utilisateur …)`.
+>
+> Si le menu est absent chez **A** aussi : lire la ligne de log (elle donne le nom
+> du compte considéré comme le mieux doté) et vérifier dans **Utilisateurs** les
+> cases super-utilisateur / administrateur, ainsi que les droits accordés.
+
+## 2. L'effet par défaut, sans rien paramétrer (mode AUTO)
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| 2.1 | Ouvrir une liste qui contient des clés étrangères : **Achats > Commandes fournisseurs** | la liste s'ouvre |
+| 2.2 | Regarder les en-têtes | plus de `ID_FOURNISSEUR` : l'en-tête s'appelle `Fournisseur` — **première lettre en majuscule, pas de capitales** (mise en forme du cœur) |
+| 2.3 | Ouvrir **Ventes > Clients** (ou toute liste avec `ID_…`) | les en-têtes `ID_CLIENT`, `ID_…` sont devenus `Client`, `…` |
+| 2.4 | Ouvrir l'historique du module (**Historique des affaires**) | l'onglet affaire ne montre plus `ID_AFFAIRE` mais `Affaire` |
+| 2.5 | Cliquer sur l'en-tête de cette colonne pour trier | le tri fonctionne, le libellé ne « saute » pas |
+| 2.6 | Ouvrir **Paramètres → Libellés des colonnes** | la colonne `Automatique` affiche `Fournisseur`, `Mouvement`, `Salaire`, `User common create` : **aucune capitale** |
+
+## 3. Choisir un libellé pour toute l'équipe
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| 3.1 | Se connecter avec **A**, menu **Paramètres → Libellés des colonnes** | écran avec la liste des colonnes et un champ **Filtrer** |
+| 3.2 | Choisir `Colonne` dans le sélecteur à gauche de **Filtrer**, puis taper `fournisseur` | la liste ne garde que les lignes dont la **colonne** contient « fournisseur » |
+| 3.2b | Choisir `Table`, taper `facture` | seules les lignes des tables concernées restent |
+| 3.3 | **Double-cliquer** sur la case **Libellé affiché** de la ligne `FACTURE_FOURNISSEUR` / `ID_FOURNISSEUR` | la case passe en édition, le texte existant est pré-sélectionné |
+| 3.3b | Taper `FOURNISSEUR FOURN.` puis **Entrée** | la case affiche le nouveau texte, en **noir gras** (personnalisé) |
+| 3.3c | Double-cliquer, sélectionner `ID_ARTICLE` (ligne `LOT_LIVRAISON`) et vider la case, **Entrée** | la case revient au libellé automatique `ARTICLE`, en noir, en texte normal |
+| 3.3d | Vérifier la lisibilité de toute la fenêtre | tous les textes sont **noirs** et lisibles (aucun gris pâle) |
+| 3.4 | Cliquer **Enregistrer pour l'équipe** | message de confirmation, aucune erreur en console |
+| 3.5 | Rouvrir **Achats > Commandes fournisseurs** sans quitter le client | l'en-tête affiche immédiatement `FOURNISSEUR` |
+| 3.6 | Vider toutes les cases d'une ligne puis **Enregistrer pour l'équipe** | la règle est supprimée en base (aucun message d'erreur) |
+| 3.7 | Modifier une case puis cliquer **Fermer** sans enregistrer | une confirmation propose d'enregistrer ; « Annuler » garde la fenêtre ouverte |
+| 3.8 | Sélectionner la ligne `SAISIE_ACHAT` / `ID_FOURNISSEUR`, cliquer **Appliquer à toutes les tables (*)** | la ligne `*` / `ID_FOURNISSEUR` apparaît **en haut de la liste, sélectionnée**, et toutes les autres lignes de cette colonne affichent le nouveau libellé |
+| 3.8b | Cliquer **Enregistrer pour l'équipe** | les listes du client affichent `FOURNISSEUR` partout (y compris factures et commandes fournisseurs) |
+| 3.8c | Ouvrir **Historique des affaires**, onglet **Articles commandés** (ou Gestion > Factures fournisseurs) | les en-têtes portent les libellés choisis, sans redémarrer le client |
+| 3.9 | Vérifier le message après enregistrement | il indique le nombre de **règles en base** (et non « 0 »), puis le nombre de colonnes rafraîchies **sur ce poste** |
+| 3.10 | Saisir une règle sur une ligne dont la table commence par `sauvegarde_` et enregistrer | le message **avertit** que cette table n'apparaît dans aucune liste |
+
+## 4. Le réglage vaut pour les autres postes / comptes
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| 4.1 | Se déconnecter, se connecter avec **B** (ou fermer et relancer le client sur un autre poste) | accueil |
+| 4.2 | Ouvrir **Achats > Commandes fournisseurs** | l'en-tête affiche `FOURNISSEUR` (le choix de **A**) |
+| 4.3 | Ouvrir **Paramètres** | toujours pas d'entrée **Libellés des colonnes** |
+
+> C'est le point clé du besoin : le réglage est **partagé**, il n'est pas dans les
+> préférences locales du poste de **A**.
+
+## 5. Retour arrière
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| 5.1 | Avec **A**, ouvrir l'écran, passer le mode à **OFF**, enregistrer | les noms techniques réapparaissent |
+| 5.2 | Ouvrir une liste | les en-têtes `ID_…` sont revenus |
+| 5.3 | Repasser le mode à **AUTO**, enregistrer | les libellés simplifiés reviennent (`ID_CLIENT` → `CLIENT`) |
+| 5.4 | Passer à **MAPPING**, enregistrer | seules les règles saisies s'appliquent : `FOURNISSEUR` reste, les autres `ID_…` reviennent |
+| 5.5 | Revenir à **AUTO** pour la suite de l'exploitation | — |
+
+## 6. Vérification en base (lecture seule)
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| 6.1 | `select * from PROJECT_COLUMN_LABEL order by TABLE_NAME, COLUMN_NAME;` | les règles saisies, avec `DATE` et `ID_USER` renseignés |
+| 6.2 | `select * from PROJECT_SETTINGS;` | une ligne `column.label.mode` = `AUTO` |
+| 6.3 | Modifier une ligne puis `Enregistrer` à nouveau dans l'écran | pas de doublon : la ligne est remplacée (index unique table/colonne) |
+
+## 7. Ce qu'il faut remonter en cas de problème
+
+1. **La console du client** : toutes les lignes commençant par `[module project]`.
+2. **La capture** de la liste concernée (en-têtes visibles).
+3. **Le contenu des deux tables** de l'étape 6 (lecture seule).
+4. Le **nom du compte** utilisé (A ou B) et ses cases super-utilisateur /
+   administrateur.
+
+## 8. Tests automatiques correspondants
+
+```sh
+sh tests/sql/e2e-colonnes.sh            # 34 controles (tables, unicite, transaction, role)
+sh scripts/test-mutations-colonnes.sh   # 7 mutations : les tests savent echouer
+sh scripts/run-tests.sh                 # ColumnLabelRulesTest : 39 tests
+```
+
+Ils ne remplacent pas cette recette (ils ne voient pas l'écran), mais ils
+couvrent la règle de résolution, le choix du rôle, la persistance et
+l'idempotence de la migration.

@@ -29,3 +29,7 @@ node_modules
 
 # Release artifacts
 dist/
+
+# Python (outils de test)
+__pycache__/
+*.pyc
