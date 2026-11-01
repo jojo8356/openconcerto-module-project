@@ -120,6 +120,38 @@ docker exec -i openconcerto176-db-1 sh -c 'dropdb -U "$POSTGRES_USER" "$POSTGRES
 docker exec -i openconcerto176-db-1 sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-privileges /tmp/dump.dumpsql'
 ```
 
+### Le piège « existe déjà » (5 700 erreurs ignorées)
+
+```
+ERREUR: la contrainte « TR_COMMANDE_ID_COMMANDE_fkey » ... existe déjà
+pg_restore: attention : erreurs ignorées lors de la restauration : 5700
+```
+
+Message à retenir : **existe déjà**. Sur une base vide c'est impossible. Donc
+`pg_restore` a écrit dans une base qui contenait déjà le schéma `OpenConcerto42`
+— soit le dump a été restauré deux fois, soit la cible n'était pas la base neuve
+attendue.
+
+C'est plus grave qu'une erreur bruyante : les `CREATE TABLE`, `ADD CONSTRAINT` et
+`CREATE INDEX` échouent tous, mais les `COPY` peuvent **dupliquer** les données.
+Vérifiez la base visée avant tout :
+
+```sh
+docker exec -i openconcerto176-db-1 sh -c 'psql -U "$POSTGRES_USER" -d LA_BASE -tAc "select count(*) from information_schema.tables where table_type = '"'"'BASE TABLE'"'"' and table_schema not in ('"'"'pg_catalog'"'"','"'"'information_schema'"'"')"'
+```
+
+`0` attendu avant de restaurer. Sinon :
+
+```sh
+docker exec -i openconcerto176-db-1 sh -c 'dropdb -U "$POSTGRES_USER" --if-exists LA_BASE && createdb -U "$POSTGRES_USER" -O "$POSTGRES_USER" LA_BASE'
+docker exec -i openconcerto176-db-1 sh -c 'pg_restore -U "$POSTGRES_USER" -d LA_BASE --no-owner --no-privileges --exit-on-error /tmp/dump.dumpsql'
+echo "code : $?"
+```
+
+`--exit-on-error` change tout : sur une base vide, la **première** erreur arrête
+la restauration et s'affiche seule. Code `0` = restauration complète, sans avoir
+à trier des milliers de lignes.
+
 Deux points qui font échouer une restauration dans 90 % des cas :
 
 - **`pg_restore` sort en 1 sans que les données soient en cause** : ce sont les

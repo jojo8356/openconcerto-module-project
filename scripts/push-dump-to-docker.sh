@@ -178,6 +178,19 @@ if [ "$FORMAT" = custom ]; then
         || die "dump illisible par pg_restore (fichier incomplet ?)"
 
     if [ "$KEEP" != 1 ]; then
+        # Garde-fou : restaurer un dump complet dans une base qui contient deja
+        # le schema ne fait pas « une erreur », il en fait des milliers :
+        # CREATE TABLE, ADD CONSTRAINT, CREATE INDEX echouent tous avec
+        # « existe deja », tandis que les COPY, eux, peuvent dupliquer les
+        # donnees. Constaté en conditions réelles : 5700 erreurs ignorées et un
+        # code de sortie 1 qu'on ne sait plus interpréter.
+        deja=$(docker exec -i "$CONTAINER" sh -c "psql -U \"\$POSTGRES_USER\" -d \"$DB\" -tAc \"select count(*) from information_schema.tables where table_type = 'BASE TABLE' and table_schema not in ('pg_catalog', 'information_schema')\"" | tr -d ' ')
+        if [ -n "$deja" ] && [ "$deja" != "0" ]; then
+            die "la base $DB contient deja $deja tables : refuse de restaurer par-dessus.
+  Pour une base neuve   : dropdb puis createdb, puis relancer ce script
+  Pour ecraser proprement : relancer avec -k (pg_restore --clean)
+  La base a restaurer doit etre VIDE, sinon les CREATE echouent en masse."
+        fi
         log "Recreation de $DB"
         if docker exec -i "$CONTAINER" sh -c "psql -U \"\$POSTGRES_USER\" -lqt" | cut -d'|' -f1 | grep -qx " $DB"; then
             docker exec -i "$CONTAINER" sh -c "dropdb -U \"\$POSTGRES_USER\" \"$DB\""
@@ -193,16 +206,21 @@ if [ "$FORMAT" = custom ]; then
     else
         # Pas de -j sur une base vide : certains objets (commentaires, droits)
         # dependent de l'ordre, et pg_restore les rejoue en serie.
-        docker exec -i "$CONTAINER" sh -c "pg_restore -U \"\$POSTGRES_USER\" -d \"$DB\" --no-owner --no-privileges '$DUMP_PATH'" 2>&1 | tee /tmp/push-dump-restore.log
+        # --exit-on-error : sur une base vide, la moindre erreur est un vrai
+        # probleme. Sans lui, pg_restore continue et rend un code 1 impossible
+        # a interpreter (5700 « existe deja » observes).
+        docker exec -i "$CONTAINER" sh -c "pg_restore -U \"\$POSTGRES_USER\" -d \"$DB\" --no-owner --no-privileges --exit-on-error '$DUMP_PATH'" 2>&1 | tee /tmp/push-dump-restore.log
     fi
     code=${PIPESTATUS[0]}
     set -e
     # pg_restore sort en 1 quand seuls des objets ignores posent probleme
     # (proprietaires, extensions, COMMENT) : ce n'est pas un echec de donnees.
-    if [ "$code" -gt 1 ]; then
-        die "pg_restore a echoue (code $code) : voir /tmp/push-dump-restore.log"
+    if [ "$code" -ne 0 ]; then
+        die "pg_restore a echoue (code $code) : la PREMIERE erreur est dans /tmp/push-dump-restore.log
+  « existe deja »  -> la base cible n'etait pas vide
+  « invalid LC_COLLATE » -> collation absente du cluster (voir docker/openconcerto-1.7.6/README.md)"
     fi
-    [ "$code" -eq 1 ] && echo "   (pg_restore a signale des objets ignores — normal pour un dump d'une autre installation)"
+    echo "   OK    restauration complete, aucune erreur"
 else
     log "Restauration du dump SQL"
     if gunzip -c "$FILE" 2>/dev/null | head -c 200000 | grep -q 'CREATE DATABASE'; then
