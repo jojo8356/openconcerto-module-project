@@ -25,7 +25,11 @@ jobs:
           grep -A2 "id_commande_element" /tmp/avant.log | head -n 3
           grep -q "ABSENTE" /tmp/avant.log || { echo "::error::le controle ne detecte pas l absence"; exit 1; }
           echo "--- APPLICATION DU CORRECTIF ---"
-          psql -v ON_ERROR_STOP=1 -f sql/fix-facture-fournisseur-element-id-commande-element.sql
+          psql -q -v ON_ERROR_STOP=1 -f sql/fix-facture-fournisseur-element-id-commande-element.sql > /tmp/fixapply.log 2>&1 || {
+            cat /tmp/fixapply.log
+            grep -i "erreur\|error" /tmp/fixapply.log | head -n 5 | sed 's/^/::error::/'
+            exit 1; }
+          cat /tmp/fixapply.log
           echo "--- APRES : le controle doit dire presente ---"
           psql -q -f sql/controle-affaire-complet.sql > /tmp/apres.log 2>&1 || true
           grep -A2 "id_commande_element" /tmp/apres.log | head -n 3
