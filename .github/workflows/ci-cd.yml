@@ -124,3 +124,62 @@ jobs:
           PGPASSWORD: openconcerto
           PGDATABASE: openconcerto
         run: sh scripts/oc-sql-file.sh --postgres
+
+      # 6 : le script que lance le client, de bout en bout, sur une base de test
+      # fraiche : colonne absente -> correctif -> colonne presente -> relance
+      # sans effet (idempotence). C'est le meme chemin que chez l'utilisateur.
+      - name: Correctif ID_COMMANDE_ELEMENT (script complet)
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: openconcerto
+          PGDATABASE: openconcerto
+        run: |
+          set -u
+          fail() { echo "ECHEC : $*" >&2; exit 1; }
+
+          psql -d openconcerto -v ON_ERROR_STOP=1 -q -c 'DROP SCHEMA IF EXISTS "OpenConcerto42" CASCADE'
+          python3 tools/oc_sql_sqlite.py --emit-fixture --line-columns all --devis-key ID_DEVIS \
+            | psql -d openconcerto -v ON_ERROR_STOP=1 -q
+
+          # etat de depart : la colonne manque (code de sortie 3)
+          set +e
+          bash scripts/fix-facture-fournisseur-element.sh --check -d openconcerto
+          check_code=$?
+          set -e
+          [ "$check_code" -eq 3 ] || fail "la colonne devrait etre absente au depart (code $check_code)"
+
+          # application : sauvegarde, correctif, verification, dump
+          bash scripts/fix-facture-fournisseur-element.sh -d openconcerto -y -o /tmp/oc-fix \
+            | tee /tmp/oc-fix.log
+          grep -q 'OK : la colonne est en place' /tmp/oc-fix.log || fail "verification absente du script"
+
+          # etat final : la colonne est la
+          bash scripts/fix-facture-fournisseur-element.sh --check -d openconcerto \
+            | grep -q 'colonne presente' || fail "--check devrait voir la colonne"
+
+          # la sauvegarde et le dump ne doivent pas etre vides
+          for f in /tmp/oc-fix/backup_avant_fix_*.dumpsql /tmp/oc-fix/OpenConcerto-1.7.6-a-jour_*.dumpsql; do
+            [ -s "$f" ] || fail "fichier vide ou absent : $f"
+          done
+
+          # relance : idempotente, aucune nouvelle sauvegarde
+          bash scripts/fix-facture-fournisseur-element.sh -d openconcerto -y -o /tmp/oc-fix-2 \
+            | tee /tmp/oc-fix-2.log
+          grep -q 'rien à modifier' /tmp/oc-fix-2.log || fail "la relance aurait du etre sans effet"
+          if ls /tmp/oc-fix-2/backup_avant_fix_* >/dev/null 2>&1; then
+            fail "une 2e sauvegarde a ete faite alors que rien ne changeait"
+          fi
+
+          # le lien ligne de facture -> ligne de commande s'ecrit maintenant,
+          # et la cle etrangere rejette toujours une ligne inexistante
+          psql -d openconcerto -v ON_ERROR_STOP=1 -q -c \
+            'UPDATE "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT" SET "ID_COMMANDE_ELEMENT" = 5000 WHERE "ID" = 5100'
+          psql -d openconcerto -v ON_ERROR_STOP=1 -tA -c \
+            'SELECT count(*) FROM "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT" WHERE "ID_COMMANDE_ELEMENT" = 5000' \
+            | grep -qx 1 || fail "le lien ligne de facture -> ligne de commande n a pas ete ecrit"
+          if psql -d openconcerto -v ON_ERROR_STOP=1 -q -c \
+               'UPDATE "OpenConcerto42"."FACTURE_FOURNISSEUR_ELEMENT" SET "ID_COMMANDE_ELEMENT" = 424242 WHERE "ID" = 5100' 2>/dev/null; then
+            fail "la cle etrangere ne rejette pas une ligne de commande inexistante"
+          fi
+          echo "OK : colonne utilisable et cle etrangere appliquee"
