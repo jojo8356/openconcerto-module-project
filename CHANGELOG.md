@@ -40,6 +40,14 @@
 
 ### Verified
 
+- **Reprise exécutée sur un dump réel du client** (restauré à part, base
+  `dump1009`, dump du 09/10) : `attendu-reprise.sql` annonçait **49**, les
+  scripts SQL ont repris 49 documents (27 + 8 + 1 + 1 + 3 + 9 via les tables de
+  transfert) et **154 lignes** de `FACTURE_FOURNISSEUR_ELEMENT`, puis le total
+  est retombé à **0**. Aucune intervention du module : le SQL seul répare.
+  Les 10 blocs de lignes en erreur (`column ID_AFFAIRE does not exist`) sont
+  ceux des tableaux qui n'ont pas la colonne — chacun s'annonce maintenant par
+  son numéro, et le fichier termine par le compte des tableaux ignorés.
 - **Un dump OpenConcerto 1.7.6 réel se restaure proprement dans la stack
   Docker : `pg_restore --exit-on-error` rend le code 0**, sur une base neuve
   (`dump1009`, 398 affaires, 672 factures fournisseur, 234 lignes de

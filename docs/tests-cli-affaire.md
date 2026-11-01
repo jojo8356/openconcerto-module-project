@@ -85,6 +85,13 @@ Sur les 49 contrôles, ceux qui comptent :
 L'ordre compte et il est vérifié : les documents sont repris **avant** les
 lignes, sinon une ligne dont le document était vide ne serait jamais remplie.
 
+Sur un dump réel du client (base restaurée à part), cette chaîne a réparé
+**49 documents et 154 lignes** sans passer par le module, puis le total est
+tombé à 0. Les blocs de lignes en erreur (`column ID_AFFAIRE does not exist`)
+sont ceux des tableaux qui n'ont pas la colonne : chaque bloc s'annonce
+désormais par son numéro (« --- 3/12 BON_RECEPTION_ELEMENT --- »), et le fichier
+termine en comptant les tableaux ignorés.
+
 ### 4. Les quatre fichiers SQL (`tools/oc_sql_sqlite.py`)
 
 Ils sont **générés depuis le code** : `tools/genere_sql_affaire.py` lit
